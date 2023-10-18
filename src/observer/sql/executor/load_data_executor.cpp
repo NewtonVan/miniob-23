@@ -57,6 +57,7 @@ RC insert_record_from_file(Table *table,
 
   std::stringstream deserialize_stream;
   for (int i = 0; i < field_num && RC::SUCCESS == rc; i++) {
+    // why i + sys_field_num ?
     const FieldMeta *field = table->table_meta().field(i + sys_field_num);
 
     std::string &file_value = file_values[i];
@@ -96,6 +97,19 @@ RC insert_record_from_file(Table *table,
       } break;
       case CHARS: {
         record_values[i].set_string(file_value.c_str());
+      } break;
+      case DATES: {
+        deserialize_stream.clear();
+        deserialize_stream.str(file_value);
+
+        int date;
+        bool valid = serialize_date(&date, file_value.c_str());
+        LOG_INFO("aaaaaaaaaaaa");
+        if (!valid) {
+          rc = RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        } else {
+            record_values[i].set_int(date);
+        }
       } break;
       default: {
         errmsg << "Unsupported field type to loading: " << field->type();

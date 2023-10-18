@@ -19,7 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/comparator.h"
 #include "common/lang/string.h"
 
-const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "booleans"};
+const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "dates", "floats", "booleans"};
 
 const char *attr_type_to_string(AttrType type)
 {
@@ -37,6 +37,74 @@ AttrType attr_type_from_string(const char *s)
   }
   return UNDEFINED;
 }
+
+bool deserialize_date(char* out, size_t len_out, int in) {
+  const time_t ONE_DAY = 24 * 60 * 60;
+  tm timeinfo{};
+  // 1970-01-01
+  timeinfo.tm_year = 70;
+  timeinfo.tm_mon = 0;
+  timeinfo.tm_mday = 1;
+  time_t t = mktime(&timeinfo) + in * ONE_DAY;
+  strftime(out, len_out, "%F", localtime(&t));
+  return true;
+}
+
+bool serialize_date(int* out, const char* in) {
+  int year = 0, month = 0, day = 0;
+  enum State { YEAR = 0, MONTH, DAY };
+  State s = YEAR;
+  for (int i = 0; in[i] != '\0'; i++) {
+    if (isdigit(in[i])) {
+      switch (s) {
+        case YEAR:
+          year *= 10;
+          year += in[i] - '0';
+          break;
+        case MONTH:
+          month *= 10;
+          month += in[i] - '0';
+          break;
+        case DAY:
+          day *= 10;
+          day += in[i] - '0';
+          break;
+      }
+    } else if (in[i] == '-') {
+      s = (State)(s + 1);
+    } else {
+      return false;
+    }
+  }
+
+  if (s != DAY || year < 1970 || year > 2038) {
+    return false;
+  }
+
+  tm input_date{};
+  year -= 1900;
+  input_date.tm_year = year;
+  month -= 1;
+  input_date.tm_mon = month;
+  input_date.tm_mday = day;
+  time_t input_time = mktime(&input_date);
+  if (input_time == -1 || input_date.tm_year != year ||
+      input_date.tm_mon != month || input_date.tm_mday != day) {
+    return false;
+  }
+
+  tm origin{};
+  // 1970-01-01
+  origin.tm_year = 70;
+  origin.tm_mon = 0;
+  origin.tm_mday = 1;
+  time_t origin_time = mktime(&origin);
+
+  const time_t ONE_DAY = 24 * 60 * 60;
+  *out = (uint16_t)((input_time - origin_time) / ONE_DAY);
+  return false;
+}
+
 
 Value::Value(int val)
 {
@@ -64,7 +132,7 @@ void Value::set_data(char *data, int length)
     case CHARS: {
       set_string(data, length);
     } break;
-    case INTS: {
+    case INTS: case DATES: {
       num_value_.int_value_ = *(int *)data;
       length_ = length;
     } break;
@@ -115,7 +183,7 @@ void Value::set_string(const char *s, int len /*= 0*/)
 void Value::set_value(const Value &value)
 {
   switch (value.attr_type_) {
-    case INTS: {
+    case INTS: case DATES: {
       set_int(value.get_int());
     } break;
     case FLOATS: {
@@ -161,6 +229,11 @@ std::string Value::to_string() const
     case CHARS: {
       os << str_value_;
     } break;
+    case DATES: {
+      char buf[11];
+      deserialize_date(buf, sizeof(buf), num_value_.int_value_);
+      os << buf;
+    } break;
     default: {
       LOG_WARN("unsupported attr type: %d", attr_type_);
     } break;
@@ -172,7 +245,7 @@ int Value::compare(const Value &other) const
 {
   if (this->attr_type_ == other.attr_type_) {
     switch (this->attr_type_) {
-      case INTS: {
+      case INTS: case DATES: {
         return common::compare_int((void *)&this->num_value_.int_value_, (void *)&other.num_value_.int_value_);
       } break;
       case FLOATS: {
@@ -213,7 +286,7 @@ int Value::get_int() const
         return 0;
       }
     }
-    case INTS: {
+    case INTS: case DATES: {
       return num_value_.int_value_;
     }
     case FLOATS: {
@@ -241,7 +314,7 @@ float Value::get_float() const
         return 0.0;
       }
     } break;
-    case INTS: {
+    case INTS: case DATES: {
       return float(num_value_.int_value_);
     } break;
     case FLOATS: {
@@ -284,7 +357,7 @@ bool Value::get_boolean() const
         return !str_value_.empty();
       }
     } break;
-    case INTS: {
+    case INTS: case DATES: {
       return num_value_.int_value_ != 0;
     } break;
     case FLOATS: {

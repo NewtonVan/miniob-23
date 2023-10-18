@@ -23,6 +23,7 @@ InsertStmt::InsertStmt(Table *table, const Value *values, int value_amount)
 
 RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
 {
+  LOG_DEBUG("sdfsdafadsf");
   const char *table_name = inserts.relation_name.c_str();
   if (nullptr == db || nullptr == table_name || inserts.values.empty()) {
     LOG_WARN("invalid argument. db=%p, table_name=%p, value_num=%d",

@@ -75,6 +75,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         TRX_COMMIT
         TRX_ROLLBACK
         INT_T
+        DATE_T
         STRING_T
         FLOAT_T
         HELP
@@ -338,6 +339,7 @@ number:
     ;
 type:
     INT_T      { $$=INTS; }
+    | DATE_T   { $$=DATES; }
     | STRING_T { $$=CHARS; }
     | FLOAT_T  { $$=FLOATS; }
     ;

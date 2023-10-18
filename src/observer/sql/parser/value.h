@@ -25,12 +25,16 @@ enum AttrType
   UNDEFINED,
   CHARS,          ///< 字符串类型
   INTS,           ///< 整数类型(4字节)
+  DATES,           ///< 日期类型
   FLOATS,         ///< 浮点数类型(4字节)
   BOOLEANS,       ///< boolean类型，当前不是由parser解析出来的，是程序内部使用的
 };
 
 const char *attr_type_to_string(AttrType type);
 AttrType attr_type_from_string(const char *s);
+
+bool deserialize_date(char *out, size_t len_out, int in);
+bool serialize_date(int *out, const char *in);
 
 /**
  * @brief 属性的值
