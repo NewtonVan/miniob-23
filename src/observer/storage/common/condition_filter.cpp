@@ -106,32 +106,31 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
     right.attr_offset = 0;
   }
 
+  LOG_DEBUG("DefaultConditionFilter: %d, %d",right.value.attr_type(), right.value.data());
   // 对 DATE 进行处理
-  if (!right.is_attr && type_right == CHARS && left.is_attr &&
-      type_left == DATES) {
-      
-    type_right = DATES;
-    int date_value;
-    bool rc = serialize_date(&date_value, (const char *)right.value.data());
-    if (rc != true) {
-      // delete date_value;
-      return RC::INVALID_ARGUMENT;
-    }
-    right.value.set_int(date_value);
-    right_value_delete_ = true;
-  }
-  if (!left.is_attr && type_left == CHARS && right.is_attr &&
-      type_right == DATES) {
-    type_left = DATES;
-    int date_value;
-    bool rc = serialize_date(&date_value, (const char *)left.value.data());
-    if (rc != true) {
-      // delete date_value;
-      return RC::INVALID_ARGUMENT;
-    }
-    left.value.set_int(date_value);
-    left_value_delete_ = true;
-  }
+  // if (!right.is_attr && type_right == CHARS && left.is_attr &&
+  //     type_left == DATES) {
+  //   type_right = DATES;
+  //   u_int date_value;
+  //   bool rc = serialize_date(&date_value, (const char *)right.value.data());
+  //   if (rc != true) {
+  //     return RC::INVALID_ARGUMENT;
+  //   }
+  //   right.value.set_type(DATES);
+  //   right.value.set_date(date_value);
+  // }
+
+  // if (!left.is_attr && type_left == CHARS && right.is_attr &&
+  //     type_right == DATES) {
+  //   type_left = DATES;
+  //   u_int date_value;
+  //   bool rc = serialize_date(&date_value, (const char *)left.value.data());
+  //   if (rc != true) {
+  //     return RC::INVALID_ARGUMENT;
+  //   }
+  //   left.value.set_type(DATES);
+  //   left.value.set_date(date_value);
+  // }
 
   // 校验和转换
   //  if (!field_type_compare_compatible_table[type_left][type_right]) {

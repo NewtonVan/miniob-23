@@ -33,8 +33,8 @@ enum AttrType
 const char *attr_type_to_string(AttrType type);
 AttrType attr_type_from_string(const char *s);
 
-bool deserialize_date(char *out, size_t len_out, int in);
-bool serialize_date(int *out, const char *in);
+bool deserialize_date(char *out, size_t len_out, u_int in);
+bool serialize_date(u_int *out, const char *in);
 
 /**
  * @brief 属性的值
@@ -51,6 +51,7 @@ public:
   }
 
   explicit Value(int val);
+  explicit Value(u_int val);
   explicit Value(float val);
   explicit Value(bool val);
   explicit Value(const char *s, int len = 0);
@@ -68,6 +69,7 @@ public:
     this->set_data(const_cast<char *>(data), length);
   }
   void set_int(int val);
+  void set_date(u_int val);
   void set_float(float val);
   void set_boolean(bool val);
   void set_string(const char *s, int len = 0);
@@ -94,6 +96,7 @@ public:
    * 如果当前的类型与期望获取的类型不符，就会执行转换操作
    */
   int get_int() const;
+  u_int get_date() const;
   float get_float() const;
   std::string get_string() const;
   bool get_boolean() const;
@@ -104,6 +107,7 @@ private:
 
   union {
     int int_value_;
+    u_int date_value_;
     float float_value_;
     bool bool_value_;
   } num_value_;

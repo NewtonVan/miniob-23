@@ -82,6 +82,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     const ConditionSqlNode &condition, FilterUnit *&filter_unit)
 {
   LOG_DEBUG("create filter unit");
+  LOG_DEBUG("left_is_attr: %d, right_is_attr: %d", condition.left_is_attr, condition.right_is_attr);
+  LOG_DEBUG("condition.left_value.attr_type(): %d, condition.right_value.attr_type(): %d", condition.left_value.attr_type(), condition.right_value.attr_type());
+  LOG_DEBUG("condition.left_value.data(): %s, condition.right_value.data(): %s", condition.left_value.data(), condition.right_value.data());
+
   RC rc = RC::SUCCESS;
 
   CompOp comp = condition.comp;
@@ -91,8 +95,8 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   }
 
   filter_unit = new FilterUnit;
-  LOG_DEBUG("left_is_attr: %d, right_is_attr: %d", condition.left_is_attr, condition.right_is_attr);
   if (condition.left_is_attr) {
+    LOG_DEBUG("condition.left_is_attr");
     Table *table = nullptr;
     const FieldMeta *field = nullptr;
     rc = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
@@ -104,12 +108,14 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_left(filter_obj);
   } else {
+    LOG_DEBUG("FilterObj filter_obj");
     FilterObj filter_obj;
     filter_obj.init_value(condition.left_value);
     filter_unit->set_left(filter_obj);
   }
-  LOG_DEBUG("left: %s", filter_unit->left().value.data());
+
   if (condition.right_is_attr) {
+    LOG_DEBUG("condition.right_is_attr");
     Table *table = nullptr;
     const FieldMeta *field = nullptr;
     rc = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
@@ -121,35 +127,36 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_right(filter_obj);
   } else {
+    LOG_DEBUG("filter_obj.init_value(condition.right_value)");
     FilterObj filter_obj;
     filter_obj.init_value(condition.right_value);
     filter_unit->set_right(filter_obj);
   }
 
-//  LOG_DEBUG("right: %s", filter_unit->right().value.data());
-//  LOG_DEBUG("left attr type: %d, right attr type: %d", filter_unit->left().value.attr_type(), filter_unit->right().value.attr_type());
-//  if(filter_unit->left().value.attr_type() == DATES && filter_unit->right().value.attr_type() == CHARS) {
-//    int date;
-//    LOG_DEBUG("filter_unit->right().value.data(): %s", filter_unit->right().value.data());
-//    bool valid = serialize_date(&date, filter_unit->right().value.data());
-//    if (!valid) {
-//      LOG_DEBUG("invalid date: %s", filter_unit->right().value.data());
-//      return RC::INVALID_ARGUMENT;
-//    } else {
-//      filter_unit->right().value.set_type(DATES);
-//      filter_unit->right().value.set_int(date);
-//    }
-//  } else if(filter_unit->left().value.attr_type() == CHARS && filter_unit->right().value.attr_type() == DATES) {
-//    int date;
-//    bool valid = serialize_date(&date, filter_unit->left().value.data());
-//    if (!valid) {
-//      LOG_DEBUG("invalid date: %s", filter_unit->left().value.data());
-//      return RC::INVALID_ARGUMENT;
-//    } else {
-//      filter_unit->left().value.set_type(DATES);
-//      filter_unit->left().value.set_int(date);
-//    }
-//  }
+  LOG_DEBUG("filter_unit->left().value.attr_type(): %d, filter_unit->right().value.attr_type(): %d", filter_unit->left().value.attr_type(), filter_unit->right().value.attr_type());
+  LOG_DEBUG("filter_unit->left().value.data(): %s, filter_unit->right().value.data(): %s", filter_unit->left().value.data(), filter_unit->right().value.data());
+  LOG_DEBUG("%s", condition.left_attr.attribute_name.c_str());
+  if(condition.left_attr.attribute_name == "u_date" && filter_unit->right().value.attr_type() == CHARS) {
+    u_int date;
+    bool valid = serialize_date(&date, filter_unit->right().value.data());
+    if (!valid) {
+      LOG_DEBUG("invalid date: %s", filter_unit->right().value.data());
+      return RC::INVALID_ARGUMENT;
+    } else {
+      filter_unit->right().value.set_type(DATES);
+      filter_unit->right().value.set_date(date);
+    }
+  } else if(condition.right_attr.attribute_name == "u_date" && filter_unit->left().value.attr_type() == CHARS && filter_unit->right().value.attr_type() == DATES) {
+    u_int date;
+    bool valid = serialize_date(&date, filter_unit->left().value.data());
+    if (!valid) {
+      LOG_DEBUG("invalid date: %s", filter_unit->left().value.data());
+      return RC::INVALID_ARGUMENT;
+    } else {
+      filter_unit->left().value.set_type(DATES);
+      filter_unit->left().value.set_int(date);
+    }
+  }
 
   filter_unit->set_comp(comp);
 

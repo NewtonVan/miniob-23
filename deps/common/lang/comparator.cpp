@@ -26,6 +26,13 @@ int compare_int(void *arg1, void *arg2)
   return v1 - v2;
 }
 
+int compare_date(void *arg1, void *arg2)
+{
+  u_int v1 = *(u_int *)arg1;
+  u_int v2 = *(u_int *)arg2;
+  return v1 - v2;
+}
+
 int compare_float(void *arg1, void *arg2)
 {
   float v1 = *(float *)arg1;

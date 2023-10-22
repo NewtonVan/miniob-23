@@ -1,0 +1,20 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../deps/common/lang/lower_bound.h
+iterator
+-
+
+/home/hyq/MiniOB/unittest/lower_bound_test.cpp
+vector
+-
+gtest/gtest.h
+/home/hyq/MiniOB/unittest/gtest/gtest.h
+common/lang/lower_bound.h
+/home/hyq/MiniOB/unittest/common/lang/lower_bound.h
+

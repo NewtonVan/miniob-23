@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include <sstream>
+#include <sys/types.h>
 #include "sql/parser/value.h"
 #include "storage/field/field.h"
 #include "common/log/log.h"
@@ -38,7 +39,7 @@ AttrType attr_type_from_string(const char *s)
   return UNDEFINED;
 }
 
-bool deserialize_date(char* out, size_t len_out, int in) {
+bool deserialize_date(char* out, size_t len_out, u_int in) {
   const time_t ONE_DAY = 24 * 60 * 60;
   tm timeinfo{};
   // 1970-01-01
@@ -50,7 +51,7 @@ bool deserialize_date(char* out, size_t len_out, int in) {
   return true;
 }
 
-bool serialize_date(int* out, const char* in) {
+bool serialize_date(u_int* out, const char* in) {
   int year = 0, month = 0, day = 0;
   enum State { YEAR = 0, MONTH, DAY };
   State s = YEAR;
@@ -127,6 +128,11 @@ Value::Value(int val)
   set_int(val);
 }
 
+Value::Value(u_int val)
+{
+  set_date(val);
+}
+
 Value::Value(float val)
 {
   set_float(val);
@@ -148,8 +154,12 @@ void Value::set_data(char *data, int length)
     case CHARS: {
       set_string(data, length);
     } break;
-    case INTS: case DATES: {
+    case INTS: {
       num_value_.int_value_ = *(int *)data;
+      length_ = length;
+    } break;
+    case DATES: {
+      num_value_.date_value_ = *(u_int *)data;
       length_ = length;
     } break;
     case FLOATS: {
@@ -169,6 +179,12 @@ void Value::set_int(int val)
 {
   attr_type_ = INTS;
   num_value_.int_value_ = val;
+  length_ = sizeof(val);
+}
+
+void Value::set_date(u_int val) {
+  attr_type_ = DATES;
+  num_value_.date_value_ = val;
   length_ = sizeof(val);
 }
 
@@ -199,8 +215,11 @@ void Value::set_string(const char *s, int len /*= 0*/)
 void Value::set_value(const Value &value)
 {
   switch (value.attr_type_) {
-    case INTS: case DATES: {
+    case INTS: {
       set_int(value.get_int());
+    } break;
+    case DATES: {
+      set_date(value.get_date());
     } break;
     case FLOATS: {
       set_float(value.get_float());
@@ -247,7 +266,7 @@ std::string Value::to_string() const
     } break;
     case DATES: {
       char buf[11];
-      deserialize_date(buf, sizeof(buf), num_value_.int_value_);
+      deserialize_date(buf, sizeof(buf), num_value_.date_value_);
       os << buf;
     } break;
     default: {
@@ -259,25 +278,15 @@ std::string Value::to_string() const
 
 int Value::compare(const Value &other) const
 {
-  LOG_DEBUG("this->attr_type_=%d, other.attr_type_=%d", this->attr_type_, other.attr_type_);
-  if(this->attr_type_ == DATES && other.attr_type_ == CHARS) {
-    int date;
-    bool valid = serialize_date(&date, other.data());
-    LOG_DEBUG("this->data(): %s", this->data());
-    LOG_DEBUG("other.data(): %s", other.data());
-    LOG_DEBUG("date: %d", date);
-    if (!valid) {
-      LOG_DEBUG("invalid date: %s", other.data());
-      return -2;
-    } else {
-      return common::compare_int((void *)&this->num_value_.int_value_, (void *)&date);
-    }
-  }
+  LOG_DEBUG("Value::compare this->attr_type_=%d, other.attr_type_=%d", this->attr_type_, other.attr_type_);
   if (this->attr_type_ == other.attr_type_) {
     LOG_DEBUG("same type");
     switch (this->attr_type_) {
-      case INTS: case DATES: {
+      case INTS: {
         return common::compare_int((void *)&this->num_value_.int_value_, (void *)&other.num_value_.int_value_);
+      } break;
+      case DATES: {
+        return common::compare_date((void *)&this->num_value_.date_value_, (void *)&other.num_value_.date_value_);
       } break;
       case FLOATS: {
         return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other.num_value_.float_value_);
@@ -317,14 +326,47 @@ int Value::get_int() const
         return 0;
       }
     }
-    case INTS: case DATES: {
+    case INTS: {
       return num_value_.int_value_;
+    }
+    case DATES: {
+      return int(num_value_.date_value_);
     }
     case FLOATS: {
       return (int)(num_value_.float_value_);
     }
     case BOOLEANS: {
       return (int)(num_value_.bool_value_);
+    }
+    default: {
+      LOG_WARN("unknown data type. type=%d", attr_type_);
+      return 0;
+    }
+  }
+  return 0;
+}
+
+u_int Value::get_date() const {
+  switch (attr_type_) {
+    case CHARS: {
+      try {
+        return (u_int)(std::stol(str_value_));
+      } catch (std::exception const &ex) {
+        LOG_TRACE("failed to convert string to number. s=%s, ex=%s", str_value_.c_str(), ex.what());
+        return 0;
+      }
+    }
+    case INTS: {
+      return (u_int)(num_value_.int_value_);
+    }
+    case DATES: {
+      return num_value_.date_value_;
+    }
+    case FLOATS: {
+      return (u_int)(num_value_.float_value_);
+    }
+    case BOOLEANS: {
+      return (u_int)(num_value_.bool_value_);
     }
     default: {
       LOG_WARN("unknown data type. type=%d", attr_type_);
@@ -345,8 +387,11 @@ float Value::get_float() const
         return 0.0;
       }
     } break;
-    case INTS: case DATES: {
+    case INTS:  {
       return float(num_value_.int_value_);
+    } break;
+    case DATES: {
+      return float(num_value_.date_value_);
     } break;
     case FLOATS: {
       return num_value_.float_value_;
@@ -388,8 +433,11 @@ bool Value::get_boolean() const
         return !str_value_.empty();
       }
     } break;
-    case INTS: case DATES: {
+    case INTS: {
       return num_value_.int_value_ != 0;
+    } break;
+    case DATES: {
+      return num_value_.date_value_ != 0;
     } break;
     case FLOATS: {
       float val = num_value_.float_value_;

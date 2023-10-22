@@ -89,31 +89,8 @@ ComparisonExpr::~ComparisonExpr()
 RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &result) const
 {
   RC rc = RC::SUCCESS;
-  LOG_DEBUG("left=%s, right=%s", left.data(), right.data());
-  // if(left.attr_type() == DATES && right.attr_type() == CHARS) {
-  //   int date;
-  //   bool valid = serialize_date(&date, right.data());
-  //   if (!valid) {
-  //     return RC::INVALID_ARGUMENT;
-  //   } else {
-  //     right.set_type(DATES);
-  //     right.set_int(date);
-  //   }
-  // } else if(left.attr_type() == CHARS && right.attr_type() == DATES) {
-  //   int date;
-  //   bool valid = serialize_date(&date, left.data());
-  //   if (!valid) {
-  //     return RC::INVALID_ARGUMENT;
-  //   } else {
-  //     left.set_type(DATES);
-  //     left.set_int(date);
-  //   }
-  // }
 
   int cmp_result = left.compare(right);
-  if(cmp_result == -2) {
-    return RC::INVALID_ARGUMENT;
-  }
   result = false;
   switch (comp_) {
     case EQUAL_TO: {

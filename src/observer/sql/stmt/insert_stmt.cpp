@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/stmt/insert_stmt.h"
 #include "common/log/log.h"
+#include "sql/parser/value.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
@@ -55,16 +56,16 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
     const AttrType field_type = field_meta->type();
     const AttrType value_type = values[i].attr_type();
     if (field_type != value_type) {  // TODO try to convert the value type to field type
-      LOG_DEBUG("SCHEMA_FIELD_TYPE_MISMATCH");
-      if(field_type == DATES) {
-        int date;
+      if(field_type == DATES && value_type == CHARS) {
+        u_int date;
         bool valid = serialize_date(&date, values[i].data());
         LOG_DEBUG("values[i].data(): %s", values[i].data());
         LOG_DEBUG("date: %d", date);
         if (!valid) {
           return RC::INVALID_ARGUMENT;
         } else {
-            mutableValues[i].set_int(date);
+            mutableValues[i].set_type(DATES);
+            mutableValues[i].set_date(date);
         }
       } else {
         LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",

@@ -22,6 +22,7 @@ See the Mulan PSL v2 for more details. */
 #include <functional>
 #include <memory>
 
+#include "sql/parser/value.h"
 #include "storage/record/record_manager.h"
 #include "storage/buffer/disk_buffer_pool.h"
 #include "storage/trx/latch_memo.h"
@@ -66,10 +67,11 @@ public:
   int operator()(const char *v1, const char *v2) const
   {
     switch (attr_type_) {
-      LOG_DEBUG("attr_type_: %d", attr_type_);
-      LOG_DEBUG("v1: %s, v2: %s", v1, v2);
-      case INTS: case DATES: {
+      case INTS: {
         return common::compare_int((void *)v1, (void *)v2);
+      } break;
+      case DATES: {
+        return common::compare_date((void *)v1, (void *)v2);
       } break;
       case FLOATS: {
         return common::compare_float((void *)v1, (void *)v2);
@@ -143,9 +145,16 @@ public:
 
   std::string operator()(const char *v) const
   {
+    LOG_DEBUG("BPLUS INDEX operator() tostring");
     switch (attr_type_) {
-      case INTS: case DATES: {
+      case INTS: {
         return std::to_string(*(int *)v);
+      } break;
+      case DATES: {
+        return std::to_string(*(u_int *)v);
+        // char buf[11];
+        // deserialize_date(buf, sizeof(buf), *(int *)v);
+        // return buf;
       } break;
       case FLOATS: {
         return std::to_string(*(float *)v);
