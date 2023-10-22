@@ -1,5 +1,0 @@
-if(EXISTS "/home/hyq/MiniOB/buld/unittest/log_test[1]_tests.cmake")
-  include("/home/hyq/MiniOB/buld/unittest/log_test[1]_tests.cmake")
-else()
-  add_test(log_test_NOT_BUILT log_test_NOT_BUILT)
-endif()
