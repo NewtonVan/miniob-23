@@ -75,6 +75,8 @@ public:
 private:
   ConDesc left_;
   ConDesc right_;
+  bool left_value_delete_ = false;
+  bool right_value_delete_ = false;
   AttrType attr_type_ = UNDEFINED;
   CompOp comp_op_ = NO_OP;
 };

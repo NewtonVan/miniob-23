@@ -81,6 +81,22 @@ bool serialize_date(int* out, const char* in) {
     return false;
   }
 
+  if (month < 1 || month > 12) {
+    return false;
+  }
+
+  // Check for the number of days in the given month, accounting for leap years
+  int maxDays = 31;
+  if (month == 4 || month == 6 || month == 9 || month == 11) {
+    maxDays = 30;
+  } else if (month == 2) {
+    maxDays = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) ? 29 : 28;
+  }
+
+  if (day < 1 || day > maxDays) {
+    return false;
+  }
+
   tm input_date{};
   year -= 1900;
   input_date.tm_year = year;
@@ -102,7 +118,7 @@ bool serialize_date(int* out, const char* in) {
 
   const time_t ONE_DAY = 24 * 60 * 60;
   *out = (uint16_t)((input_time - origin_time) / ONE_DAY);
-  return false;
+  return true;
 }
 
 
@@ -243,7 +259,22 @@ std::string Value::to_string() const
 
 int Value::compare(const Value &other) const
 {
+  LOG_DEBUG("this->attr_type_=%d, other.attr_type_=%d", this->attr_type_, other.attr_type_);
+  if(this->attr_type_ == DATES && other.attr_type_ == CHARS) {
+    int date;
+    bool valid = serialize_date(&date, other.data());
+    LOG_DEBUG("this->data(): %s", this->data());
+    LOG_DEBUG("other.data(): %s", other.data());
+    LOG_DEBUG("date: %d", date);
+    if (!valid) {
+      LOG_DEBUG("invalid date: %s", other.data());
+      return -2;
+    } else {
+      return common::compare_int((void *)&this->num_value_.int_value_, (void *)&date);
+    }
+  }
   if (this->attr_type_ == other.attr_type_) {
+    LOG_DEBUG("same type");
     switch (this->attr_type_) {
       case INTS: case DATES: {
         return common::compare_int((void *)&this->num_value_.int_value_, (void *)&other.num_value_.int_value_);

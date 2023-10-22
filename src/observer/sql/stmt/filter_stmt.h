@@ -78,6 +78,16 @@ public:
     return right_;
   }
 
+  FilterObj &left()
+  {
+    return left_;
+  }
+
+  FilterObj &right()
+  {
+    return right_;
+  }
+
 private:
   CompOp comp_ = NO_OP;
   FilterObj left_;

@@ -23,7 +23,6 @@ InsertStmt::InsertStmt(Table *table, const Value *values, int value_amount)
 
 RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
 {
-  LOG_DEBUG("sdfsdafadsf");
   const char *table_name = inserts.relation_name.c_str();
   if (nullptr == db || nullptr == table_name || inserts.values.empty()) {
     LOG_WARN("invalid argument. db=%p, table_name=%p, value_num=%d",
@@ -49,15 +48,29 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
   }
 
   // check fields type
+  Value *mutableValues = const_cast<Value *>(values);
   const int sys_field_num = table_meta.sys_field_num();
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field_meta = table_meta.field(i + sys_field_num);
     const AttrType field_type = field_meta->type();
     const AttrType value_type = values[i].attr_type();
     if (field_type != value_type) {  // TODO try to convert the value type to field type
-      LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
-          table_name, field_meta->name(), field_type, value_type);
-      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      LOG_DEBUG("SCHEMA_FIELD_TYPE_MISMATCH");
+      if(field_type == DATES) {
+        int date;
+        bool valid = serialize_date(&date, values[i].data());
+        LOG_DEBUG("values[i].data(): %s", values[i].data());
+        LOG_DEBUG("date: %d", date);
+        if (!valid) {
+          return RC::INVALID_ARGUMENT;
+        } else {
+            mutableValues[i].set_int(date);
+        }
+      } else {
+        LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+            table_name, field_meta->name(), field_type, value_type);
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
     }
   }
 

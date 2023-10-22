@@ -104,9 +104,8 @@ RC insert_record_from_file(Table *table,
 
         int date;
         bool valid = serialize_date(&date, file_value.c_str());
-        LOG_INFO("aaaaaaaaaaaa");
         if (!valid) {
-          rc = RC::SCHEMA_FIELD_TYPE_MISMATCH;
+          rc = RC::INVALID_ARGUMENT;
         } else {
             record_values[i].set_int(date);
         }

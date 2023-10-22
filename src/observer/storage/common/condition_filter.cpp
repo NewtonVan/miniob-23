@@ -35,8 +35,9 @@ DefaultConditionFilter::DefaultConditionFilter()
   right_.attr_length = 0;
   right_.attr_offset = 0;
 }
-DefaultConditionFilter::~DefaultConditionFilter()
-{}
+
+DefaultConditionFilter::~DefaultConditionFilter() {
+}
 
 RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right, AttrType attr_type, CompOp comp_op)
 {
@@ -105,6 +106,33 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
     right.attr_offset = 0;
   }
 
+  // 对 DATE 进行处理
+  if (!right.is_attr && type_right == CHARS && left.is_attr &&
+      type_left == DATES) {
+      
+    type_right = DATES;
+    int date_value;
+    bool rc = serialize_date(&date_value, (const char *)right.value.data());
+    if (rc != true) {
+      // delete date_value;
+      return RC::INVALID_ARGUMENT;
+    }
+    right.value.set_int(date_value);
+    right_value_delete_ = true;
+  }
+  if (!left.is_attr && type_left == CHARS && right.is_attr &&
+      type_right == DATES) {
+    type_left = DATES;
+    int date_value;
+    bool rc = serialize_date(&date_value, (const char *)left.value.data());
+    if (rc != true) {
+      // delete date_value;
+      return RC::INVALID_ARGUMENT;
+    }
+    left.value.set_int(date_value);
+    left_value_delete_ = true;
+  }
+
   // 校验和转换
   //  if (!field_type_compare_compatible_table[type_left][type_right]) {
   //    // 不能比较的两个字段， 要把信息传给客户端
@@ -137,7 +165,8 @@ bool DefaultConditionFilter::filter(const Record &rec) const
   } else {
     right_value.set_value(right_.value);
   }
-
+  LOG_DEBUG("left_value : %s", left_value.data());
+  LOG_DEBUG("right_value : %s", right_value.data());
   int cmp_result = left_value.compare(right_value);
 
   switch (comp_op_) {

@@ -66,6 +66,8 @@ public:
   int operator()(const char *v1, const char *v2) const
   {
     switch (attr_type_) {
+      LOG_DEBUG("attr_type_: %d", attr_type_);
+      LOG_DEBUG("v1: %s, v2: %s", v1, v2);
       case INTS: case DATES: {
         return common::compare_int((void *)v1, (void *)v2);
       } break;
