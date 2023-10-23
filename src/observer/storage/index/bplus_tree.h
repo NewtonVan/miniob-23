@@ -151,7 +151,7 @@ public:
         return std::to_string(*(int *)v);
       } break;
       case DATES: {
-        return std::to_string(*(u_int *)v);
+        return std::to_string(*(int64_t *)v);
         // char buf[11];
         // deserialize_date(buf, sizeof(buf), *(int *)v);
         // return buf;

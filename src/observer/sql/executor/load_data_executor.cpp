@@ -78,7 +78,7 @@ RC insert_record_from_file(Table *table,
 
           rc = RC::SCHEMA_FIELD_TYPE_MISMATCH;
         } else {
-          record_values[i].set_int(int_value);
+          record_values[i].set_date(int_value);
         }
       }
 
@@ -103,7 +103,7 @@ RC insert_record_from_file(Table *table,
         deserialize_stream.clear();
         deserialize_stream.str(file_value);
 
-        u_int date;
+        int64_t date;
         bool valid = serialize_date(&date, file_value.c_str());
         if (!valid) {
           rc = RC::INVALID_ARGUMENT;

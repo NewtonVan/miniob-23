@@ -57,7 +57,7 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
     const AttrType value_type = values[i].attr_type();
     if (field_type != value_type) {  // TODO try to convert the value type to field type
       if(field_type == DATES && value_type == CHARS) {
-        u_int date;
+        int64_t date;
         bool valid = serialize_date(&date, values[i].data());
         LOG_DEBUG("values[i].data(): %s", values[i].data());
         LOG_DEBUG("date: %d", date);

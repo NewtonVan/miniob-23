@@ -28,8 +28,8 @@ int compare_int(void *arg1, void *arg2)
 
 int compare_date(void *arg1, void *arg2)
 {
-  u_int v1 = *(u_int *)arg1;
-  u_int v2 = *(u_int *)arg2;
+  int64_t v1 = *(int64_t *)arg1;
+  int64_t v2 = *(int64_t *)arg2;
   return v1 - v2;
 }
 

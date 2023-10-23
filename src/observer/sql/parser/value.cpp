@@ -39,7 +39,7 @@ AttrType attr_type_from_string(const char *s)
   return UNDEFINED;
 }
 
-bool deserialize_date(char* out, size_t len_out, u_int in) {
+bool deserialize_date(char* out, size_t len_out, int in) {
   const time_t ONE_DAY = 24 * 60 * 60;
   tm timeinfo{};
   // 1970-01-01
@@ -51,7 +51,7 @@ bool deserialize_date(char* out, size_t len_out, u_int in) {
   return true;
 }
 
-bool serialize_date(u_int* out, const char* in) {
+bool serialize_date(int64_t* out, const char* in) {
   int year = 0, month = 0, day = 0;
   enum State { YEAR = 0, MONTH, DAY };
   State s = YEAR;
@@ -78,7 +78,7 @@ bool serialize_date(u_int* out, const char* in) {
     }
   }
 
-  if (s != DAY || year < 1970 || year > 2038) {
+  if (s != DAY) {
     return false;
   }
 
@@ -118,7 +118,7 @@ bool serialize_date(u_int* out, const char* in) {
   time_t origin_time = mktime(&origin);
 
   const time_t ONE_DAY = 24 * 60 * 60;
-  *out = (uint16_t)((input_time - origin_time) / ONE_DAY);
+  *out = (int64_t)((input_time - origin_time) / ONE_DAY);
   return true;
 }
 
@@ -128,7 +128,7 @@ Value::Value(int val)
   set_int(val);
 }
 
-Value::Value(u_int val)
+Value::Value(int64_t val)
 {
   set_date(val);
 }
@@ -159,7 +159,7 @@ void Value::set_data(char *data, int length)
       length_ = length;
     } break;
     case DATES: {
-      num_value_.date_value_ = *(u_int *)data;
+      num_value_.date_value_ = *(int64_t *)data;
       length_ = length;
     } break;
     case FLOATS: {
@@ -182,7 +182,7 @@ void Value::set_int(int val)
   length_ = sizeof(val);
 }
 
-void Value::set_date(u_int val) {
+void Value::set_date(int64_t val) {
   attr_type_ = DATES;
   num_value_.date_value_ = val;
   length_ = sizeof(val);
@@ -346,27 +346,27 @@ int Value::get_int() const
   return 0;
 }
 
-u_int Value::get_date() const {
+int64_t Value::get_date() const {
   switch (attr_type_) {
     case CHARS: {
       try {
-        return (u_int)(std::stol(str_value_));
+        return (int64_t)(std::stol(str_value_));
       } catch (std::exception const &ex) {
         LOG_TRACE("failed to convert string to number. s=%s, ex=%s", str_value_.c_str(), ex.what());
         return 0;
       }
     }
     case INTS: {
-      return (u_int)(num_value_.int_value_);
+      return (int64_t)(num_value_.int_value_);
     }
     case DATES: {
       return num_value_.date_value_;
     }
     case FLOATS: {
-      return (u_int)(num_value_.float_value_);
+      return (int64_t)(num_value_.float_value_);
     }
     case BOOLEANS: {
-      return (u_int)(num_value_.bool_value_);
+      return (int64_t)(num_value_.bool_value_);
     }
     default: {
       LOG_WARN("unknown data type. type=%d", attr_type_);

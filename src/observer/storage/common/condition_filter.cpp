@@ -111,7 +111,7 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
   // if (!right.is_attr && type_right == CHARS && left.is_attr &&
   //     type_left == DATES) {
   //   type_right = DATES;
-  //   u_int date_value;
+  //   int64_t date_value;
   //   bool rc = serialize_date(&date_value, (const char *)right.value.data());
   //   if (rc != true) {
   //     return RC::INVALID_ARGUMENT;
@@ -123,7 +123,7 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
   // if (!left.is_attr && type_left == CHARS && right.is_attr &&
   //     type_right == DATES) {
   //   type_left = DATES;
-  //   u_int date_value;
+  //   int64_t date_value;
   //   bool rc = serialize_date(&date_value, (const char *)left.value.data());
   //   if (rc != true) {
   //     return RC::INVALID_ARGUMENT;

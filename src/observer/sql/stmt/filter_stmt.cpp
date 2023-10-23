@@ -137,7 +137,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   LOG_DEBUG("filter_unit->left().value.data(): %s, filter_unit->right().value.data(): %s", filter_unit->left().value.data(), filter_unit->right().value.data());
   LOG_DEBUG("%s", condition.left_attr.attribute_name.c_str());
   if(condition.left_attr.attribute_name == "u_date" && filter_unit->right().value.attr_type() == CHARS) {
-    u_int date;
+    int64_t date;
     bool valid = serialize_date(&date, filter_unit->right().value.data());
     if (!valid) {
       LOG_DEBUG("invalid date: %s", filter_unit->right().value.data());
@@ -147,14 +147,14 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       filter_unit->right().value.set_date(date);
     }
   } else if(condition.right_attr.attribute_name == "u_date" && filter_unit->left().value.attr_type() == CHARS && filter_unit->right().value.attr_type() == DATES) {
-    u_int date;
+    int64_t date;
     bool valid = serialize_date(&date, filter_unit->left().value.data());
     if (!valid) {
       LOG_DEBUG("invalid date: %s", filter_unit->left().value.data());
       return RC::INVALID_ARGUMENT;
     } else {
       filter_unit->left().value.set_type(DATES);
-      filter_unit->left().value.set_int(date);
+      filter_unit->left().value.set_date(date);
     }
   }
 
