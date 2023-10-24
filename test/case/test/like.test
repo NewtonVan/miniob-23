@@ -1,0 +1,15 @@
+create table t_like(id int, age int, name char, score float);
+insert into t_like values(1,1, 'beau', 1.0);
+insert into t_like values(2,2, 'saf', 1.0);
+
+select * from t_like where name like 'beau';
+
+select * from t_like where name like '_eau';
+
+select * from t_like where name like '%e%';
+
+select * from t_like where name like 'b%';
+
+select * from t_like where name like '%u';
+
+select * from t_like where name like '%eau%';
