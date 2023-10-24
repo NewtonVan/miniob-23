@@ -132,8 +132,8 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_obj.init_value(condition.right_value);
     filter_unit->set_right(filter_obj);
   }
-  const auto lefr_attr_name = default_table->table_meta().field(condition.left_attr.attribute_name.c_str())->type();
-  const auto right_attr_name = default_table->table_meta().field(condition.right_attr.attribute_name.c_str())->type();
+//  const auto lefr_attr_name = default_table->table_meta().field(condition.left_attr.attribute_name.c_str())->type();
+//  const auto right_attr_name = default_table->table_meta().field(condition.right_attr.attribute_name.c_str())->type();
   LOG_DEBUG("filter_unit->left().value.attr_type(): %d, filter_unit->right().value.attr_type(): %d", filter_unit->left().value.attr_type(), filter_unit->right().value.attr_type());
   LOG_DEBUG("filter_unit->left().value.data(): %s, filter_unit->right().value.data(): %s", filter_unit->left().value.data(), filter_unit->right().value.data());
   LOG_DEBUG("%s", condition.left_attr.attribute_name.c_str());
