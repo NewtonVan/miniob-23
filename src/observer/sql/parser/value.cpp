@@ -127,8 +127,13 @@ bool serialize_date(int64_t* out, const char* in) {
 bool PerformLikeComparison(const std::string& left, const std::string& right) {
   if (right.find("%") != std::string::npos || right.find("_") != std::string::npos) {
     std::string pattern = right;
-    std::string regex_pattern = std::regex_replace(pattern, std::regex("%"), ".*");
-    regex_pattern = std::regex_replace(regex_pattern, std::regex("_"), ".");
+    // Escape any regex metacharacters in the pattern.
+    pattern = std::regex_replace(pattern, std::regex("([.\\^$|()\\[\\]{}+*?])"), "\\$1");
+    // Replace % with .* and _ with .
+    pattern = std::regex_replace(pattern, std::regex("%"), ".*");
+    pattern = std::regex_replace(pattern, std::regex("_"), ".");
+    // Create a regex pattern with anchors to ensure exact matching.
+    std::string regex_pattern = "^" + pattern + "$";
     std::regex regex(regex_pattern);
     return std::regex_search(left, regex);
   } else {
