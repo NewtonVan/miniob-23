@@ -37,6 +37,7 @@ AttrType attr_type_from_string(const char *s);
 bool deserialize_date(char *out, size_t len_out, int in);
 bool serialize_date(int64_t *out, const char *in);
 bool PerformLikeComparison(const std::string& left, const std::string& right);
+bool PerformNotLikeComparison(const std::string& left, const std::string& right);
 
 /**
  * @brief 属性的值

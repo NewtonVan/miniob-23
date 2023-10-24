@@ -13,3 +13,5 @@ select * from t_like where name like 'b%';
 select * from t_like where name like '%u';
 
 select * from t_like where name like '%eau%';
+
+select * from t_like where name not like '%eau%';

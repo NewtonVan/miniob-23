@@ -141,6 +141,23 @@ bool PerformLikeComparison(const std::string& left, const std::string& right) {
   }
 }
 
+bool PerformNotLikeComparison(const std::string& left, const std::string& right) {
+  if (right.find("%") != std::string::npos || right.find("_") != std::string::npos) {
+    std::string pattern = right;
+    // Escape any regex metacharacters in the pattern.
+    pattern = std::regex_replace(pattern, std::regex("([.\\^$|()\\[\\]{}+*?])"), "\\$1");
+    // Replace % with .* and _ with .
+    pattern = std::regex_replace(pattern, std::regex("%"), ".*");
+    pattern = std::regex_replace(pattern, std::regex("_"), ".");
+    // Create a regex pattern with anchors to ensure exact matching.
+    std::string regex_pattern = "^" + pattern + "$";
+    std::regex regex(regex_pattern);
+    return !std::regex_search(left, regex);
+  } else {
+    return (left != right);
+  }
+}
+
 Value::Value(int val)
 {
   set_int(val);
