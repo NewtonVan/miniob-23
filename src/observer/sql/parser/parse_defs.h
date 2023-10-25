@@ -140,6 +140,11 @@ struct UpdateSqlNode
   std::vector<ConditionSqlNode> conditions;
 };
 
+enum NullType {
+    NULL_T,
+    NOT_NULL_T,
+};
+
 /**
  * @brief 描述一个属性
  * @ingroup SQLParser
@@ -152,7 +157,10 @@ struct AttrInfoSqlNode
   AttrType    type;       ///< Type of attribute
   std::string name;       ///< Attribute name
   size_t      length;     ///< Length of attribute
+  NullType   null_type;
 };
+
+
 
 /**
  * @brief 描述一个create table语句

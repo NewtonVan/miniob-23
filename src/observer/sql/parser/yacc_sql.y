@@ -76,6 +76,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         TRX_ROLLBACK
         INT_T
         DATE_T
+        NULL
+        NOT
         STRING_T
         FLOAT_T
         HELP
@@ -119,6 +121,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   char *                            string;
   int                               number;
   float                             floats;
+  enum NullType                     nulltype;
 }
 
 %token <number> NUMBER
@@ -129,6 +132,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
 %type <number>              type
+%type <nulltype>            nullable
 %type <condition>           condition
 %type <value>               value
 %type <number>              number
@@ -319,20 +323,22 @@ attr_def_list:
     ;
     
 attr_def:
-    ID type LBRACE number RBRACE 
+    ID type LBRACE number RBRACE nullable
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = $4;
+      $$->null_type = $6;
       free($1);
     }
-    | ID type
+    | ID type nullable
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = 4;
+      $$->null_type = $3;
       free($1);
     }
     ;
@@ -345,6 +351,21 @@ type:
     | STRING_T { $$=CHARS; }
     | FLOAT_T  { $$=FLOATS; }
     ;
+
+nullable:
+    {
+      $$ = NOT_NULL_T;
+    }
+    | NULL
+    {
+      $$ = NULL_T;
+    }
+    | NOT NULL
+    {
+      $$ = NOT_NULL_T;
+    }
+
+
 insert_stmt:        /*insert   语句的语法解析树*/
     INSERT INTO ID VALUES LBRACE value value_list RBRACE 
     {
