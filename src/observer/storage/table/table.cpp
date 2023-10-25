@@ -184,6 +184,10 @@ RC Table::open(const char *meta_file, const char *base_dir)
 
 RC Table::insert_record(Record &record)
 {
+  if (!insert_valid_for_unique_indexes(record.data())) {
+    return RC::RECORD_DUPLICATE_KEY;
+  }
+
   RC rc = RC::SUCCESS;
   rc = record_handler_->insert_record(record.data(), table_meta_.record_size(), &record.rid());
   if (rc != RC::SUCCESS) {
@@ -344,7 +348,7 @@ RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly
   return rc;
 }
 
-RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name)
+RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name, bool unique)
 {
   if (common::is_blank(index_name) || nullptr == field_meta) {
     LOG_INFO("Invalid input arguments, table name is %s, index_name is blank or attribute_name is blank", name());
@@ -352,7 +356,7 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
   }
 
   IndexMeta new_index_meta;
-  RC rc = new_index_meta.init(index_name, *field_meta);
+  RC rc = new_index_meta.init(index_name, *field_meta, unique);
   if (rc != RC::SUCCESS) {
     LOG_INFO("Failed to init IndexMeta in table:%s, index_name:%s, field_name:%s", 
              name(), index_name, field_meta->name());
@@ -364,6 +368,7 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
   std::string index_file = table_index_file(base_dir_.c_str(), name(), index_name);
   rc = index->create(index_file.c_str(), new_index_meta, *field_meta);
   if (rc != RC::SUCCESS) {
+    remove(index_file.c_str());
     delete index;
     LOG_ERROR("Failed to create bplus tree index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));
     return rc;
@@ -385,6 +390,12 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
       LOG_WARN("failed to scan records while creating index. table=%s, index=%s, rc=%s",
                name(), index_name, strrc(rc));
       return rc;
+    }
+    if (unique) {
+      RID g_rid;
+      if (index->get_entry(record.data(), &g_rid) == RC::SUCCESS) {
+        return RC::RECORD_DUPLICATE_KEY;
+      }
     }
     rc = index->insert_entry(record.data(), &record.rid());
     if (rc != RC::SUCCESS) {
@@ -461,6 +472,18 @@ RC Table::insert_entry_of_indexes(const char *record, const RID &rid)
     }
   }
   return rc;
+}
+
+bool Table::insert_valid_for_unique_indexes(const char *record) {
+  for (Index *index : indexes_) {
+    if (index->index_meta().unique()) {
+      RID g_rid;
+      if (index->get_entry(record, &g_rid) == RC::SUCCESS) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 RC Table::delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists)

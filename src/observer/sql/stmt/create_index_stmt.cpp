@@ -46,12 +46,13 @@ RC CreateIndexStmt::create(Db *db, const CreateIndexSqlNode &create_index, Stmt 
     return RC::SCHEMA_FIELD_NOT_EXIST;   
   }
 
+
   Index *index = table->find_index(create_index.index_name.c_str());
   if (nullptr != index) {
     LOG_WARN("index with name(%s) already exists. table name=%s", create_index.index_name.c_str(), table_name);
     return RC::SCHEMA_INDEX_NAME_REPEAT;
   }
 
-  stmt = new CreateIndexStmt(table, field_meta, create_index.index_name);
+  stmt = new CreateIndexStmt(table, field_meta, create_index.index_name, create_index.unique);
   return RC::SUCCESS;
 }
