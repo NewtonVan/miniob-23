@@ -497,7 +497,13 @@ agg_func_call_list:
 
 
 agg_func_call:
-    agg_func LBRACE ID RBRACE
+    agg_func LBRACE '*' RBRACE
+    {
+        $$ = new AggregationFuncSqlNode;
+        $$->func = COUNT_FUNC;
+        $$->attr_name = "*";
+    }
+    | agg_func LBRACE ID RBRACE
     {
         $$ = new AggregationFuncSqlNode;
         $$->func = $1;
