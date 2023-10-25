@@ -76,35 +76,40 @@ extern int yydebug;
     TRX_ROLLBACK = 277,            /* TRX_ROLLBACK  */
     INT_T = 278,                   /* INT_T  */
     DATE_T = 279,                  /* DATE_T  */
-    STRING_T = 280,                /* STRING_T  */
-    FLOAT_T = 281,                 /* FLOAT_T  */
-    HELP = 282,                    /* HELP  */
-    EXIT = 283,                    /* EXIT  */
-    DOT = 284,                     /* DOT  */
-    INTO = 285,                    /* INTO  */
-    VALUES = 286,                  /* VALUES  */
-    FROM = 287,                    /* FROM  */
-    WHERE = 288,                   /* WHERE  */
-    AND = 289,                     /* AND  */
-    SET = 290,                     /* SET  */
-    ON = 291,                      /* ON  */
-    LOAD = 292,                    /* LOAD  */
-    DATA = 293,                    /* DATA  */
-    INFILE = 294,                  /* INFILE  */
-    EXPLAIN = 295,                 /* EXPLAIN  */
-    LIKE = 296,                    /* LIKE  */
-    NOT_LIKE = 297,                /* NOT_LIKE  */
-    EQ = 298,                      /* EQ  */
-    LT = 299,                      /* LT  */
-    GT = 300,                      /* GT  */
-    LE = 301,                      /* LE  */
-    GE = 302,                      /* GE  */
-    NE = 303,                      /* NE  */
-    NUMBER = 304,                  /* NUMBER  */
-    FLOAT = 305,                   /* FLOAT  */
-    ID = 306,                      /* ID  */
-    SSS = 307,                     /* SSS  */
-    UMINUS = 308                   /* UMINUS  */
+    MIN = 280,                     /* MIN  */
+    MAX = 281,                     /* MAX  */
+    AVG = 282,                     /* AVG  */
+    COUNT = 283,                   /* COUNT  */
+    SUM = 284,                     /* SUM  */
+    STRING_T = 285,                /* STRING_T  */
+    FLOAT_T = 286,                 /* FLOAT_T  */
+    HELP = 287,                    /* HELP  */
+    EXIT = 288,                    /* EXIT  */
+    DOT = 289,                     /* DOT  */
+    INTO = 290,                    /* INTO  */
+    VALUES = 291,                  /* VALUES  */
+    FROM = 292,                    /* FROM  */
+    WHERE = 293,                   /* WHERE  */
+    AND = 294,                     /* AND  */
+    SET = 295,                     /* SET  */
+    ON = 296,                      /* ON  */
+    LOAD = 297,                    /* LOAD  */
+    DATA = 298,                    /* DATA  */
+    INFILE = 299,                  /* INFILE  */
+    EXPLAIN = 300,                 /* EXPLAIN  */
+    LIKE = 301,                    /* LIKE  */
+    NOT_LIKE = 302,                /* NOT_LIKE  */
+    EQ = 303,                      /* EQ  */
+    LT = 304,                      /* LT  */
+    GT = 305,                      /* GT  */
+    LE = 306,                      /* LE  */
+    GE = 307,                      /* GE  */
+    NE = 308,                      /* NE  */
+    NUMBER = 309,                  /* NUMBER  */
+    FLOAT = 310,                   /* FLOAT  */
+    ID = 311,                      /* ID  */
+    SSS = 312,                     /* SSS  */
+    UMINUS = 313                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -113,7 +118,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 105 "yacc_sql.y"
+#line 110 "yacc_sql.y"
 
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
@@ -131,8 +136,11 @@ union YYSTYPE
   char *                            string;
   int                               number;
   float                             floats;
+  AggregationFuncSqlNode *          agg_func_call;
+  enum AggFuncType                  agg_func;
+  std::vector<AggregationFuncSqlNode> * agg_func_call_list;
 
-#line 136 "yacc_sql.hpp"
+#line 144 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

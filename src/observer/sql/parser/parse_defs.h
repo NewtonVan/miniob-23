@@ -78,6 +78,25 @@ struct ConditionSqlNode
   Value           right_value;     ///< right-hand side value if right_is_attr = FALSE
 };
 
+
+enum AggFuncType
+{
+    MAX_FUNC = 0,
+    MIN_FUNC,
+    AVG_FUNC,
+    COUNT_FUNC,
+    SUM_FUNC
+};
+
+struct AggregationFuncSqlNode
+{
+  AggFuncType    func;
+  std::string    attr_name;
+};
+
+
+
+
 /**
  * @brief 描述一个select语句
  * @ingroup SQLParser
@@ -92,8 +111,9 @@ struct ConditionSqlNode
 struct SelectSqlNode
 {
   std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
+  std::vector<AggregationFuncSqlNode> agg_funcs;
   std::vector<std::string>        relations;     ///< 查询的表
-  std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
+  std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个
 };
 
 /**
