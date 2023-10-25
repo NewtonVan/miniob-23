@@ -136,7 +136,6 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
 //  const auto right_attr_name = default_table->table_meta().field(condition.right_attr.attribute_name.c_str())->type();
   LOG_DEBUG("filter_unit->left().value.attr_type(): %d, filter_unit->right().value.attr_type(): %d", filter_unit->left().value.attr_type(), filter_unit->right().value.attr_type());
   LOG_DEBUG("filter_unit->left().value.data(): %s, filter_unit->right().value.data(): %s", filter_unit->left().value.data(), filter_unit->right().value.data());
-  LOG_DEBUG("%s", condition.left_attr.attribute_name.c_str());
   if(condition.left_attr.attribute_name == "u_date" && filter_unit->right().value.attr_type() == CHARS) {
     int64_t date;
     bool valid = serialize_date(&date, filter_unit->right().value.data());
@@ -157,6 +156,14 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       filter_unit->left().value.set_type(DATES);
       filter_unit->left().value.set_date(date);
     }
+  }
+
+  if(condition.left_attr.attribute_name == "info" && filter_unit->right().value.attr_type() == CHARS) {
+    filter_unit->right().value.set_type(TEXTS);
+    filter_unit->right().value.set_text(filter_unit->right().value.data());
+  } else if(condition.right_attr.attribute_name == "info" && filter_unit->left().value.attr_type() == CHARS && filter_unit->right().value.attr_type() == TEXTS) {
+    filter_unit->left().value.set_type(TEXTS);
+    filter_unit->left().value.set_text(filter_unit->left().value.data());
   }
 
   filter_unit->set_comp(comp);

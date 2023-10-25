@@ -56,7 +56,7 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
     const AttrType field_type = field_meta->type();
     const AttrType value_type = values[i].attr_type();
     if (field_type != value_type) {  // TODO try to convert the value type to field type
-      if(field_type == DATES && value_type == CHARS) {
+      if(field_type == AttrType::DATES && value_type == AttrType::CHARS) {
         int64_t date;
         bool valid = serialize_date(&date, values[i].data());
         LOG_DEBUG("values[i].data(): %s", values[i].data());
@@ -64,9 +64,11 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
         if (!valid) {
           return RC::INVALID_ARGUMENT;
         } else {
-            mutableValues[i].set_type(DATES);
+            mutableValues[i].set_type(AttrType::DATES);
             mutableValues[i].set_date(date);
         }
+      } else if(field_type == AttrType::TEXTS && value_type == AttrType::CHARS) {
+        mutableValues[i].set_text(values[i].data());
       } else {
         LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
             table_name, field_meta->name(), field_type, value_type);

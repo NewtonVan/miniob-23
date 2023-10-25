@@ -111,10 +111,13 @@ public:
   virtual std::string to_string() const
   {
     std::string str;
+    // 获取tuple中字段的个数
     const int cell_num = this->cell_num();
     for (int i = 0; i < cell_num - 1; i++) {
       Value cell;
+      // 获得字段0的值
       cell_at(i, cell);
+      // 将字段0的值转换为字符串
       str += cell.to_string();
       str += ", ";
     }

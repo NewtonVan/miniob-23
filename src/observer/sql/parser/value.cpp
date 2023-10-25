@@ -26,7 +26,7 @@ const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "dates", "floats",
 
 const char *attr_type_to_string(AttrType type)
 {
-  if (type >= UNDEFINED && type <= FLOATS) {
+  if (type >= UNDEFINED && type <= TEXTS) {
     return ATTR_TYPE_NAME[type];
   }
   return "unknown";
@@ -183,6 +183,12 @@ Value::Value(const char *s, int len /*= 0*/)
   set_string(s, len);
 }
 
+//Value::Value(const char *s, int len , AttrType attr_type)
+//{
+//  set_text(s);
+//}
+
+
 void Value::set_data(char *data, int length)
 {
   switch (attr_type_) {
@@ -200,6 +206,9 @@ void Value::set_data(char *data, int length)
     case FLOATS: {
       num_value_.float_value_ = *(float *)data;
       length_ = length;
+    } break;
+    case TEXTS: {
+      set_text(data);
     } break;
     case BOOLEANS: {
       num_value_.bool_value_ = *(int *)data != 0;
@@ -229,12 +238,22 @@ void Value::set_float(float val)
   num_value_.float_value_ = val;
   length_ = sizeof(val);
 }
+
+void Value::set_text(const char *s)
+{
+    attr_type_ = TEXTS;
+    strncpy(text_value_, s, 4095);
+    text_value_[4095] = '\0'; // 确保字符数组以 null 终止
+    length_ = 4096;
+}
+
 void Value::set_boolean(bool val)
 {
   attr_type_ = BOOLEANS;
   num_value_.bool_value_ = val;
   length_ = sizeof(val);
 }
+
 void Value::set_string(const char *s, int len /*= 0*/)
 {
   attr_type_ = CHARS;
@@ -259,6 +278,9 @@ void Value::set_value(const Value &value)
     case FLOATS: {
       set_float(value.get_float());
     } break;
+    case TEXTS: {
+      set_text(value.get_text());
+    } break;
     case CHARS: {
       set_string(value.get_string().c_str());
     } break;
@@ -277,6 +299,9 @@ const char *Value::data() const
     case CHARS: {
       return str_value_.c_str();
     } break;
+    case TEXTS: {
+      return text_value_;
+    } break;
     default: {
       return (const char *)&num_value_;
     } break;
@@ -292,6 +317,11 @@ std::string Value::to_string() const
     } break;
     case FLOATS: {
       os << common::double_to_str(num_value_.float_value_);
+    } break;
+    case TEXTS: {
+      std::string text = text_value_;
+      std::transform(text.begin(), text.end(), text.begin(), ::toupper);  // 转换为大写
+      os << text;
     } break;
     case BOOLEANS: {
       os << num_value_.bool_value_;
@@ -325,6 +355,12 @@ int Value::compare(const Value &other) const
       } break;
       case FLOATS: {
         return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other.num_value_.float_value_);
+      } break;
+      case TEXTS: {
+        return common::compare_string((void *)this->text_value_,
+            strlen(this->text_value_),
+            (void *)other.text_value_,
+            strlen(other.text_value_));
       } break;
       case CHARS: {
         return common::compare_string((void *)this->str_value_.c_str(),
@@ -440,6 +476,10 @@ float Value::get_float() const
     }
   }
   return 0;
+}
+
+const char* Value::get_text() const {
+  return text_value_;
 }
 
 std::string Value::get_string() const

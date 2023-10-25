@@ -28,6 +28,7 @@ enum AttrType
   INTS,           ///< 整数类型(4字节)
   DATES,           ///< 日期类型
   FLOATS,         ///< 浮点数类型(4字节)
+  TEXTS,          ///< 文本类型
   BOOLEANS,       ///< boolean类型，当前不是由parser解析出来的，是程序内部使用的
 };
 
@@ -58,6 +59,7 @@ public:
   explicit Value(float val);
   explicit Value(bool val);
   explicit Value(const char *s, int len = 0);
+//  explicit Value(const char *s, int len = 4096, AttrType attr_type = TEXTS);
 
   Value(const Value &other) = default;
   Value &operator=(const Value &other) = default;
@@ -74,6 +76,7 @@ public:
   void set_int(int val);
   void set_date(int64_t val);
   void set_float(float val);
+  void set_text(const char *s);
   void set_boolean(bool val);
   void set_string(const char *s, int len = 0);
   void set_value(const Value &value);
@@ -101,6 +104,7 @@ public:
   int get_int() const;
   int64_t get_date() const;
   float get_float() const;
+  const char* get_text() const;
   std::string get_string() const;
   bool get_boolean() const;
 
@@ -115,4 +119,5 @@ private:
     bool bool_value_;
   } num_value_;
   std::string str_value_;
+  char text_value_[4096]; // 新增的用于存储text类型值的成员变量
 };

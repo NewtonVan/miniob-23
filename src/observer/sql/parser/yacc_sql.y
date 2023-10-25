@@ -78,6 +78,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         DATE_T
         STRING_T
         FLOAT_T
+        TEXT_T
         HELP
         EXIT
         DOT //QUOTE
@@ -344,6 +345,7 @@ type:
     | DATE_T   { $$=DATES; }
     | STRING_T { $$=CHARS; }
     | FLOAT_T  { $$=FLOATS; }
+    | TEXT_T   { $$=TEXTS; }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
     INSERT INTO ID VALUES LBRACE value value_list RBRACE 
