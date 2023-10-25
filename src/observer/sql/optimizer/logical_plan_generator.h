@@ -17,12 +17,14 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 
 #include "common/rc.h"
+#include "sql/stmt/update_stmt.h"
 
 class Stmt;
 class CalcStmt;
 class SelectStmt;
 class FilterStmt;
 class InsertStmt;
+class UpdateStmt;
 class DeleteStmt;
 class ExplainStmt;
 class LogicalOperator;
@@ -30,7 +32,7 @@ class LogicalOperator;
 class LogicalPlanGenerator
 {
 public:
-  LogicalPlanGenerator() = default;
+  LogicalPlanGenerator()          = default;
   virtual ~LogicalPlanGenerator() = default;
 
   RC create(Stmt *stmt, std::unique_ptr<LogicalOperator> &logical_operator);
@@ -40,6 +42,7 @@ private:
   RC create_plan(SelectStmt *select_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
   RC create_plan(FilterStmt *filter_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
   RC create_plan(InsertStmt *insert_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
+  RC create_plan(UpdateStmt *update_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
   RC create_plan(DeleteStmt *delete_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
   RC create_plan(ExplainStmt *explain_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
 };
