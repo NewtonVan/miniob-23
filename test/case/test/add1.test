@@ -2,4 +2,6 @@
 CREATE TABLE date_table(id int, u_date date);
 CREATE INDEX index_id on date_table(u_date);
 INSERT INTO date_table VALUES (10,'1950-2-2');
+INSERT INTO date_table VALUES (10,'1950-2-2');
+DELETE from date_table where u_date='1950-2-2';
 SELECT * FROM date_table;
