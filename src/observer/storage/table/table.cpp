@@ -408,7 +408,8 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
 //  }
 
   if (multi) {
-    return RC::SUCCESS;
+    mutil_ = true;
+//    return RC::SUCCESS;
   }
 
   IndexMeta new_index_meta;
@@ -534,14 +535,32 @@ RC Table::insert_entry_of_indexes(const char *record, const RID &rid)
 }
 
 bool Table::insert_valid_for_unique_indexes(const char *record) {
-  for (Index *index : indexes_) {
-    if (index->index_meta().unique()) {
-      RID g_rid;
-      if (index->get_entry(record, &g_rid) == RC::SUCCESS) {
-        return false;
+  if(mutil_) {
+    int num = 0;
+    for (Index *index : indexes_) {
+      if (index->index_meta().unique()) {
+        RID g_rid;
+        if (index->get_entry(record, &g_rid) == RC::SUCCESS) {
+          num++;
+        }
+      }
+    }
+    if(num == indexes_.size()) {
+      return false;
+    } else {
+      return true;
+    }
+  } else {
+    for (Index *index : indexes_) {
+      if (index->index_meta().unique()) {
+        RID g_rid;
+        if (index->get_entry(record, &g_rid) == RC::SUCCESS) {
+          return false;
+        }
       }
     }
   }
+
   return true;
 }
 

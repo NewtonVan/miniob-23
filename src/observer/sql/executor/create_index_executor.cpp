@@ -32,13 +32,14 @@ RC CreateIndexExecutor::execute(SQLStageEvent *sql_event)
   Trx *trx = session->current_trx();
   Table *table = create_index_stmt->table();
   auto rc = RC::SUCCESS;
-//  bool mutil = create_index_stmt->field_metas().size() > 0;
-//  for(int i = 0; i < create_index_stmt->field_metas().size(); i++) {
-    const auto file_meta = create_index_stmt->field_metas()[0];
-    rc = table->create_index(trx, file_meta, create_index_stmt->index_name().c_str(), create_index_stmt->unique());
+  int mutil = create_index_stmt->field_metas().size();
+  for(int i = 0; i < create_index_stmt->field_metas().size(); i++) {
+    const auto file_meta = create_index_stmt->field_metas()[i];
+    const auto index_name = create_index_stmt->index_name() + "_" + file_meta->name();
+    rc = table->create_index(trx, file_meta, index_name.c_str(), create_index_stmt->unique(), mutil);
     if(rc != RC::SUCCESS) {
       return rc;
     }
-//  }
+  }
   return rc;
 }
