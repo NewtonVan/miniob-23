@@ -14,7 +14,9 @@ See the Mulan PSL v2 for more details. */
 #include "storage/record/record_manager.h"
 #include "common/log/log.h"
 #include "common/lang/bitmap.h"
+#include "common/rc.h"
 #include "storage/common/condition_filter.h"
+#include "storage/record/record.h"
 #include "storage/trx/trx.h"
 
 using namespace common;
@@ -24,7 +26,7 @@ static constexpr int PAGE_HEADER_SIZE = (sizeof(PageHeader));
 /**
  * @brief 8字节对齐
  * 注: ceiling(a / b) = floor((a + b - 1) / b)
- * 
+ *
  * @param size 待对齐的字节数
  */
 int align8(int size) { return (size + 7) / 8 * 8; }
@@ -103,7 +105,7 @@ RC RecordPageHandler::init(DiskBufferPool &buffer_pool, PageNum page_num, bool r
   readonly_         = readonly;
   page_header_      = (PageHeader *)(data);
   bitmap_           = data + PAGE_HEADER_SIZE;
-  
+
   LOG_TRACE("Successfully init page_num %d.", page_num);
   return ret;
 }
@@ -149,8 +151,9 @@ RC RecordPageHandler::init_empty_page(DiskBufferPool &buffer_pool, PageNum page_
   page_header_->record_capacity     = page_record_capacity(BP_PAGE_DATA_SIZE, page_header_->record_size);
   page_header_->first_record_offset = align8(PAGE_HEADER_SIZE + page_bitmap_size(page_header_->record_capacity));
   this->fix_record_capacity();
-  ASSERT(page_header_->first_record_offset + 
-         page_header_->record_capacity * page_header_->record_size <= BP_PAGE_DATA_SIZE, "Record overflow the page size");
+  ASSERT(page_header_->first_record_offset + page_header_->record_capacity * page_header_->record_size <=
+             BP_PAGE_DATA_SIZE,
+      "Record overflow the page size");
 
   bitmap_ = frame_->data() + PAGE_HEADER_SIZE;
   memset(bitmap_, 0, page_bitmap_size(page_header_->record_capacity));
@@ -205,6 +208,39 @@ RC RecordPageHandler::insert_record(const char *data, RID *rid)
   }
 
   // LOG_TRACE("Insert record. rid page_num=%d, slot num=%d", get_page_num(), index);
+  return RC::SUCCESS;
+}
+
+RC RecordPageHandler::update_record(Record &record, Value &value, int offset, int len)
+{
+  ASSERT(readonly_ == false, "cannot update record into page while the page is readonly");
+
+  const RID &rid = record.rid();
+
+  if (rid.slot_num >= page_header_->record_capacity) {
+    LOG_ERROR("Invalid slot_num %d, exceed page's record capacity, page_num %d.", rid.slot_num, frame_->page_num());
+    return RC::INVALID_ARGUMENT;
+  }
+
+  Bitmap bitmap(bitmap_, page_header_->record_capacity);
+  if (!bitmap.get_bit(rid.slot_num)) {
+    LOG_DEBUG("Invalid slot_num %d, slot is empty, page_num %d.", rid.slot_num, frame_->page_num());
+    return RC::RECORD_NOT_EXIST;
+  }
+
+  // 获取原数据
+  char *src_data = get_record_data(rid.slot_num);
+  // TODO(chen): store & update bitmap in record
+  // get specific field
+  char       *change_loc = (char *)((uint64_t)(src_data) + offset);
+  const char *data       = value.data();
+  if (len == -1) {
+    len = value.length();
+  }
+  // TODO(chen): adapt variable length
+  memcpy(change_loc, data, len);
+
+  frame_->mark_dirty();
   return RC::SUCCESS;
 }
 
@@ -406,6 +442,22 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
 
   // 找到空闲位置
   return record_page_handler.insert_record(data, rid);
+}
+
+RC RecordFileHandler::update_record(Record &record, Value &value, int offset, int len)
+{
+  RC rc = RC::SUCCESS;
+
+  RecordPageHandler page_handler;
+  const RID        &rid = record.rid();
+  if ((rc = page_handler.init(*disk_buffer_pool_, rid.page_num, false)) != RC::SUCCESS) {
+    LOG_ERROR("Failed to init record_page_handler. page_number=%d. rc=%s", rid.page_num, strrc(rc));
+    return rc;
+  }
+
+  rc = page_handler.update_record(record, value, offset, len);
+
+  return rc;
 }
 
 RC RecordFileHandler::recover_insert_record(const char *data, int record_size, const RID &rid)
