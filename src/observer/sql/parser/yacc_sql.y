@@ -61,6 +61,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         TABLES
         INDEX
         CALC
+        INNER
+        JOIN
         SELECT
         DESC
         SHOW
@@ -116,6 +118,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  JoinSqlNode *                     join_relation;
+  GeneralRelationSqlNode *          general_relation_sql_node;
   char *                            string;
   int                               number;
   float                             floats;
@@ -139,8 +143,10 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <value_list>          value_list
 %type <condition_list>      where
 %type <condition_list>      condition_list
+%type <condition_list>      join_condition
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
+%type <join_relation>       join
 %type <rel_attr_list>       attr_list
 %type <expression>          expression
 %type <expression_list>     expression_list
@@ -439,6 +445,22 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       free($4);
     }
+    | SELECT select_attr FROM join where
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes.swap(*$2);
+        delete $2;
+      }
+      if ($4 != nullptr) {
+        $$->selection.join_relation = $4;
+      }
+
+      if ($5 != nullptr) {
+        $$->selection.conditions.swap(*$5);
+        delete $5;
+      }
+    }
     ;
 calc_stmt:
     CALC expression_list
@@ -558,6 +580,50 @@ rel_list:
 
       $$->push_back($2);
       free($2);
+    }
+    ;
+join:
+    ID INNER JOIN ID join_condition
+    {
+      $$ = new JoinSqlNode;
+      $$->join_type = JT_INNER;
+
+      $$->left->type = REL_TABLE;
+      $$->left->relation = $1;
+      $$->right->type = REL_TABLE;
+      $$->right->relation = $4;
+      delete $1;
+      delete $4;
+
+      if ($5 != nullptr) {
+        $$->conditions.swap(*$5);
+        delete $5;
+      }
+    }
+    | join INNER JOIN ID join_condition
+    {
+      $$ = new JoinSqlNode;
+      $$->join_type = JT_INNER;
+ 
+      $$->left->type = REL_JOIN;
+      $$->left->relation = $1;
+      $$->right->type = REL_TABLE;
+      $$->right->relation = $4;
+      delete $4;
+
+      if ($5 != nullptr) {
+        $$->conditions.swap(*$5);
+        delete $5;
+      }
+    }
+    ;
+join_condition:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | ON condition_list {
+      $$ = $2;
     }
     ;
 where:
