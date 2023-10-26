@@ -453,9 +453,8 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $2;
       }
 
-      $$->selection.join_relation = new JoinSqlNode(JT_INNER, $4, new GeneralRelationSqlNode($7), *$8);
+      $$->selection.join_relation = new JoinSqlNode(JT_INNER, $4, new GeneralRelationSqlNode($7), std::move(*$8));
       delete $8;
-
 
       if ($9 != nullptr) {
         $$->selection.conditions.swap(*$9);
@@ -584,8 +583,6 @@ rel_list:
       free($2);
     }
     ;
-
-
 general_rel:
     /* primitive table*/
     ID
@@ -595,14 +592,12 @@ general_rel:
     }
     | general_rel INNER JOIN ID join_condition
     {
-       $$ = new GeneralRelationSqlNode;
-       $$->type = REL_JOIN;
-       $$->relation = new JoinSqlNode(JT_INNER, $1, new GeneralRelationSqlNode($4), *$5);
+       $$ = new GeneralRelationSqlNode(
+        new JoinSqlNode(JT_INNER, $1, new GeneralRelationSqlNode($4), std::move(*$5))
+       );
        free($4);
     }
     ;
-
-
 join_condition:
     /* empty */
     {
@@ -612,9 +607,6 @@ join_condition:
       $$ = $2;
     }
     ;
-
-
-
 where:
     /* empty */
     {
