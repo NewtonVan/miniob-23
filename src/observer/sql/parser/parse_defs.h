@@ -23,6 +23,8 @@ See the Mulan PSL v2 for more details. */
 
 class Expression;
 
+#define MAX_NUM 20
+
 /**
  * @defgroup SQLParser SQL Parser 
  */
@@ -184,7 +186,8 @@ struct CreateIndexSqlNode
 {
   std::string index_name;      ///< Index name
   std::string relation_name;   ///< Relation name
-  std::string attribute_name;  ///< Attribute name
+//  std::string attribute_name;  ///< Attribute name
+  std::vector<std::string> attribute_names;
   bool unique;
 };
 

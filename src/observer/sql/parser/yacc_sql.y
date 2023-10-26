@@ -113,6 +113,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   Value *                           value;
   enum CompOp                       comp;
   RelAttrSqlNode *                  rel_attr;
+  std::vector<std::string> *        attr_names;
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
   Expression *                      expression;
@@ -139,6 +140,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <number>              number
 %type <comp>                comp_op
 %type <rel_attr>            rel_attr
+%type <attr_names>          attr_name_list
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
 %type <value_list>          value_list
@@ -265,29 +267,60 @@ desc_table_stmt:
     ;
 
 create_index_stmt:    /*create index 语句的语法解析树*/
-    CREATE INDEX ID ON ID LBRACE ID RBRACE
+    CREATE INDEX ID ON ID LBRACE ID attr_name_list RBRACE
     {
       $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
       CreateIndexSqlNode &create_index = $$->create_index;
       create_index.index_name = $3;
       create_index.relation_name = $5;
-      create_index.attribute_name = $7;
+
+      std::vector<std::string> *attribute_names = $8;
+      if (attribute_names != nullptr) {
+         create_index.attribute_names.swap(*attribute_names);
+      }
+      create_index.attribute_names.emplace_back($7);
+      std::reverse(create_index.attribute_names.begin(), create_index.attribute_names.end());
+
       create_index.unique = false;
       free($3);
       free($5);
       free($7);
     }
-    | CREATE UNIQUE INDEX ID ON ID LBRACE ID RBRACE
+    | CREATE UNIQUE INDEX ID ON ID LBRACE ID attr_name_list RBRACE
     {
       $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
       CreateIndexSqlNode &create_index = $$->create_index;
       create_index.index_name = $4;
       create_index.relation_name = $6;
-      create_index.attribute_name = $8;
+
+      std::vector<std::string> *attribute_names = $9;
+      if (attribute_names != nullptr) {
+          create_index.attribute_names.swap(*attribute_names);
+      }
+      create_index.attribute_names.emplace_back($8);
+      std::reverse(create_index.attribute_names.begin(), create_index.attribute_names.end());
+
       create_index.unique = true;
       free($4);
       free($6);
       free($8);
+    }
+    ;
+
+attr_name_list:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | COMMA ID attr_name_list
+    {
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<std::string>;
+      }
+      $$->emplace_back($2);
+      delete $2;
     }
     ;
 

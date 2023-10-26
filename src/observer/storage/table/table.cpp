@@ -395,11 +395,20 @@ RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly
   return rc;
 }
 
-RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name, bool unique)
+RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name, bool unique, bool multi)
 {
   if (common::is_blank(index_name) || nullptr == field_meta) {
     LOG_INFO("Invalid input arguments, table name is %s, index_name is blank or attribute_name is blank", name());
     return RC::INVALID_ARGUMENT;
+  }
+
+//  if (table_meta_.index(index_name) != nullptr ||
+//      table_meta_.find_index_by_field((field_meta->name())) || !multi) {
+//      return RC::SCHEMA_INDEX_NAME_REPEAT;
+//  }
+
+  if (multi) {
+    return RC::SUCCESS;
   }
 
   IndexMeta new_index_meta;
