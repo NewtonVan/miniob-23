@@ -96,6 +96,8 @@ struct JoinSqlNode
   GeneralRelationSqlNode       *left;
   GeneralRelationSqlNode       *right;
   std::vector<ConditionSqlNode> conditions;
+  JoinSqlNode(JoinType join_type,GeneralRelationSqlNode* left, GeneralRelationSqlNode* right, std::vector<ConditionSqlNode> conditions): join_type(join_type),
+    left(left), right(right), conditions(conditions) {};
 };
 
 // TODO(chen): Use union to contain table(string)
@@ -109,6 +111,9 @@ struct GeneralRelationSqlNode
 {
   GeneralRelationType                      type;
   std::variant<std::string, JoinSqlNode *> relation;
+  GeneralRelationSqlNode() = default;
+  GeneralRelationSqlNode(GeneralRelationType type, JoinSqlNode * relation): type(type), relation(relation) {};
+  explicit GeneralRelationSqlNode(char* rel):type(REL_TABLE), relation(std::string(rel)) {};
 };
 
 /**

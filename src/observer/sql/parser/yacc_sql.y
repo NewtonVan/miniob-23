@@ -137,6 +137,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <value>               value
 %type <number>              number
 %type <comp>                comp_op
+%type <general_relation_sql_node> general_rel;
 %type <rel_attr>            rel_attr
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
@@ -146,7 +147,6 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <condition_list>      join_condition
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
-%type <join_relation>       join
 %type <rel_attr_list>       attr_list
 %type <expression>          expression
 %type <expression_list>     expression_list
@@ -445,21 +445,23 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       free($4);
     }
-    | SELECT select_attr FROM join where
+    | SELECT select_attr FROM general_rel INNER JOIN ID join_condition where
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
         $$->selection.attributes.swap(*$2);
         delete $2;
       }
-      if ($4 != nullptr) {
-        $$->selection.join_relation = $4;
-      }
 
-      if ($5 != nullptr) {
-        $$->selection.conditions.swap(*$5);
-        delete $5;
+      $$->selection.join_relation = new JoinSqlNode(JT_INNER, $4, new GeneralRelationSqlNode($7), *$8);
+      delete $8;
+
+
+      if ($9 != nullptr) {
+        $$->selection.conditions.swap(*$9);
+        delete $9;
       }
+      free($7);
     }
     ;
 calc_stmt:
@@ -582,41 +584,25 @@ rel_list:
       free($2);
     }
     ;
-join:
-    ID INNER JOIN ID join_condition
+
+
+general_rel:
+    /* primitive table*/
+    ID
     {
-      $$ = new JoinSqlNode;
-      $$->join_type = JT_INNER;
-
-      $$->left->type = REL_TABLE;
-      $$->left->relation = $1;
-      $$->right->type = REL_TABLE;
-      $$->right->relation = $4;
-      delete $1;
-      delete $4;
-
-      if ($5 != nullptr) {
-        $$->conditions.swap(*$5);
-        delete $5;
-      }
+       $$ = new GeneralRelationSqlNode($1);
+       free($1);
     }
-    | join INNER JOIN ID join_condition
+    | general_rel INNER JOIN ID join_condition
     {
-      $$ = new JoinSqlNode;
-      $$->join_type = JT_INNER;
- 
-      $$->left->type = REL_JOIN;
-      $$->left->relation = $1;
-      $$->right->type = REL_TABLE;
-      $$->right->relation = $4;
-      delete $4;
-
-      if ($5 != nullptr) {
-        $$->conditions.swap(*$5);
-        delete $5;
-      }
+       $$ = new GeneralRelationSqlNode;
+       $$->type = REL_JOIN;
+       $$->relation = new JoinSqlNode(JT_INNER, $1, new GeneralRelationSqlNode($4), *$5);
+       free($4);
     }
     ;
+
+
 join_condition:
     /* empty */
     {
@@ -626,6 +612,9 @@ join_condition:
       $$ = $2;
     }
     ;
+
+
+
 where:
     /* empty */
     {
