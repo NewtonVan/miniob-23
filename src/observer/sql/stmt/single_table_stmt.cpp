@@ -20,10 +20,6 @@ RC SingleTableStmt::create(Db *db, std::vector<Field> &all_fields, GeneralRelati
     }
   }
 
-  if (query_fields.empty()) {
-    return RC::SCHEMA_FIELD_MISSING;
-  }
-
   SingleTableStmt *table = new SingleTableStmt();
   table->table_name_     = table_name;
   table->table_          = db->find_table(table_name.c_str());
