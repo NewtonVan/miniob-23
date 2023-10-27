@@ -33,7 +33,7 @@ RC ParseStage::handle_request(SQLStageEvent *sql_event)
   
   SqlResult *sql_result = sql_event->session_event()->sql_result();
   const std::string &sql = sql_event->sql();
-
+  sql_debug("gggggggggg: %s \n", sql.c_str());
   ParsedSqlResult parsed_sql_result;
 
   parse(sql.c_str(), &parsed_sql_result);

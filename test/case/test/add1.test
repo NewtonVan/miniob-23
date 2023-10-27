@@ -5,3 +5,29 @@ INSERT INTO date_table VALUES (10,'1950-2-2');
 INSERT INTO date_table VALUES (10,'1950-2-2');
 DELETE from date_table where u_date='1950-2-2';
 SELECT * FROM date_table;
+
+CREATE TABLE multi_index3(id int, col1 int, col2 float, col3 char(10), col4 date, col5 int, col6 int);
+CREATE INDEX i_3_i1 ON multi_index3(id,col1);
+insert into multi_index3 VALUES (5, 2, 24.09, 'LCXZCUTEW', '2005-05-11', 1, 9);
+insert into multi_index3 VALUES (5, 1, 24.09, 'LCXZCUTEW', '2005-05-11', 1, 9);
+insert into multi_index3 VALUES (5, 1, 24.09, 'LCXZCUEW', '2005-05-11', 10, 9);
+insert into multi_index3 VALUES (5, 1, 24.09, 'LCXZCUEW', '2005-05-11', 10, 9);
+insert into multi_index3 VALUES (6, 2, 47.65, 'Q50H7J', '2013-11-03', 8, 59);
+insert into multi_index3 VALUES (4, 2, 27.93, 'AG', '2007-01-19', 9, 99);
+
+CREATE INDEX i_3_14 ON multi_index3(col1,col4);
+insert into multi_index3 VALUES (3, 1, 39.95, 'UWHBU', '2022-11-19', 7, 33);
+insert into multi_index3 VALUES (7, 2, 14.51, '82NW', '2020-10-08', 1, 10);
+insert into multi_index3 VALUES (4, 1, 24.43, 'QT02VEFFK', '2002-10-25', 8, 75);
+insert into multi_index3 VALUES (1, 2, 26.02, '5KMF', '2014-01-04', 3, 94);
+
+DELETE FROM multi_index3 WHERE id = 2;
+DELETE FROM multi_index3 WHERE id = 8;
+DELETE FROM multi_index3 WHERE col3 = 'BF5SQID';
+
+DELETE FROM multi_index3 WHERE id = 5 and col1 = 1;
+DELETE FROM multi_index3 WHERE id = 8 and col1 = 2;
+DELETE FROM multi_index3 WHERE id = 8 and col1 = 2;
+DELETE FROM multi_index3 WHERE id = 5 and col1 = 2;
+
+SELECT * FROM multi_index3;
