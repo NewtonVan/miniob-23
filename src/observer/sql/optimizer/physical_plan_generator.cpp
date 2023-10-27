@@ -105,9 +105,9 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
       auto comparison_expr = static_cast<ComparisonExpr *>(expr.get());
       // 简单处理，就找等值查询
       // 等值查询才走索引，其他的直接查找
-//      if (comparison_expr->comp() != EQUAL_TO) {
-//        continue;
-//      }
+      if (comparison_expr->comp() != EQUAL_TO) {
+        continue;
+      }
 
       unique_ptr<Expression> &left_expr  = comparison_expr->left();
       unique_ptr<Expression> &right_expr = comparison_expr->right();
