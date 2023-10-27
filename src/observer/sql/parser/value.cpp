@@ -244,7 +244,7 @@ void Value::set_text(const char *s)
     attr_type_ = TEXTS;
     strncpy(text_value_, s, 4096);
     text_value_[4096] = '\0'; // 确保字符数组以 null 终止
-    length_ = 4097;
+    length_ = 4096;
 }
 
 void Value::set_boolean(bool val)
