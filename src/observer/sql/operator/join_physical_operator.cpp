@@ -49,7 +49,7 @@ RC NestedLoopJoinPhysicalOperator::next()
     rc = join_condition_->get_value(*current_tuple(), value);
 
     if (rc != RC::SUCCESS) {
-      continue;
+      return rc;
     }
 
     if (value.get_boolean()) {
