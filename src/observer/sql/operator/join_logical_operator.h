@@ -14,23 +14,23 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include "sql/expr/expression.h"
 #include "sql/operator/logical_operator.h"
+#include <memory>
 
 /**
  * @brief 连接算子
  * @ingroup LogicalOperator
  * @details 连接算子，用于连接两个表。对应的物理算子或者实现，可能有NestedLoopJoin，HashJoin等等。
  */
-class JoinLogicalOperator : public LogicalOperator 
+class JoinLogicalOperator : public LogicalOperator
 {
 public:
   JoinLogicalOperator() = default;
+  JoinLogicalOperator(std::unique_ptr<Expression> expression);
   virtual ~JoinLogicalOperator() = default;
 
-  LogicalOperatorType type() const override
-  {
-    return LogicalOperatorType::JOIN;
-  }
+  LogicalOperatorType type() const override { return LogicalOperatorType::JOIN; }
 
 private:
 };

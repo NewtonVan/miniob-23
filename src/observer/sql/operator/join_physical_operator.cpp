@@ -13,9 +13,15 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/operator/join_physical_operator.h"
+#include "common/rc.h"
+#include "sql/expr/expression.h"
+#include <memory>
 
-NestedLoopJoinPhysicalOperator::NestedLoopJoinPhysicalOperator()
-{}
+NestedLoopJoinPhysicalOperator::NestedLoopJoinPhysicalOperator(std::unique_ptr<Expression> join_condition)
+    : join_condition_(std::move(join_condition))
+{
+  ASSERT(join_condition_->value_type() == BOOLEANS, "join_condition's expression should be BOOLEAN type");
+}
 
 RC NestedLoopJoinPhysicalOperator::open(Trx *trx)
 {
@@ -24,21 +30,40 @@ RC NestedLoopJoinPhysicalOperator::open(Trx *trx)
     return RC::INTERNAL;
   }
 
-  RC rc = RC::SUCCESS;
-  left_ = children_[0].get();
-  right_ = children_[1].get();
+  RC rc         = RC::SUCCESS;
+  left_         = children_[0].get();
+  right_        = children_[1].get();
   right_closed_ = true;
-  round_done_ = true;
+  round_done_   = true;
 
-  rc = left_->open(trx);
+  rc   = left_->open(trx);
   trx_ = trx;
   return rc;
 }
 
 RC NestedLoopJoinPhysicalOperator::next()
 {
-  bool left_need_step = (left_tuple_ == nullptr);
   RC rc = RC::SUCCESS;
+  while ((rc = inner_next()) == RC::SUCCESS) {
+    Value value;
+    rc = join_condition_->get_value(*current_tuple(), value);
+
+    if (rc != RC::SUCCESS) {
+      continue;
+    }
+
+    if (value.get_boolean()) {
+      return rc;
+    }
+  }
+
+  return rc;
+}
+
+RC NestedLoopJoinPhysicalOperator::inner_next()
+{
+  bool left_need_step = (left_tuple_ == nullptr);
+  RC   rc             = RC::SUCCESS;
   if (round_done_) {
     left_need_step = true;
   } else {
@@ -83,15 +108,12 @@ RC NestedLoopJoinPhysicalOperator::close()
   return rc;
 }
 
-Tuple *NestedLoopJoinPhysicalOperator::current_tuple()
-{
-  return &joined_tuple_;
-}
+Tuple *NestedLoopJoinPhysicalOperator::current_tuple() { return &joined_tuple_; }
 
 RC NestedLoopJoinPhysicalOperator::left_next()
 {
   RC rc = RC::SUCCESS;
-  rc = left_->next();
+  rc    = left_->next();
   if (rc != RC::SUCCESS) {
     return rc;
   }
@@ -106,7 +128,7 @@ RC NestedLoopJoinPhysicalOperator::right_next()
   RC rc = RC::SUCCESS;
   if (round_done_) {
     if (!right_closed_) {
-      rc = right_->close();
+      rc            = right_->close();
       right_closed_ = true;
       if (rc != RC::SUCCESS) {
         return rc;
