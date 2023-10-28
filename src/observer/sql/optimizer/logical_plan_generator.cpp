@@ -197,6 +197,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
   if (predicate_oper) {
     if (table_oper) {
       predicate_oper->add_child(std::move(table_oper));
+      // TODO(chen): push down
     }
     project_oper->add_child(std::move(predicate_oper));
   } else {

@@ -52,7 +52,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   std::unordered_map<std::string, Table *> table_map;
   if (select_sql.join_relation != nullptr) {
     std::unique_ptr<GeneralRelationSqlNode> rel = std::make_unique<GeneralRelationSqlNode>(select_sql.join_relation);
-    collectJoinTables(db, rel.get(), tables, table_map);
+    if (RC::SUCCESS != collectJoinTables(db, rel.get(), tables, table_map)) {
+      LOG_WARN("invalid argument. tables in join not exist");
+      return RC::SCHEMA_TABLE_NOT_EXIST;
+    }
   } else {
     for (size_t i = 0; i < select_sql.relations.size(); i++) {
       const char *table_name = select_sql.relations[i].c_str();
@@ -156,7 +159,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   Stmt *join_stmt = nullptr;
   if (select_sql.join_relation != nullptr) {
     std::unique_ptr<GeneralRelationSqlNode> rel = std::make_unique<GeneralRelationSqlNode>(select_sql.join_relation);
-    JoinStmt::create(db, table_map, query_fields, rel.get(), join_stmt);
+    rc                                          = JoinStmt::create(db, table_map, query_fields, rel.get(), join_stmt);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot construct join stmt");
+      return rc;
+    }
   }
 
   // everything alright

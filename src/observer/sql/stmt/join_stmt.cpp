@@ -38,6 +38,7 @@ RC JoinStmt::create(Db *db, std::unordered_map<std::string, Table *> &table_map,
   if (join->left->type == REL_TABLE) {
     rc = SingleTableStmt::create(db, all_fields, join->left, left);
     if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot construct left table stmt, %s", std::get<std::string>(join->left->relation).c_str());
       return rc;
     }
   } else {
@@ -51,6 +52,7 @@ RC JoinStmt::create(Db *db, std::unordered_map<std::string, Table *> &table_map,
   if (join->right->type == REL_TABLE) {
     rc = SingleTableStmt::create(db, all_fields, join->right, right);
     if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot construct right table stmt, %s", std::get<std::string>(join->left->relation).c_str());
       return rc;
     }
   } else {
@@ -62,6 +64,10 @@ RC JoinStmt::create(Db *db, std::unordered_map<std::string, Table *> &table_map,
 
   FilterStmt *join_condition = nullptr;
   rc = FilterStmt::create(db, nullptr, &table_map, join->conditions.data(), join->conditions.size(), join_condition);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("cannot construct filter stmt");
+    return rc;
+  }
 
   stmt = new JoinStmt(left, right, join_condition);
 
