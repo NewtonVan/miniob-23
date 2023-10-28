@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 #include <vector>
 #include <string>
+#include <variant>
 
 #include "sql/parser/value.h"
 
@@ -83,6 +84,45 @@ struct ConditionSqlNode
 };
 
 /**
+ * Describe join
+ */
+struct GeneralRelationSqlNode;
+
+enum JoinType
+{
+  JT_INNER = 0,
+};
+
+// TODO(chen): join type, current inner join
+struct JoinSqlNode
+{
+  JoinType                      join_type;
+  GeneralRelationSqlNode       *left;
+  GeneralRelationSqlNode       *right;
+  std::vector<ConditionSqlNode> conditions;
+
+  explicit JoinSqlNode(JoinType join_type, GeneralRelationSqlNode *left, GeneralRelationSqlNode *right,
+      std::vector<ConditionSqlNode> &&conditions)
+      : join_type(join_type), left(left), right(right), conditions(conditions){};
+};
+
+// TODO(chen): Use union to contain table(string)
+enum GeneralRelationType
+{
+  REL_TABLE = 0,
+  REL_JOIN,
+};
+
+struct GeneralRelationSqlNode
+{
+  GeneralRelationType                      type;
+  std::variant<std::string, JoinSqlNode *> relation;
+
+  explicit GeneralRelationSqlNode(JoinSqlNode *relation) : type(REL_JOIN), relation(relation){};
+  explicit GeneralRelationSqlNode(char *rel) : type(REL_TABLE), relation(std::string(rel)){};
+};
+
+/**
  * @brief 描述一个select语句
  * @ingroup SQLParser
  * @details 一个正常的select语句描述起来比这个要复杂很多，这里做了简化。
@@ -95,9 +135,10 @@ struct ConditionSqlNode
 
 struct SelectSqlNode
 {
-  std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
-  std::vector<std::string>        relations;     ///< 查询的表
-  std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
+  std::vector<RelAttrSqlNode>   attributes;               ///< attributes in select clause
+  std::vector<std::string>      relations;                ///< 查询的表
+  std::vector<ConditionSqlNode> conditions;               ///< 查询条件，使用AND串联起来多个条件
+  JoinSqlNode                  *join_relation = nullptr;  // TODO(chen): support cascade
 };
 
 /**

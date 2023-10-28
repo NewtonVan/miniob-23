@@ -13,11 +13,15 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/stmt/select_stmt.h"
+#include "common/rc.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/stmt/filter_stmt.h"
 #include "common/log/log.h"
 #include "common/lang/string.h"
+#include "sql/stmt/join_stmt.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
+#include <memory>
 
 SelectStmt::~SelectStmt()
 {
@@ -30,7 +34,7 @@ SelectStmt::~SelectStmt()
 static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
 {
   const TableMeta &table_meta = table->table_meta();
-  const int field_num = table_meta.field_num();
+  const int        field_num  = table_meta.field_num();
   for (int i = table_meta.sys_field_num(); i < field_num; i++) {
     field_metas.push_back(Field(table, table_meta.field(i)));
   }
@@ -44,23 +48,31 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   // collect tables in `from` statement
-  std::vector<Table *> tables;
+  std::vector<Table *>                     tables;
   std::unordered_map<std::string, Table *> table_map;
-  for (size_t i = 0; i < select_sql.relations.size(); i++) {
-    const char *table_name = select_sql.relations[i].c_str();
-    if (nullptr == table_name) {
-      LOG_WARN("invalid argument. relation name is null. index=%d", i);
-      return RC::INVALID_ARGUMENT;
-    }
-    // select_sql.conditions.data()->right_value.data()
-    Table *table = db->find_table(table_name);
-    if (nullptr == table) {
-      LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
+  if (select_sql.join_relation != nullptr) {
+    std::unique_ptr<GeneralRelationSqlNode> rel = std::make_unique<GeneralRelationSqlNode>(select_sql.join_relation);
+    if (RC::SUCCESS != collectJoinTables(db, rel.get(), tables, table_map)) {
+      LOG_WARN("invalid argument. tables in join not exist");
       return RC::SCHEMA_TABLE_NOT_EXIST;
     }
+  } else {
+    for (size_t i = 0; i < select_sql.relations.size(); i++) {
+      const char *table_name = select_sql.relations[i].c_str();
+      if (nullptr == table_name) {
+        LOG_WARN("invalid argument. relation name is null. index=%d", i);
+        return RC::INVALID_ARGUMENT;
+      }
+      // select_sql.conditions.data()->right_value.data()
+      Table *table = db->find_table(table_name);
+      if (nullptr == table) {
+        LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
+        return RC::SCHEMA_TABLE_NOT_EXIST;
+      }
 
-    tables.push_back(table);
-    table_map.insert(std::pair<std::string, Table *>(table_name, table));
+      tables.push_back(table);
+      table_map.insert(std::pair<std::string, Table *>(table_name, table));
+    }
   }
 
   // collect query fields in `select` statement
@@ -112,7 +124,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         return RC::SCHEMA_FIELD_MISSING;
       }
 
-      Table *table = tables[0];
+      Table           *table      = tables[0];
       const FieldMeta *field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
       if (nullptr == field_meta) {
         LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
@@ -132,7 +144,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
-  RC rc = FilterStmt::create(db,
+  RC          rc          = FilterStmt::create(db,
       default_table,
       &table_map,
       select_sql.conditions.data(),
@@ -143,12 +155,61 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     return rc;
   }
 
+  // create join stmt
+  Stmt *join_stmt = nullptr;
+  if (select_sql.join_relation != nullptr) {
+    std::unique_ptr<GeneralRelationSqlNode> rel = std::make_unique<GeneralRelationSqlNode>(select_sql.join_relation);
+    rc                                          = JoinStmt::create(db, table_map, query_fields, rel.get(), join_stmt);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot construct join stmt");
+      return rc;
+    }
+  }
+
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
   // TODO add expression copy
   select_stmt->tables_.swap(tables);
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->filter_stmt_ = filter_stmt;
-  stmt = select_stmt;
+  select_stmt->join_stmt_   = static_cast<JoinStmt *>(join_stmt);
+  stmt                      = select_stmt;
   return RC::SUCCESS;
+}
+
+RC SelectStmt::collectJoinTables(Db *db, GeneralRelationSqlNode *rel, std::vector<Table *> &tables,
+    std::unordered_map<std::string, Table *> &table_map)
+{
+  if (rel->type == REL_TABLE) {
+    const char *table_name = std::get<std::string>(rel->relation).c_str();
+    if (nullptr == table_name) {
+      LOG_WARN("invalid argument. relation name is null");
+      return RC::INVALID_ARGUMENT;
+    }
+
+    Table *table = db->find_table(table_name);
+    if (nullptr == table) {
+      LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
+      return RC::SCHEMA_TABLE_NOT_EXIST;
+    }
+
+    tables.push_back(table);
+    table_map.insert(std::pair<std::string, Table *>(table_name, table));
+
+    return RC::SUCCESS;
+  }
+
+  // handle cascade join
+  JoinSqlNode *join = std::get<JoinSqlNode *>(rel->relation);
+  RC           rc   = RC::SUCCESS;
+  rc                = collectJoinTables(db, join->left, tables, table_map);
+  if (rc != RC::SUCCESS) {
+    return rc;
+  }
+  rc = collectJoinTables(db, join->right, tables, table_map);
+  if (rc != RC::SUCCESS) {
+    return rc;
+  }
+
+  return rc;
 }

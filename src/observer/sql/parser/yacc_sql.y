@@ -61,6 +61,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         TABLES
         INDEX
         CALC
+        INNER
+        JOIN
         SELECT
         DESC
         SHOW
@@ -123,6 +125,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  JoinSqlNode *                     join_relation;
+  GeneralRelationSqlNode *          general_relation_sql_node;
   char *                            string;
   int                               number;
   float                             floats;
@@ -141,6 +145,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <value>               value
 %type <number>              number
 %type <comp>                comp_op
+%type <general_relation_sql_node> general_rel;
 %type <rel_attr>            rel_attr
 %type <attr_names>          attr_name_list
 %type <attr_infos>          attr_def_list
@@ -149,6 +154,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <value_list>          value_list
 %type <condition_list>      where
 %type <condition_list>      condition_list
+%type <condition_list>      join_condition
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
 %type <rel_attr_list>       attr_list
@@ -509,6 +515,23 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       free($4);
     }
+    | SELECT select_attr FROM general_rel INNER JOIN ID join_condition where
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes.swap(*$2);
+        delete $2;
+      }
+
+      $$->selection.join_relation = new JoinSqlNode(JT_INNER, $4, new GeneralRelationSqlNode($7), std::move(*$8));
+      delete $8;
+
+      if ($9 != nullptr) {
+        $$->selection.conditions.swap(*$9);
+        delete $9;
+      }
+      free($7);
+    }
     ;
 calc_stmt:
     CALC expression_list
@@ -628,6 +651,30 @@ rel_list:
 
       $$->push_back($2);
       free($2);
+    }
+    ;
+general_rel:
+    /* primitive table*/
+    ID
+    {
+       $$ = new GeneralRelationSqlNode($1);
+       free($1);
+    }
+    | general_rel INNER JOIN ID join_condition
+    {
+       $$ = new GeneralRelationSqlNode(
+        new JoinSqlNode(JT_INNER, $1, new GeneralRelationSqlNode($4), std::move(*$5))
+       );
+       free($4);
+    }
+    ;
+join_condition:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | ON condition_list {
+      $$ = $2;
     }
     ;
 where:

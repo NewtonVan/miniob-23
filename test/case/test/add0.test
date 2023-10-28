@@ -1,11 +1,11 @@
-CREATE TABLE cast_1(id int, name char(20));
-CREATE TABLE cast_2(id int, age int);
-CREATE TABLE cast_3(id int, level int);
-CREATE TABLE cast_4(id int, col float);
+CREATE TABLE null_table(id int, num int nullable, price float not null, birthday date nullable);
+CREATE TABLE null_table2(id int, num int nullable, price float not null, birthday date nullable);
 
-INSERT INTO cast_1 VALUES (4, '16a');
-INSERT INTO cast_4 VALUES(5, 13.5);
+INSERT INTO null_table VALUES (1, 18, 10.0, '2020-01-01');
+INSERT INTO null_table VALUES (2, null, 20.0, '2010-01-11');
+INSERT INTO null_table VALUES (3, 12, 30.0, null);
+INSERT INTO null_table VALUES (4, 15, 30.0, '2021-01-31');
+INSERT INTO null_table2 VALUES (1, 18, 30.0, '2021-01-31');
+INSERT INTO null_table2 VALUES (2, null, 40.0, null);
 
-select * from cast_1;
-
-select * from cast_1;
+SELECT null_table.num,null_table2.num,null_table.birthday FROM null_table,null_table2 where null_table.num=null_table2.num;

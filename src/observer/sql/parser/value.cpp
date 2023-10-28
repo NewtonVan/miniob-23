@@ -183,12 +183,6 @@ Value::Value(const char *s, int len /*= 0*/)
   set_string(s, len);
 }
 
-//Value::Value(const char *s, int len , AttrType attr_type)
-//{
-//  set_text(s);
-//}
-
-
 void Value::set_data(char *data, int length)
 {
   switch (attr_type_) {
@@ -387,6 +381,20 @@ int Value::compare(const Value &other) const
   } else if (this->attr_type_ == FLOATS && other.attr_type_ == INTS) {
     float other_data = other.num_value_.int_value_;
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
+  } else if (this->attr_type_ == CHARS && other.attr_type_ == FLOATS) {
+    float this_data = common::str_prefix_double(this->str_value_);
+    return common::compare_float((void *)&this_data, (void *)&other.num_value_.float_value_);
+  } else if (this->attr_type_ == FLOATS && other.attr_type_ == CHARS) {
+    float other_data = common::str_prefix_double(other.str_value_);
+    return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
+  } else if (this->attr_type_ == CHARS && other.attr_type_ == INTS) {
+    float this_data  = common::str_prefix_double(this->str_value_);
+    float other_data = other.get_int();
+    return common::compare_float((void *)&this_data, (void *)&other_data);
+  } else if (this->attr_type_ == INTS && other.attr_type_ == CHARS) {
+    float this_data  = this->get_int();
+    float other_data = common::str_prefix_double(other.get_string());
+    return common::compare_float((void *)&this_data, (void *)&other_data);
   }
   LOG_WARN("not supported");
   return -1;  // TODO return rc?
