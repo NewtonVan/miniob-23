@@ -72,9 +72,9 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
         }
         // 处理TEXTS字段
       } else if(field_type == AttrType::TEXTS && value_type == AttrType::CHARS) {
-//        if(strlen(values[i].get_text()) > 65535) {
-//            return RC::INVALID_ARGUMENT;
-//        }
+        if(strlen(values[i].get_text()) > 65535) {
+            return RC::INVALID_ARGUMENT;
+        }
         mutableValues[i].set_text(values[i].data());
       } else {
         LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",

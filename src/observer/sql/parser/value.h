@@ -120,5 +120,5 @@ private:
     bool bool_value_;
   } num_value_;
   std::string str_value_;
-  char text_value_[65536]; // 新增的用于存储text类型值的成员变量
+  char text_value_[60001]; // 新增的用于存储text类型值的成员变量
 };
