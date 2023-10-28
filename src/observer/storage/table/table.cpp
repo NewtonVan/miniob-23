@@ -327,10 +327,24 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
     return RC::SCHEMA_FIELD_MISSING;
   }
 
+  uint32_t null_mask = 0;
   const int normal_field_start_index = table_meta_.sys_field_num();
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
+
+    // 计算表中所有为空字段的mask
+    if(value.attr_type() == NULLS) {
+      if(field->nullable()) {
+        null_mask |= 1u << (i + normal_field_start_index);
+        continue;
+      } else {
+        LOG_ERROR("Field %s is not nullable but a NULL is inserted.",
+                  field->name());
+        return RC::INVALID_ARGUMENT;
+      }
+    }
+
     if (field->type() != value.attr_type()) {
         LOG_ERROR("Invalid value type. table name =%s, field name=%s, type=%d, but given=%d",
                   table_meta_.name(), field->name(), field->type(), value.attr_type());
@@ -357,6 +371,11 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
     }
     memcpy(record_data + field->offset(), value.data(), copy_len);
   }
+
+  // 将null_mask数据存储起来，注意这里是
+  // Sysfield | nullfield | value1 | value2 | value3 | … | valuen
+  memcpy(record_data + table_meta_.null_mask_field()->offset(), (void *)&null_mask,
+      table_meta_.null_mask_field()->len());
 
   record.set_data_owner(record_data, record_size);
   return RC::SUCCESS;

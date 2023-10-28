@@ -176,6 +176,14 @@ public:
 
     FieldExpr *field_expr = speces_[index];
     const FieldMeta *field_meta = field_expr->field().meta();
+    int null_mask_field_offset = table_->table_meta().null_mask_field()->offset();
+    int null_mask =
+        *(int *)(this->record_->data() + null_mask_field_offset) & 0x00FFFFFFFF;
+    // 判断这个字段是否为空
+    if (null_mask >> index & 1) {
+      cell.set_type(NULLS);
+      return RC::SUCCESS;
+    }
     cell.set_type(field_meta->type());
     cell.set_data(this->record_->data() + field_meta->offset(), field_meta->len());
     return RC::SUCCESS;

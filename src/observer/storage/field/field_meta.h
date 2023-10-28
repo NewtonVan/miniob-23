@@ -31,10 +31,11 @@ class FieldMeta
 {
 public:
   FieldMeta();
-  FieldMeta(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible);
+  // 特别注意这里nullable初始化为false，主要是为了方便，需要注意下除了create_index_exector之外是否还有调用的地方
+  FieldMeta(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible, bool nullable = false);
   ~FieldMeta() = default;
 
-  RC init(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible);
+  RC init(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible, bool nullable);
 
 public:
   const char *name() const;
@@ -42,6 +43,7 @@ public:
   int offset() const;
   int len() const;
   bool visible() const;
+  bool nullable() const;
 
 public:
   void desc(std::ostream &os) const;
@@ -56,4 +58,5 @@ protected:
   int attr_offset_;
   int attr_len_;
   bool visible_;
+  int nullable_;
 };

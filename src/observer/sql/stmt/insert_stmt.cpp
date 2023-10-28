@@ -55,7 +55,10 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
     const FieldMeta *field_meta = table_meta.field(i + sys_field_num);
     const AttrType field_type = field_meta->type();
     const AttrType value_type = values[i].attr_type();
+    // NULLS字段直接转移到make_record处理
+    if(value_type == NULLS) continue;
     if (field_type != value_type) {  // TODO try to convert the value type to field type
+      // 处理DATES字段，序列化
       if(field_type == AttrType::DATES && value_type == AttrType::CHARS) {
         int64_t date;
         bool valid = serialize_date(&date, values[i].data());
@@ -67,6 +70,7 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
             mutableValues[i].set_type(AttrType::DATES);
             mutableValues[i].set_date(date);
         }
+        // 处理TEXTS字段
       } else if(field_type == AttrType::TEXTS && value_type == AttrType::CHARS) {
         mutableValues[i].set_text(values[i].data());
       } else {

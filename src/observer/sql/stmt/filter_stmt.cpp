@@ -169,6 +169,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_unit->left().value.set_text(filter_unit->left().value.data());
   }
 
+//  if(lefr_attr_name != filter_unit->right().value.attr_type() && condition.comp != IS_LEFT_NOT_NULL && condition.comp != IS_LEFT_NULL && lefr_attr_name != NULLS) {
+//    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+//  }
+
   filter_unit->set_comp(comp);
 
   // 检查两个类型是否能够比较

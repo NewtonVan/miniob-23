@@ -90,6 +90,19 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
 {
   RC rc = RC::SUCCESS;
 
+  // 左右其中一个为空，且比较符号不是IS_LEFT_NULL和IS_LEFT_NULL，则永远返回false，因为null和任何值比较都返回false
+  if(left.attr_type() != right.attr_type()
+      && (left.attr_type() == NULLS || right.attr_type() == NULLS)
+      && comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NULL) {
+    result = false;
+    return rc;
+  }
+
+  if(left.attr_type() == NULLS && right.attr_type() == NULLS && comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NULL) {
+    result = false;
+    return rc;
+  }
+
   int cmp_result = left.compare(right);
   result = false;
   switch (comp_) {
@@ -117,6 +130,12 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     } break;
     case NOT_LIKES: {
       result = PerformNotLikeComparison(left.get_string(), right.get_string());
+    } break;
+    case IS_LEFT_NULL: {
+      result = left.attr_type() == NULLS;
+    } break;
+    case IS_LEFT_NOT_NULL: {
+      result = left.attr_type() != NULLS;
     } break;
     default: {
       LOG_WARN("unsupported comparison. %d", comp_);

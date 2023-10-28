@@ -96,8 +96,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         LIKE
         NOT_LIKE
         IS
+        NOT
         NULLABLE
-        NOT_NULL
+        NULL_T
         UNIQUE
         EQ
         LT
@@ -125,6 +126,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   char *                            string;
   int                               number;
   float                             floats;
+  bool                              bools;
 }
 
 %token <number> NUMBER
@@ -143,6 +145,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <attr_names>          attr_name_list
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
+%type <bools>               nullable;
 %type <value_list>          value_list
 %type <condition_list>      where
 %type <condition_list>      condition_list
@@ -370,23 +373,32 @@ attr_def_list:
     ;
     
 attr_def:
-    ID type LBRACE number RBRACE 
+    ID type LBRACE number RBRACE nullable
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = $4;
+      $$->null = $6;
       free($1);
     }
-    | ID type
+    | ID type nullable
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = 4;
+      $$->null = $3;
       free($1);
     }
     ;
+
+nullable:
+    { $$ = false; }
+    | NULLABLE { $$ = true; }
+    | NOT NULL_T { $$ = false; }
+    ;
+
 number:
     NUMBER {$$ = $1;}
     ;
@@ -396,7 +408,7 @@ type:
     | STRING_T { $$=CHARS; }
     | FLOAT_T  { $$=FLOATS; }
     | TEXT_T   { $$=TEXTS; }
-    | NULLABLE { $$=NULLS; }
+    | NULL_T   { $$=NULLS; }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
     INSERT INTO ID VALUES LBRACE value value_list RBRACE 
@@ -441,6 +453,11 @@ value:
       char *tmp = common::substr($1,1,strlen($1)-2);
       $$ = new Value(tmp);
       free(tmp);
+    }
+    |NULL_T {
+      $$ = new Value();
+      $$->set_type(NULLS);
+      @$ = @1;
     }
     ;
     
@@ -639,7 +656,53 @@ condition_list:
     }
     ;
 condition:
-    rel_attr comp_op value
+    rel_attr IS NULL_T
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 1;
+      $$->left_attr = *$1;
+      $$->right_is_attr = 0;
+      $$->right_value = Value();
+      $$->right_value.set_type(NULLS);
+      $$->comp = IS_LEFT_NULL;
+
+      delete $1;
+    }
+    | rel_attr IS NOT NULL_T
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 1;
+      $$->left_attr = *$1;
+      $$->right_is_attr = 0;
+      $$->right_value = Value();
+      $$->comp = IS_LEFT_NOT_NULL;
+
+      delete $1;
+    }
+    | value IS NULL_T
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      $$->left_value = *$1;
+      $$->right_is_attr = 0;
+      $$->right_value = Value();
+      $$->right_value.set_type(NULLS);
+      $$->comp = IS_LEFT_NULL;
+
+      delete $1;
+    }
+    | value IS NOT NULL_T
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      $$->left_value = *$1;
+      $$->right_is_attr = 0;
+      $$->right_value = Value();
+      $$->comp = IS_LEFT_NOT_NULL;
+
+      delete $1;
+    }
+    | rel_attr comp_op value
     {
       $$ = new ConditionSqlNode;
       $$->left_is_attr = 1;
