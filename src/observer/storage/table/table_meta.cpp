@@ -96,7 +96,7 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
     const AttrInfoSqlNode *attr_info = &attributes[i];
     AttrInfoSqlNode *mutable_attr_info = const_cast<AttrInfoSqlNode*>(attr_info);
     if (attr_info->type == TEXTS) {
-      mutable_attr_info->length = 60000;
+      mutable_attr_info->length = 65538;
     }
     rc = fields_[i + trx_field_num].init(attr_info->name.c_str(),
             attr_info->type, field_offset, attr_info->length, true/*visible*/, attr_info->null);
