@@ -163,6 +163,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     RC rc = RC::SUCCESS;
     rc    = create_plan(select_stmt->join_stmt(), table_oper);
     if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to create join logical plan. rc=%s", strrc(rc));
       return rc;
     }
   } else {
@@ -196,8 +197,15 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
   unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_fields));
   if (predicate_oper) {
     if (table_oper) {
+      if (select_stmt->join_stmt() != nullptr) {
+        rc = static_cast<JoinLogicalOperator *>(table_oper.get())
+                 ->push_down_predicate(static_cast<PredicateLogicalOperator *>(predicate_oper.get()));
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("failed to push down filter into join logical plan. rc=%s", strrc(rc));
+          return rc;
+        }
+      }
       predicate_oper->add_child(std::move(table_oper));
-      // TODO(chen): push down
     }
     project_oper->add_child(std::move(predicate_oper));
   } else {

@@ -16,6 +16,9 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/expr/expression.h"
 #include "sql/operator/logical_operator.h"
+#include "sql/operator/predicate_logical_operator.h"
+#include "sql/operator/table_get_logical_operator.h"
+#include "sql/stmt/filter_stmt.h"
 #include <memory>
 
 /**
@@ -31,6 +34,11 @@ public:
   virtual ~JoinLogicalOperator() = default;
 
   LogicalOperatorType type() const override { return LogicalOperatorType::JOIN; }
+
+public:
+  RC push_down_predicate(PredicateLogicalOperator *predicate);
+  RC get_exprs_can_pushdown(TableGetLogicalOperator *single_table, std::unique_ptr<Expression> &expr,
+      std::vector<std::unique_ptr<Expression>> &pushdown_exprs);
 
 private:
 };

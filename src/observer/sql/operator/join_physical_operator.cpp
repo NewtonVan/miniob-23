@@ -43,6 +43,7 @@ RC NestedLoopJoinPhysicalOperator::open(Trx *trx)
 
 RC NestedLoopJoinPhysicalOperator::next()
 {
+  // FIXME(CHEN): nlj may have perf issue, maybe replaced with hj or cached tmp result
   RC rc = RC::SUCCESS;
   while ((rc = inner_next()) == RC::SUCCESS) {
     Value value;
