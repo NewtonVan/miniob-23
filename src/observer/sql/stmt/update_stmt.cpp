@@ -75,6 +75,9 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
       }
     } else if(field_type == AttrType::TEXTS && value_type == AttrType::CHARS) {
       mutableValue->set_text(mutableValue->data());
+      if(strlen(mutableValue->get_text()) > 65535) {
+        return RC::INVALID_ARGUMENT;
+      }
     }else {
       // TODO try to convert the value type to field type
       LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
