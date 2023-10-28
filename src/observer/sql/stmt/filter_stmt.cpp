@@ -108,7 +108,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_left(filter_obj);
-    lefr_attr_name = default_table->table_meta().field(condition.left_attr.attribute_name.c_str())->type();
+    lefr_attr_name = table->table_meta().field(condition.left_attr.attribute_name.c_str())->type();
   } else {
     LOG_DEBUG("FilterObj filter_obj");
     FilterObj filter_obj;
@@ -129,7 +129,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_right(filter_obj);
-    right_attr_name = default_table->table_meta().field(condition.right_attr.attribute_name.c_str())->type();
+    right_attr_name = table->table_meta().field(condition.right_attr.attribute_name.c_str())->type();
   } else {
     LOG_DEBUG("filter_obj.init_value(condition.right_value)");
     FilterObj filter_obj;
