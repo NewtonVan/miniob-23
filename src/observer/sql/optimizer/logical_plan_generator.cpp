@@ -197,7 +197,8 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
   unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_fields));
   if (predicate_oper) {
     if (table_oper) {
-      if (select_stmt->join_stmt() != nullptr) {
+      if (select_stmt->join_stmt() != nullptr || select_stmt->tables().size() > 1) {
+        // inner join case
         rc = static_cast<JoinLogicalOperator *>(table_oper.get())
                  ->push_down_predicate(static_cast<PredicateLogicalOperator *>(predicate_oper.get()));
         if (rc != RC::SUCCESS) {

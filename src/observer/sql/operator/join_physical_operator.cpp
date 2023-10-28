@@ -20,7 +20,9 @@ See the Mulan PSL v2 for more details. */
 NestedLoopJoinPhysicalOperator::NestedLoopJoinPhysicalOperator(std::unique_ptr<Expression> join_condition)
     : join_condition_(std::move(join_condition))
 {
-  ASSERT(join_condition_->value_type() == BOOLEANS, "join_condition's expression should be BOOLEAN type");
+  if (join_condition_ != nullptr) {
+    ASSERT(join_condition_->value_type() == BOOLEANS, "join_condition's expression should be BOOLEAN type");
+  }
 }
 
 RC NestedLoopJoinPhysicalOperator::open(Trx *trx)
@@ -47,6 +49,9 @@ RC NestedLoopJoinPhysicalOperator::next()
   RC rc = RC::SUCCESS;
   while ((rc = inner_next()) == RC::SUCCESS) {
     Value value;
+    if (join_condition_ == nullptr) {
+      return rc;
+    }
     rc = join_condition_->get_value(*current_tuple(), value);
 
     if (rc != RC::SUCCESS) {
