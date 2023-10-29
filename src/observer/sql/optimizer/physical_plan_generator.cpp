@@ -17,6 +17,8 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "sql/operator/agg_func_logical_operator.h"
+#include "sql/expr/tuple_cell.h"
+#include "sql/operator/agg_func_physical_operator.h"
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/operator/update_logical_operator.h"
@@ -42,6 +44,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/agg_func_logical_operator.h"
 #include "sql/expr/expression.h"
 #include "common/log/log.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/parser/value.h"
 
 using namespace std;
@@ -234,14 +237,62 @@ RC PhysicalPlanGenerator::create_plan(InsertLogicalOperator &insert_oper, unique
 
 RC PhysicalPlanGenerator::create_plan(AggLogicalOperator& agg_oper, std::unique_ptr<PhysicalOperator> & oper) {
   // WIP(lyq)
-  auto& child_opers = agg_oper.children();
-  ASSERT(child_opers.size() == 1, "agg should have just 1 child");
-  
-    
+  vector<unique_ptr<LogicalOperator>> &child_opers = agg_oper.children();
 
-  
-  
+  unique_ptr<PhysicalOperator> child_phy_oper;
 
+  RC rc = RC::SUCCESS;
+  if (!child_opers.empty()) {
+    ASSERT(child_opers.size() == 1, "agg should have just 1 child");
+    LogicalOperator *child_oper = child_opers.front().get();
+    rc                          = create(*child_oper, child_phy_oper);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to create project logical operator's child physical operator. rc=%s", strrc(rc));
+      return rc;
+    }
+  }
+
+  std::vector<TupleCellSpec> specs;
+  std::vector<AggType> agg_types;
+  for(auto& agg_field : agg_oper.fields_ ) {
+    switch (agg_field.func_) {
+    case AggFuncType::COUNT_FUNC:
+      if(agg_field.field_is_star) {
+        agg_types.push_back(AggType::COUNT_STAR);
+        specs.push_back(TupleCellSpec("", ""));
+      } else {
+        agg_types.push_back(AggType::COUNT_AGG);
+        specs.push_back(TupleCellSpec(agg_field.field_.table_name() , agg_field.field_.field_name()));
+      }
+      break;
+    case AggFuncType::SUM_FUNC:
+      agg_types.push_back(AggType::SUM_AGG);
+      specs.push_back(TupleCellSpec(agg_field.field_.table_name() , agg_field.field_.field_name()));
+    break;
+    case AggFuncType::MAX_FUNC:
+      agg_types.push_back(AggType::MAX_AGG);
+      specs.push_back(TupleCellSpec(agg_field.field_.table_name() , agg_field.field_.field_name()));
+    break;
+    case AggFuncType::MIN_FUNC:
+      agg_types.push_back(AggType::MIN_AGG);
+      specs.push_back(TupleCellSpec(agg_field.field_.table_name() , agg_field.field_.field_name()));
+    break;
+    case AggFuncType::AVG_FUNC:
+      agg_types.push_back(AggType::AVG_AGG);
+      specs.push_back(TupleCellSpec(agg_field.field_.table_name() , agg_field.field_.field_name()));
+    break;
+    }
+  }
+
+  AggPhysicalOperator* agg_phy_oper = new AggPhysicalOperator(agg_types, specs);
+
+    if (child_phy_oper) {
+      agg_phy_oper->add_child(std::move(child_phy_oper));
+    }
+
+  oper = unique_ptr<PhysicalOperator>(agg_phy_oper);
+
+  LOG_TRACE("create a agg physical operator");
   return RC::SUCCESS;
 }
 

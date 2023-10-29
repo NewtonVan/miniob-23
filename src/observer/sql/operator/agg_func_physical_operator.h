@@ -15,8 +15,11 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include "sql/expr/tuple.h"
+#include "sql/expr/tuple_cell.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/parser/parse_defs.h"
+#include "sql/parser/value.h"
+#include <memory>
 
 /**
  * @brief 选择/投影物理算子
@@ -25,31 +28,56 @@ See the Mulan PSL v2 for more details. */
 class AggPhysicalOperator : public PhysicalOperator
 {
 public:
-  AggPhysicalOperator(std::vector<AggType>& agg_types):sht_(agg_types) {};
+  explicit AggPhysicalOperator(std::vector<AggType>& agg_types, std::vector<TupleCellSpec> specs): sht_(agg_types), agg_types_(agg_types), specs_(specs) {};
 
   virtual ~AggPhysicalOperator() = default;
 
-  void add_expressions(std::vector<std::unique_ptr<Expression>> &&expressions)
-  {
-    
-  }
+  std::string name() const override;
+  std::string param() const override;
 
   PhysicalOperatorType type() const override
   {
     return PhysicalOperatorType::AGG;
   }
 
-  RC open(Trx *trx) override;
-  RC next() override;
+  RC open(Trx *trx) override; // open child 
+  RC next() override; // construct a AggregationValue, insert into sht_
   RC close() override;
-
-  int cell_num() const
-  {
-  }
-
 
   Tuple *current_tuple() override;
 
 private:
+   /** @return The tuple as an AggregateKey */
+  auto MakeAggregateKey(const Tuple *tuple) -> AggregationKey {
+    // std::vector<Value> keys;
+    // for (const auto &expr : plan_->GetGroupBys()) {
+    //   keys.emplace_back(expr->Evaluate(tuple, child_executor_->GetOutputSchema()));
+    // }
+    
+    // todo(lyq, no groub by, use fix AggregationKey)
+    std::vector<Value> vals;
+    vals.push_back(Value(static_cast<int>(1)));
+    
+    return {vals};
+  }
+
+  /** @return The tuple as an AggregateValue */
+  auto MakeAggregateValue(const Tuple *tuple) -> AggregationValue {
+    std::vector<Value> vals;
+    for (const auto& spec : specs_ ) {
+      Value val;
+      tuple->find_cell(spec, val);
+      vals.push_back(val);
+    }
+    return {vals};
+  }
+
+
   SimpleHashTable sht_;
+  std::vector<AggType> agg_types_;
+  std::vector<TupleCellSpec> specs_;
+  std::unique_ptr<SimpleHashTable::Iterator>iter_;
+  AggTuple tuple_;
+  bool materialized_child_{false};
+  bool finish_{false};
 };

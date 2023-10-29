@@ -106,7 +106,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         // '*'
         if(relation_attr.relation_name.empty()) {
           // count on first field of default table 
-          agg_fields.push_back(agg_field(func, Field(default_table, default_table->table_meta().field(0))));
+          agg_fields.push_back(agg_field(func, Field(nullptr, nullptr)));
+          agg_fields.back().field_is_star = true;
         } else {
           // 't1.*'
           return RC::BAD_AGG;

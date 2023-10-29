@@ -49,6 +49,8 @@ public:
   struct agg_field {
     AggFuncType func_;
     Field field_;
+    // whether initial field is star
+    bool field_is_star = false;
     agg_field(AggFuncType func, const Field& field):func_(func), field_(field) {};
   };
   bool is_agg() {

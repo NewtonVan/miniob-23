@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <unordered_map>
@@ -478,6 +479,55 @@ struct AggregationValue {
 };
 
 
+
+
+class AggTuple : public Tuple {
+  public:
+    void set_tuple(AggregationValue tuple, std::vector<TupleCellSpec>& specs) {
+      tuple_ = tuple;
+      specs_ = specs;
+    }
+
+    int cell_num() const override
+    {
+      return tuple_.aggregates.size();
+    }
+
+  RC cell_at(int index, Value &value) const override
+  {
+    const int left_cell_num =cell_num();
+    if (index > 0 && index < cell_num()) {
+      value =  tuple_.aggregates[index];
+      return RC::SUCCESS;
+    }
+
+    return RC::NOTFOUND;
+  }
+
+  RC find_cell(const TupleCellSpec &spec, Value &value) const override
+  {
+    for (size_t i = 0; i < specs_.size(); ++i) {
+      if (0 == strcmp(spec.table_name(), specs_[i].table_name()) 
+      && 0 == strcmp(spec.field_name() , specs_[i].field_name())
+      && 0 == strcmp(spec.alias() , specs_[i].alias()) ) {
+        return cell_at(i, value);
+      }
+    } 
+    return RC::NOTFOUND;
+  }
+
+
+  private:
+    AggregationValue tuple_;
+    std::vector<TupleCellSpec> specs_;
+};
+
+
+
+
+
+
+
 // agg hash table
 class SimpleHashTable 
 {
@@ -624,18 +674,40 @@ class SimpleHashTable
 
 
 
+  /** An iterator over the aggregation hash table */
   class Iterator {
-    Iterator() = default;
-    ~ Iterator() = default;
-    auto begin() -> Iterator {
-      
-    }
-    auto end() -> Iterator {
+   public:
+    /** Creates an iterator for the aggregate map. */
+    explicit Iterator(std::unordered_map<AggregationKey, AggregationValue>::const_iterator iter) : iter_{iter} {}
 
+    /** @return The key of the iterator */
+    auto Key() -> const AggregationKey & { return iter_->first; }
+
+    /** @return The value of the iterator */
+    auto Val() -> const AggregationValue & { return iter_->second; }
+
+    /** @return The iterator before it is incremented */
+    auto operator++() -> Iterator & {
+      ++iter_;
+      return *this;
     }
+
+    /** @return `true` if both iterators are identical */
+    auto operator==(const Iterator &other) -> bool { return this->iter_ == other.iter_; }
+
+    /** @return `true` if both iterators are different */
+    auto operator!=(const Iterator &other) -> bool { return this->iter_ != other.iter_; }
+
+   private:
+    /** Aggregates map */
+    std::unordered_map<AggregationKey, AggregationValue>::const_iterator iter_;
   };
 
+    /** @return Iterator to the start of the hash table */
+  auto Begin() -> Iterator { return Iterator{ht_.cbegin()}; }
 
+  /** @return Iterator to the end of the hash table */
+  auto End() -> Iterator { return Iterator{ht_.cend()}; }
 
 
   private:

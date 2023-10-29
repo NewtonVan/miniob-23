@@ -22,8 +22,6 @@ class AggLogicalOperator : public LogicalOperator {
         {
             return expressions_;
         }
-        
     
-    private:
         std::vector<SelectStmt::agg_field> fields_;    
 };
