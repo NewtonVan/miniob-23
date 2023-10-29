@@ -91,7 +91,11 @@ enum AggFuncType
 struct AggregationFuncSqlNode
 {
   AggFuncType    func;
+<<<<<<< HEAD
   RelAttrSqlNode attr;
+=======
+  std::string    attr_name;
+>>>>>>> 7e527ab20c671fb9bc4779bf1386b13dc3bd5e81
 };
 
 
