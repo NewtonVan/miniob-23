@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -22,6 +23,8 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "sql/expr/tuple_cell.h"
 #include "sql/parser/parse.h"
+#include "sql/parser/parse_defs.h"
+#include "common/hash_util.h"
 #include "sql/parser/value.h"
 #include "sql/expr/expression.h"
 #include "storage/record/record.h"
@@ -426,57 +429,225 @@ private:
   Tuple *right_ = nullptr;
 };
 
-// agg tuple 
-class AggTuple : public Tuple 
+
+
+  /** AggregateKey represents a key in an aggregation operation */
+struct AggregationKey {
+  /** The group-by values */
+  std::vector<Value> group_bys_;
+
+  /**
+  * Compares two aggregate keys for equality.
+  * @param other the other aggregate key to be compared with
+  * @return `true` if both aggregate keys have equivalent group-by expressions, `false` otherwise
+  */
+  auto operator==(const AggregationKey &other) const -> bool {
+    for (uint32_t i = 0; i < other.group_bys_.size(); i++) {
+      if (group_bys_[i].compare(other.group_bys_[i]) != 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+
+
+
+namespace std {
+
+/** Implements std::hash on AggregateKey */
+template <>
+struct hash<AggregationKey> {
+  auto operator()(const AggregationKey &agg_key) const -> std::size_t {
+    size_t curr_hash = 0;
+    for (const auto &key : agg_key.group_bys_) {
+      if (!key.is_null()) {
+        curr_hash = MyHash::HashUtil::CombineHashes(curr_hash, MyHash::HashUtil::HashValue(&key));
+      }
+    }
+    return curr_hash;
+  }
+};
+
+}  // namespace std
+
+
+
+struct AggregationValue {
+  std::vector<Value> aggregates;
+};
+
+
+// agg hash table
+class SimpleHashTable 
 {
   public:
-    AggTuple() = default;
-    ~ AggTuple() = default;
-  
-  void init() {
-    // init aggregates
-    // todo 
-  }
-  int cell_num() const override {
-    return aggregates_.size();
-  }
+    SimpleHashTable(std::vector<AggType>& agg_types): agg_types_(agg_types) {};
+    ~ SimpleHashTable() = default;
 
-  RC cell_at(int index, Value &value) const override {
-    if (index < 0 || index >= cell_num()) {
-      return RC::NOTFOUND;
+    int size() const  {
+      return agg_types_.size();
     }
 
-    value = aggregates_[index];
-    return RC::SUCCESS;
-  }
-
-  RC find_cell(const TupleCellSpec &spec, Value &value) const override {
-    for(int i =0; i < cell_speces_.size(); i++) {
-      if(spec.alias() == cell_speces_[i].alias() &&
-       spec.field_name() == cell_speces_[i].field_name() && spec.table_name() ==cell_speces_[i].table_name()) {
-        value = aggregates_[i];
-        return RC::SUCCESS;
-       }
-    }
-    return RC::SCHEMA_FIELD_NOT_EXIST;
-  }
-
-  RC insert_combine(const TupleCellSpec &spec, Value &value) {
-    // udpate aggregates 
-    
-
-    return RC::SUCCESS;
-  }
-
   
+  AggregationValue gen_base_aggregates() {
+    AggregationValue agg_value;
+    for(int i =0; i < agg_types_.size(); i++) {
+      switch (agg_types_[i]) {
+      case COUNT_STAR:
+      case COUNT_AGG:
+      case SUM_AGG:
+      case MIN_AGG:
+      case MAX_AGG:
+      case AVG_AGG:
+      // deal with float conversion in CombineAggregateValues
+        agg_value.aggregates.push_back(Value::get_null(INTS));
+        break;
+      }
+    }
+    return agg_value;
+  }
+  
+
+  void CombineAggregateValues(AggregationValue *result, const AggregationValue &input) {
+    for (uint32_t i = 0; i < agg_types_.size(); i++) {
+      Value &agg_val = result->aggregates[i];
+      switch (agg_types_[i]) {
+        case AggType::COUNT_STAR:
+          agg_val.set_int(agg_val.get_int() + 1);
+          break;
+        case AggType::COUNT_AGG:
+          if (!input.aggregates[i].is_null()) {
+            if (agg_val.is_null()) {
+              agg_val = Value(static_cast<int>(1));
+            } else {
+              agg_val.set_int(agg_val.get_int() + 1);
+            }
+          }
+          break;
+        case AggType::SUM_AGG:
+        case AggType::AVG_AGG: // calc avg when agg executor down 
+          if (!input.aggregates[i].is_null()) {
+            if (agg_val.is_null()) {
+              agg_val = input.aggregates[i];
+            } else {
+              ASSERT(agg_val.attr_type() == input.aggregates[i].attr_type(), "sum agg on different type");
+              switch (agg_val.attr_type()) {
+              case AttrType::INTS:
+                agg_val.set_int(agg_val.get_int() + input.aggregates[i].get_int());
+                break;
+              case AttrType::FLOATS:
+                agg_val.set_float(agg_val.get_float() + input.aggregates[i].get_float());
+                break;
+              default:
+                LOG_PANIC("sum on type%d and type%d", agg_val.attr_type(), input.aggregates[i].attr_type());
+              }
+            }
+          }
+          break;
+        case AggType::MAX_AGG:
+          if (!input.aggregates[i].is_null()) {
+            if (agg_val.is_null()) {
+              agg_val = input.aggregates[i];
+            } else {
+              ASSERT(agg_val.attr_type() == input.aggregates[i].attr_type(), "sum agg on different type");
+              switch (agg_val.attr_type()) {
+              case AttrType::INTS:
+                if(agg_val.get_int() < input.aggregates[i].get_int()) {
+                  agg_val.set_int(input.aggregates[i].get_int());
+                }
+                break;
+              case AttrType::FLOATS:
+                if(agg_val.get_float() < input.aggregates[i].get_float()) {
+                  agg_val.set_float(input.aggregates[i].get_float());
+                }
+                break;
+              case AttrType::DATES:
+                if(agg_val.get_date() < input.aggregates[i].get_float()) {
+                  agg_val.set_date(input.aggregates[i].get_date());
+                }
+                break;
+              default:
+                LOG_WARN("agg max on type%d", agg_val.attr_type());
+              }
+            }
+          }
+          break;
+        case AggType::MIN_AGG:
+          if (!input.aggregates[i].is_null()) {
+            if (agg_val.is_null()) {
+              agg_val = input.aggregates[i];
+            } else {
+              ASSERT(agg_val.attr_type() == input.aggregates[i].attr_type(), "sum agg on different type");
+              switch (agg_val.attr_type()) {
+              case AttrType::INTS:
+                if(agg_val.get_int() > input.aggregates[i].get_int()) {
+                  agg_val.set_int(input.aggregates[i].get_int());
+                }
+                break;
+              case AttrType::FLOATS:
+                if(agg_val.get_float() > input.aggregates[i].get_float()) {
+                  agg_val.set_float(input.aggregates[i].get_float());
+                }
+                break;
+              case AttrType::DATES:
+                if(agg_val.get_date() > input.aggregates[i].get_date()) {
+                  agg_val.set_date(input.aggregates[i].get_date());
+                }
+                break;
+              default:
+                LOG_WARN("agg max on type%d", agg_val.attr_type());
+              }
+            }
+          }
+          break;
+      }
+    }
+  }
+
+  /**
+   * Inserts a value into the hash table and then combines it with the current aggregation.
+   * @param agg_key the key to be inserted
+   * @param agg_val the value to be inserted
+   */
+  void InsertCombine(const AggregationKey &agg_key, const AggregationValue &agg_val) {
+    if (ht_.count(agg_key) == 0) {
+      ht_.insert({agg_key, gen_base_aggregates()});
+    }
+    CombineAggregateValues(&ht_[agg_key], agg_val);
+  }
+
+  /**
+   * Clear the hash table
+   */
+  void Clear() { ht_.clear(); }
+
+
+
+  class Iterator {
+    Iterator() = default;
+    ~ Iterator() = default;
+    auto begin() -> Iterator {
+      
+    }
+    auto end() -> Iterator {
+
+    }
+  };
+
+
 
 
   private:
-    Tuple* tuple_;
     //
     // funcs[i] exec on cell_specs[i]   
-    std::vector<TupleCellSpec> cell_speces_;
-    std::vector<AggFuncType> func_types_;
+    std::vector<AggType> agg_types_;
 
-    std::vector<Value> aggregates_; 
+    // todo(lyq)
+    // without group_by, we only need one AggregationValue
+    // we suppose the key for it is fix number "1"
+    std::unordered_map<AggregationKey, AggregationValue> ht_;
+    
 };
+
+

@@ -88,6 +88,17 @@ enum AggFuncType
   SUM_FUNC
 };
 
+enum AggType 
+{
+  COUNT_STAR,
+  COUNT_AGG,
+  SUM_AGG,
+  MIN_AGG,
+  MAX_AGG,
+  AVG_AGG,
+};
+
+
 struct AggregationFuncSqlNode
 {
   AggFuncType    func;

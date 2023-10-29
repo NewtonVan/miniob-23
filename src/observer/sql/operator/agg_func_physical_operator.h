@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include "sql/expr/tuple.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/parser/parse_defs.h"
 
@@ -24,8 +25,7 @@ See the Mulan PSL v2 for more details. */
 class AggPhysicalOperator : public PhysicalOperator
 {
 public:
-  AggPhysicalOperator()
-  {}
+  AggPhysicalOperator(std::vector<AggType>& agg_types):sht_(agg_types) {};
 
   virtual ~AggPhysicalOperator() = default;
 
@@ -33,7 +33,6 @@ public:
   {
     
   }
-  void add_agg(AggFuncType func_type, const Table *table, const FieldMeta *field);
 
   PhysicalOperatorType type() const override
   {
@@ -46,11 +45,11 @@ public:
 
   int cell_num() const
   {
-    return tuple_.cell_num();
   }
+
 
   Tuple *current_tuple() override;
 
 private:
-  ProjectTuple tuple_;
+  SimpleHashTable sht_;
 };

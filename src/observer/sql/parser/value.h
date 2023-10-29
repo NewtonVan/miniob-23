@@ -14,8 +14,12 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include "common/defs.h"
+#include "common/log/log.h"
+#include <bits/stdint-intn.h>
 #include <string>
 #include <cstdint>
+#include "math.h"
 
 /**
  * @brief 属性的类型
@@ -77,6 +81,42 @@ public:
   void set_boolean(bool val);
   void set_string(const char *s, int len = 0);
   void set_value(const Value &value);
+
+  bool is_null() const {
+    switch (attr_type_) {
+    case CHARS:
+      return get_string().empty();
+    case INTS:
+      return get_int() == 0;
+    case DATES:
+      return get_date() == 0;
+    case FLOATS:
+      return fabs(get_float()) <= EPSILON;
+    case BOOLEANS:
+      return get_boolean();
+    default:
+      LOG_WARN("unknown value type");
+      return 0;
+    }
+  }
+
+  static Value get_null(AttrType attr) {
+    switch (attr) {
+    case CHARS:
+      return Value("", 0);
+    case INTS:
+      return Value(static_cast<int>(0));
+    case DATES:
+      return Value(static_cast<int64_t>(0));
+    case FLOATS:
+      return Value(static_cast<float>(EPSILON));
+    case BOOLEANS:
+      return Value(false);
+    default:
+      LOG_PANIC("unreachable");
+    }
+    return Value(0);
+  }
 
   std::string to_string() const;
 

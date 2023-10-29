@@ -237,6 +237,8 @@ RC PhysicalPlanGenerator::create_plan(AggLogicalOperator& agg_oper, std::unique_
   auto& child_opers = agg_oper.children();
   ASSERT(child_opers.size() == 1, "agg should have just 1 child");
   
+    
+
   
   
 
