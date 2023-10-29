@@ -500,14 +500,14 @@ agg_func_call:
     agg_func LBRACE '*' RBRACE
     {
         $$ = new AggregationFuncSqlNode;
-        $$->func = COUNT_FUNC;
-        $$->attr_name = "*";
+        $$->func = $1;
+        $$->attr.attribute_name = "*";
     }
     | agg_func LBRACE ID RBRACE
     {
         $$ = new AggregationFuncSqlNode;
         $$->func = $1;
-        $$->attr_name = $3;
+        $$->attr.attribute_name = $3;
         free($3);
     };
 

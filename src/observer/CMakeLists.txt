@@ -31,6 +31,7 @@ MESSAGE("Archive directory:" ${LIBRARY_OUTPUT_PATH})
 ADD_EXECUTABLE(observer ${MAIN_SRC})
 TARGET_LINK_LIBRARIES(observer observer_static)
 
+
 ADD_LIBRARY(observer_static STATIC ${LIB_SRC})
 INCLUDE (readline)
 MINIOB_FIND_READLINE()

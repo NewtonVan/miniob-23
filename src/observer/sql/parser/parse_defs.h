@@ -81,17 +81,17 @@ struct ConditionSqlNode
 
 enum AggFuncType
 {
-    MAX_FUNC = 0,
-    MIN_FUNC,
-    AVG_FUNC,
-    COUNT_FUNC,
-    SUM_FUNC
+  MAX_FUNC = 0,
+  MIN_FUNC,
+  AVG_FUNC,
+  COUNT_FUNC,
+  SUM_FUNC
 };
 
 struct AggregationFuncSqlNode
 {
   AggFuncType    func;
-  std::string    attr_name;
+  RelAttrSqlNode attr;
 };
 
 

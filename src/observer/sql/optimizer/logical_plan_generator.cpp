@@ -25,6 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/join_logical_operator.h"
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/explain_logical_operator.h"
+#include "sql/operator/agg_func_logical_operator.h"
 
 #include "sql/operator/update_logical_operator.h"
 #include "sql/stmt/stmt.h"
@@ -92,6 +93,9 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
   const std::vector<Table *> &tables     = select_stmt->tables();
   const std::vector<Field>   &all_fields = select_stmt->query_fields();
+  const std::vector<SelectStmt::agg_field> all_agg_fields = select_stmt->all_agg_fields();
+
+  // generate access method (i.e. table get oper )
   for (Table *table : tables) {
     std::vector<Field> fields;
     for (const Field &field : all_fields) {
@@ -116,6 +120,25 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to create predicate logical plan. rc=%s", strrc(rc));
     return rc;
+  }
+
+  // WIP(lyq) agg logicalOperator comes in 
+  if(select_stmt->is_agg()) {
+    unique_ptr<LogicalOperator> agg_oper(new AggLogicalOperator(all_agg_fields));    
+    if(predicate_oper) {
+      if(table_oper) {
+        predicate_oper->add_child(std::move(table_oper));
+      }
+      agg_oper->add_child(std::move(predicate_oper));
+    } else {
+      if(table_oper) {
+        agg_oper->add_child(std::move(table_oper));
+      }
+    }
+
+    logical_operator.swap(agg_oper);
+
+    return RC::SUCCESS;
   }
 
   unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_fields));
@@ -154,6 +177,7 @@ RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<Logical
     cmp_exprs.emplace_back(cmp_expr);
   }
 
+  // use AND to conjunct several cmp_expr
   unique_ptr<PredicateLogicalOperator> predicate_oper;
   if (!cmp_exprs.empty()) {
     unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, cmp_exprs));

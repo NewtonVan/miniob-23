@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include <memory>
+#include <unordered_map>
 #include <vector>
 #include <string>
 
@@ -423,4 +424,59 @@ public:
 private:
   Tuple *left_ = nullptr;
   Tuple *right_ = nullptr;
+};
+
+// agg tuple 
+class AggTuple : public Tuple 
+{
+  public:
+    AggTuple() = default;
+    ~ AggTuple() = default;
+  
+  void init() {
+    // init aggregates
+    // todo 
+  }
+  int cell_num() const override {
+    return aggregates_.size();
+  }
+
+  RC cell_at(int index, Value &value) const override {
+    if (index < 0 || index >= cell_num()) {
+      return RC::NOTFOUND;
+    }
+
+    value = aggregates_[index];
+    return RC::SUCCESS;
+  }
+
+  RC find_cell(const TupleCellSpec &spec, Value &value) const override {
+    for(int i =0; i < cell_speces_.size(); i++) {
+      if(spec.alias() == cell_speces_[i].alias() &&
+       spec.field_name() == cell_speces_[i].field_name() && spec.table_name() ==cell_speces_[i].table_name()) {
+        value = aggregates_[i];
+        return RC::SUCCESS;
+       }
+    }
+    return RC::SCHEMA_FIELD_NOT_EXIST;
+  }
+
+  RC insert_combine(const TupleCellSpec &spec, Value &value) {
+    // udpate aggregates 
+    
+
+    return RC::SUCCESS;
+  }
+
+  
+
+
+  private:
+    Tuple* tuple_;
+    //
+    // funcs[i] exec on cell_specs[i]   
+    std::vector<TupleCellSpec> cell_speces_;
+    std::vector<AggFuncType> func_types_;
+
+    std::vector<Value> aggregates_; 
 };

@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "common/log/log.h"
 #include "sql/parser/parse_defs.h"
+#include "sql/stmt/aggregation_stmt.h"
 #include "sql/stmt/stmt.h"
 #include "sql/stmt/insert_stmt.h"
 #include "sql/stmt/delete_stmt.h"

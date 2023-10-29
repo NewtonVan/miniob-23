@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 
 #include "common/rc.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/stmt/stmt.h"
 #include "storage/field/field.h"
 
@@ -45,6 +46,14 @@ public:
   static RC create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt);
 
 public:
+  struct agg_field {
+    AggFuncType func_;
+    Field field_;
+    agg_field(AggFuncType func, const Field& field):func_(func), field_(field) {};
+  };
+  bool is_agg() {
+    return is_agg_;
+  }
   const std::vector<Table *> &tables() const
   {
     return tables_;
@@ -52,6 +61,10 @@ public:
   const std::vector<Field> &query_fields() const
   {
     return query_fields_;
+  }
+  const std::vector<agg_field>& all_agg_fields() const 
+  {
+    return agg_fields_;
   }
   FilterStmt *filter_stmt() const
   {
@@ -62,4 +75,7 @@ private:
   std::vector<Field> query_fields_;
   std::vector<Table *> tables_;
   FilterStmt *filter_stmt_ = nullptr;
+  // whether select has agg func 
+  bool is_agg_; 
+  std::vector<agg_field> agg_fields_;
 };

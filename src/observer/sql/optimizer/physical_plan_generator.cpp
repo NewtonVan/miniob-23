@@ -65,6 +65,11 @@ RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<P
       return create_plan(static_cast<ProjectLogicalOperator &>(logical_operator), oper);
     } break;
 
+    case LogicalOperatorType::AGG: {
+      return create_plan(static_cast<AggLogicalOperator&>(logical_operator), oper);
+
+    } break;
+
     case LogicalOperatorType::INSERT: {
       return create_plan(static_cast<InsertLogicalOperator &>(logical_operator), oper);
     } break;
@@ -220,6 +225,18 @@ RC PhysicalPlanGenerator::create_plan(InsertLogicalOperator &insert_oper, unique
   vector<Value>          &values          = insert_oper.values();
   InsertPhysicalOperator *insert_phy_oper = new InsertPhysicalOperator(table, std::move(values));
   oper.reset(insert_phy_oper);
+  return RC::SUCCESS;
+}
+
+
+RC create_plan(AggLogicalOperator& agg_oper, std::unique_ptr<PhysicalOperator> & oper) {
+  // WIP(lyq)
+  auto& child_opers = agg_oper.children();
+  ASSERT(child_opers.size() == 1, "agg should have just 1 child");
+  
+  
+  
+
   return RC::SUCCESS;
 }
 
