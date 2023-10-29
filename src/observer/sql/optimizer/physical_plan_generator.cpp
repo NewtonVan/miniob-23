@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include <utility>
 #include <vector>
 
+#include "sql/operator/agg_func_logical_operator.h"
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/operator/update_logical_operator.h"
@@ -38,6 +39,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/join_physical_operator.h"
 #include "sql/operator/calc_logical_operator.h"
 #include "sql/operator/calc_physical_operator.h"
+#include "sql/operator/agg_func_logical_operator.h"
 #include "sql/expr/expression.h"
 #include "common/log/log.h"
 #include "sql/parser/value.h"
@@ -219,6 +221,7 @@ RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &project_oper, uniq
   return rc;
 }
 
+
 RC PhysicalPlanGenerator::create_plan(InsertLogicalOperator &insert_oper, unique_ptr<PhysicalOperator> &oper)
 {
   Table                  *table           = insert_oper.table();
@@ -229,7 +232,7 @@ RC PhysicalPlanGenerator::create_plan(InsertLogicalOperator &insert_oper, unique
 }
 
 
-RC create_plan(AggLogicalOperator& agg_oper, std::unique_ptr<PhysicalOperator> & oper) {
+RC PhysicalPlanGenerator::create_plan(AggLogicalOperator& agg_oper, std::unique_ptr<PhysicalOperator> & oper) {
   // WIP(lyq)
   auto& child_opers = agg_oper.children();
   ASSERT(child_opers.size() == 1, "agg should have just 1 child");
