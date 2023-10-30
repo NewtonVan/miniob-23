@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/stmt/select_stmt.h"
 #include "common/rc.h"
+#include "sql/expr/expression.h"
 #include "sql/parser/parse_defs.h"
 #include "sql/stmt/filter_stmt.h"
 #include "common/log/log.h"
@@ -21,7 +22,9 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/join_stmt.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
+#include <algorithm>
 #include <memory>
+#include <vector>
 
 SelectStmt::~SelectStmt()
 {
@@ -77,8 +80,14 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // collect query fields in `select` statement
   std::vector<Field> query_fields;
-  for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
-    const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
+  // FIXME(CHEN): too hacky, fix this after merge our job
+  std::vector<RelAttrSqlNode> query_attrs;
+  bool                        field_only = true;
+  collectQueryFields(select_sql.select_expressions, query_attrs, field_only);
+  std::reverse(query_attrs.begin(), query_attrs.end());
+
+  for (int i = static_cast<int>(query_attrs.size()) - 1; i >= 0; i--) {
+    const RelAttrSqlNode &relation_attr = query_attrs[i];
 
     if (common::is_blank(relation_attr.relation_name.c_str()) &&
         0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
@@ -147,12 +156,19 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   RC          rc          = FilterStmt::create(db,
       default_table,
       &table_map,
-      select_sql.conditions.data(),
+      select_sql.conditions,
       static_cast<int>(select_sql.conditions.size()),
       filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("cannot construct filter stmt");
     return rc;
+  }
+
+  std::vector<std::unique_ptr<Expression>> select_expressions;
+  for (int i = 0; i < select_sql.select_expressions.size(); ++i) {
+    std::unique_ptr<Expression> select_expr;
+    rewrite_attr_expr_to_field_expr(db, default_table, &table_map, select_sql.select_expressions[i], select_expr);
+    select_expressions.emplace_back(std::move(select_expr));
   }
 
   // create join stmt
@@ -171,9 +187,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   // TODO add expression copy
   select_stmt->tables_.swap(tables);
   select_stmt->query_fields_.swap(query_fields);
-  select_stmt->filter_stmt_ = filter_stmt;
-  select_stmt->join_stmt_   = static_cast<JoinStmt *>(join_stmt);
-  stmt                      = select_stmt;
+  select_stmt->filter_stmt_       = filter_stmt;
+  select_stmt->join_stmt_         = static_cast<JoinStmt *>(join_stmt);
+  select_stmt->use_project_exprs_ = !field_only;
+  select_stmt->project_exprs_.swap(select_expressions);
+  stmt = select_stmt;
   return RC::SUCCESS;
 }
 
@@ -211,5 +229,161 @@ RC SelectStmt::collectJoinTables(Db *db, GeneralRelationSqlNode *rel, std::vecto
     return rc;
   }
 
+  return rc;
+}
+
+RC SelectStmt::collectQueryFields(
+    const std::vector<Expression *> &select_expressions, std::vector<RelAttrSqlNode> &query_attr, bool &field_only)
+{
+  RC rc = RC::SUCCESS;
+  for (int i = 0; i < select_expressions.size(); ++i) {
+    rc = collectQueryFieldsInExpression(select_expressions[i], query_attr, field_only);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("Unsupported query expressions, idx: %d, type: %d", i, select_expressions[i]->type());
+      return rc;
+    }
+  }
+
+  return RC::SUCCESS;
+}
+
+RC SelectStmt::collectQueryFieldsInExpression(
+    Expression *select_expr, std::vector<RelAttrSqlNode> &query_attr, bool &field_only)
+{
+  RC rc = RC::SUCCESS;
+  switch (select_expr->type()) {
+    case ExprType::ARITHMETIC: {
+      field_only                 = false;
+      ArithmeticExpr *arithmetic = static_cast<ArithmeticExpr *>(select_expr);
+
+      if (arithmetic->arithmetic_type() == ArithmeticExpr::Type::NEGATIVE) {
+        // consider left only
+        rc = collectQueryFieldsInExpression(arithmetic->left().get(), query_attr, field_only);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("fail to collec in left");
+          return rc;
+        }
+      } else {
+        rc = collectQueryFieldsInExpression(arithmetic->left().get(), query_attr, field_only);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("fail to collec in left");
+          return rc;
+        }
+        rc = collectQueryFieldsInExpression(arithmetic->right().get(), query_attr, field_only);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("fail to collec in left");
+          return rc;
+        }
+      }
+    } break;
+    case ExprType::REL_ATTR: {
+      query_attr.push_back(*static_cast<RelAttrExprSqlNode *>(select_expr)->get_rel_attr());
+    } break;
+    case ExprType::VALUE: {
+
+    } break;
+    default: {
+      LOG_WARN("Unsupported query expressions, type: %d",  select_expr->type());
+      return RC::INTERNAL;
+    }
+  }
+
+  return rc;
+}
+
+RC SelectStmt::get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
+    const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field)
+{
+  if (common::is_blank(attr.relation_name.c_str())) {
+    table = default_table;
+  } else if (nullptr != tables) {
+    auto iter = tables->find(attr.relation_name);
+    if (iter != tables->end()) {
+      table = iter->second;
+    }
+  } else {
+    table = db->find_table(attr.relation_name.c_str());
+  }
+  if (nullptr == table) {
+    LOG_WARN("No such table: attr.relation_name: %s", attr.relation_name.c_str());
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+
+  field = table->table_meta().field(attr.attribute_name.c_str());
+  if (nullptr == field) {
+    LOG_WARN("no such field in table: table %s, field %s", table->name(), attr.attribute_name.c_str());
+    table = nullptr;
+    return RC::SCHEMA_FIELD_NOT_EXIST;
+  }
+
+  return RC::SUCCESS;
+}
+
+// TODO(chen): abstract as a common rewriter instead of owned by filter stmt and too hacky!
+RC SelectStmt::rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
+    std::unordered_map<std::string, Table *> *tables, Expression *old_expr, std::unique_ptr<Expression> &ret_expr)
+{
+  RC rc = RC::SUCCESS;
+
+  // follow logic in expression_rewriter.cpp
+  switch (old_expr->type()) {
+    case ExprType::REL_ATTR: {
+      LOG_DEBUG("Expr is rel attr expr");
+      RelAttrExprSqlNode *rel_attr = static_cast<RelAttrExprSqlNode *>(old_expr);
+      Table              *table    = nullptr;
+      const FieldMeta    *field    = nullptr;
+      rc = get_table_and_field(db, default_table, tables, *rel_attr->get_rel_attr(), table, field);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot find attr");
+        return rc;
+      }
+
+      std::unique_ptr<Expression> field_expr(new FieldExpr(table, field));
+      ret_expr.swap(field_expr);
+      LOG_DEBUG("rel attr expr rewrited to FieldExpr");
+    } break;
+    case ExprType::ARITHMETIC: {
+      LOG_DEBUG("Expr is arithmetic expr");
+      ArithmeticExpr             *arithmetic = static_cast<ArithmeticExpr *>(old_expr);
+      std::unique_ptr<Expression> left_expr;
+      std::unique_ptr<Expression> right_expr;
+
+      if (arithmetic->arithmetic_type() == ArithmeticExpr::Type::NEGATIVE) {
+        rc = rewrite_attr_expr_to_field_expr(db, default_table, tables, arithmetic->left().get(), left_expr);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("cannnot rewrite right");
+          return rc;
+        }
+      } else {
+        rc = rewrite_attr_expr_to_field_expr(db, default_table, tables, arithmetic->left().get(), left_expr);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("cannnot rewrite right");
+          return rc;
+        }
+
+        rc = rewrite_attr_expr_to_field_expr(db, default_table, tables, arithmetic->right().get(), right_expr);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("cannnot rewrite right");
+          return rc;
+        }
+      }
+
+      std::unique_ptr<Expression> new_arithmetic(
+          new ArithmeticExpr(arithmetic->arithmetic_type(), std::move(left_expr), std::move(right_expr)));
+      ret_expr.swap(new_arithmetic);
+
+      LOG_DEBUG("arithmetic attr expr transferred success");
+    } break;
+    case ExprType::VALUE: {
+      ValueExpr                  *value = static_cast<ValueExpr *>(old_expr);
+      std::unique_ptr<Expression> new_value(new ValueExpr(value->get_value()));
+      ret_expr.swap(new_value);
+    } break;
+    default: {
+      LOG_DEBUG("type: %d, no need to rewrite", old_expr->type());
+    }
+  }
+
+  ret_expr->set_name(old_expr->name());
   return rc;
 }

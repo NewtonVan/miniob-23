@@ -63,7 +63,7 @@ RC JoinStmt::create(Db *db, std::unordered_map<std::string, Table *> &table_map,
   }
 
   FilterStmt *join_condition = nullptr;
-  rc = FilterStmt::create(db, nullptr, &table_map, join->conditions.data(), join->conditions.size(), join_condition);
+  rc = FilterStmt::create(db, nullptr, &table_map, join->conditions, join->conditions.size(), join_condition);
   if (rc != RC::SUCCESS) {
     LOG_WARN("cannot construct filter stmt");
     return rc;

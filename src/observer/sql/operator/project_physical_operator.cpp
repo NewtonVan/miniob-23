@@ -13,9 +13,12 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "common/log/log.h"
+#include "sql/expr/expression.h"
+#include "sql/expr/tuple.h"
 #include "sql/operator/project_physical_operator.h"
 #include "storage/record/record.h"
 #include "storage/table/table.h"
+#include <memory>
 
 RC ProjectPhysicalOperator::open(Trx *trx)
 {
@@ -24,7 +27,7 @@ RC ProjectPhysicalOperator::open(Trx *trx)
   }
 
   PhysicalOperator *child = children_[0].get();
-  RC rc = child->open(trx);
+  RC                rc    = child->open(trx);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to open child operator: %s", strrc(rc));
     return rc;
@@ -50,7 +53,12 @@ RC ProjectPhysicalOperator::close()
 }
 Tuple *ProjectPhysicalOperator::current_tuple()
 {
-  tuple_.set_tuple(children_[0]->current_tuple());
+  if (use_project_exprs()) {
+    expression_tuple_->set_tuple(children_[0]->current_tuple());
+    tuple_.set_tuple(expression_tuple_);
+  } else {
+    tuple_.set_tuple(children_[0]->current_tuple());
+  }
   return &tuple_;
 }
 
@@ -60,4 +68,21 @@ void ProjectPhysicalOperator::add_projection(const Table *table, const FieldMeta
   // 对多表查询来说，展示的alias 需要带表名字
   TupleCellSpec *spec = new TupleCellSpec(table->name(), field_meta->name(), field_meta->name());
   tuple_.add_cell_spec(spec);
+}
+
+void ProjectPhysicalOperator::init_specs()
+{
+  for (std::unique_ptr<Expression> &expr : expressions_) {
+    if (expr->type() == ExprType::FIELD) {
+      FieldExpr *field_expr = static_cast<FieldExpr *>(expr.get());
+      // TODO(chen): add alias
+      TupleCellSpec *spec =
+          new TupleCellSpec(field_expr->table_name(), field_expr->field_name(), field_expr->field_name());
+      tuple_.add_cell_spec(spec);
+    } else if (expr->type() == ExprType::ARITHMETIC) {
+      ArithmeticExpr *arithmetic = static_cast<ArithmeticExpr *>(expr.get());
+      TupleCellSpec  *spec       = new TupleCellSpec("", "", arithmetic->name().c_str());
+      tuple_.add_cell_spec(spec);
+    }
+  }
 }

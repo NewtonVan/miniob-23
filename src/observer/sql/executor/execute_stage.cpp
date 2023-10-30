@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by Longda on 2021/4/13.
 //
 
+#include <memory>
 #include <string>
 #include <sstream>
 
@@ -22,6 +23,8 @@ See the Mulan PSL v2 for more details. */
 #include "event/storage_event.h"
 #include "event/sql_event.h"
 #include "event/session_event.h"
+#include "sql/expr/expression.h"
+#include "sql/operator/project_physical_operator.h"
 #include "sql/stmt/stmt.h"
 #include "sql/stmt/select_stmt.h"
 #include "storage/default/default_handler.h"
@@ -33,7 +36,7 @@ using namespace common;
 
 RC ExecuteStage::handle_request(SQLStageEvent *sql_event)
 {
-  RC rc = RC::SUCCESS;
+  RC                                  rc                = RC::SUCCESS;
   const unique_ptr<PhysicalOperator> &physical_operator = sql_event->physical_operator();
   if (physical_operator != nullptr) {
     return handle_request_with_physical_operator(sql_event);
@@ -66,21 +69,40 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
   TupleSchema schema;
   switch (stmt->type()) {
     case StmtType::SELECT: {
-      SelectStmt *select_stmt = static_cast<SelectStmt *>(stmt);
-      bool with_table_name = select_stmt->tables().size() > 1;
+      SelectStmt *select_stmt     = static_cast<SelectStmt *>(stmt);
+      bool        with_table_name = select_stmt->tables().size() > 1;
 
-      for (const Field &field : select_stmt->query_fields()) {
-        if (with_table_name) {
-          schema.append_cell(field.table_name(), field.field_name());
-        } else {
-          schema.append_cell(field.field_name());
+      if (select_stmt->use_project_exprs()) {
+        ProjectPhysicalOperator *proj_oper = static_cast<ProjectPhysicalOperator *>(physical_operator.get());
+        for (const std::unique_ptr<Expression> &expr : proj_oper->expressions()) {
+          if (expr->type() == ExprType::REL_ATTR) {
+            RelAttrExprSqlNode *attr = static_cast<RelAttrExprSqlNode *>(expr.get());
+            if (strlen(attr->field_alias()) > 0) {
+              schema.append_cell(attr->field_alias());
+            }
+            if (with_table_name) {
+              schema.append_cell(attr->table_name(), attr->field_name());
+            } else {
+              schema.append_cell(attr->field_name());
+            }
+          } else {
+            schema.append_cell(expr->name().c_str());
+          }
+        }
+      } else {
+        for (const Field &field : select_stmt->query_fields()) {
+          if (with_table_name) {
+            schema.append_cell(field.table_name(), field.field_name());
+          } else {
+            schema.append_cell(field.field_name());
+          }
         }
       }
     } break;
 
     case StmtType::CALC: {
       CalcPhysicalOperator *calc_operator = static_cast<CalcPhysicalOperator *>(physical_operator.get());
-      for (const unique_ptr<Expression> & expr : calc_operator->expressions()) {
+      for (const unique_ptr<Expression> &expr : calc_operator->expressions()) {
         schema.append_cell(expr->name().c_str());
       }
     } break;
