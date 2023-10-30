@@ -128,6 +128,7 @@ union YYSTYPE
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  std::vector<std::string> *        field_list;
   char *                            string;
   int                               number;
   float                             floats;
@@ -135,7 +136,7 @@ union YYSTYPE
   enum AggFuncType                  agg_func;
   std::vector<AggregationFuncSqlNode> * agg_func_call_list;
 
-#line 139 "yacc_sql.hpp" /* yacc.c:1921  */
+#line 140 "yacc_sql.hpp" /* yacc.c:1921  */
 };
 
 typedef union YYSTYPE YYSTYPE;

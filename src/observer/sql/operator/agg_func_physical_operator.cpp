@@ -33,8 +33,7 @@ RC AggPhysicalOperator::open(Trx *trx) {
 
 RC AggPhysicalOperator::next() {
   if (finish_) {
-    // todo(recheck)
-    return RC::EMPTY;
+    return RC::RECORD_EOF;
   }
 
   if (!materialized_child_) {
@@ -81,7 +80,7 @@ RC AggPhysicalOperator::next() {
 
   if (iter_->operator==(sht_.End())) {
     finish_ = true;
-    return RC::EMPTY;
+    return RC::RECORD_EOF;
   }
 
   std::vector<Value> values;

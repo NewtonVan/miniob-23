@@ -52,6 +52,25 @@ public:
     // whether initial field is star
     bool field_is_star = false;
     agg_field(AggFuncType func, const Field& field):func_(func), field_(field) {};
+    static std::string name(AggFuncType func) {
+      switch (func) {
+      case AggFuncType::COUNT_FUNC:
+        return {"COUNT"};
+        break;
+      case AggFuncType::SUM_FUNC:
+        return {"SUM"};
+        break;
+      case AggFuncType::MAX_FUNC:
+        return {"MAX"};
+        break;
+      case AggFuncType::MIN_FUNC:
+        return {"MIN"};
+        break;
+      case AggFuncType::AVG_FUNC:
+        return {"AVG"};
+        break;
+      }
+    }
   };
   bool is_agg() {
     return is_agg_;

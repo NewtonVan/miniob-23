@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <bits/types/FILE.h>
 #include <cstddef>
 #include <cstring>
 #include <functional>
@@ -405,7 +406,7 @@ public:
   RC cell_at(int index, Value &value) const override
   {
     const int left_cell_num = left_->cell_num();
-    if (index > 0 && index < left_cell_num) {
+    if (index > 0 && index < left_cell_num) { // >= 0 ?
       return left_->cell_at(index, value);
     }
 
@@ -495,10 +496,10 @@ class AggTuple : public Tuple {
       return tuple_.size();
     }
 
-  RC cell_at(int index, Value &value) const override
+  RC cell_at(int index, Value &value) const override // fix 
   {
-    const int left_cell_num =cell_num();
-    if (index > 0 && index < cell_num()) {
+    // const int left_cell_num =cell_num();
+    if (index >= 0 && index < cell_num()) {
       value =  tuple_[index];
       return RC::SUCCESS;
     }
@@ -611,19 +612,25 @@ class SimpleHashTable
               switch (agg_val.attr_type()) {
               case AttrType::INTS:
                 if(agg_val.get_int() < input.aggregates[i].get_int()) {
-                  agg_val.set_int(input.aggregates[i].get_int());
+                  agg_val = input.aggregates[i];
                 }
                 break;
               case AttrType::FLOATS:
                 if(agg_val.get_float() < input.aggregates[i].get_float()) {
-                  agg_val.set_float(input.aggregates[i].get_float());
+                  agg_val = input.aggregates[i];
                 }
                 break;
               case AttrType::DATES:
                 if(agg_val.get_date() < input.aggregates[i].get_float()) {
-                  agg_val.set_date(input.aggregates[i].get_date());
+                  agg_val = input.aggregates[i];
                 }
                 break;
+              case AttrType::CHARS: // fix agg min/max on char is legal
+                if(agg_val.get_string() < input.aggregates[i].get_string()) {
+                  agg_val = input.aggregates[i];
+                }
+                break;
+
               default:
                 LOG_ERROR("agg max on type%d", agg_val.attr_type());
               }
@@ -639,17 +646,23 @@ class SimpleHashTable
               switch (agg_val.attr_type()) {
               case AttrType::INTS:
                 if(agg_val.get_int() > input.aggregates[i].get_int()) {
-                  agg_val.set_int(input.aggregates[i].get_int());
+                  agg_val = input.aggregates[i];
                 }
                 break;
               case AttrType::FLOATS:
                 if(agg_val.get_float() > input.aggregates[i].get_float()) {
-                  agg_val.set_float(input.aggregates[i].get_float());
+                  agg_val = input.aggregates[i];
                 }
                 break;
               case AttrType::DATES:
                 if(agg_val.get_date() > input.aggregates[i].get_date()) {
-                  agg_val.set_date(input.aggregates[i].get_date());
+                  agg_val = input.aggregates[i];
+                }
+                break;
+              
+              case AttrType::CHARS: // fix agg min/max on char is legal
+                if(agg_val.get_string() > input.aggregates[i].get_string()) {
+                  agg_val = input.aggregates[i];
                 }
                 break;
               default:

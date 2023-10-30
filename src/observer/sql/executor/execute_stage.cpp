@@ -22,6 +22,7 @@ See the Mulan PSL v2 for more details. */
 #include "event/storage_event.h"
 #include "event/sql_event.h"
 #include "event/session_event.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/stmt/stmt.h"
 #include "sql/stmt/select_stmt.h"
 #include "storage/default/default_handler.h"
@@ -67,15 +68,31 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
   switch (stmt->type()) {
     case StmtType::SELECT: {
       SelectStmt *select_stmt = static_cast<SelectStmt *>(stmt);
-      // todo(lyq) construct agg schema 
-      bool with_table_name = select_stmt->tables().size() > 1;
-
-      for (const Field &field : select_stmt->query_fields()) {
-        if (with_table_name) {
-          schema.append_cell(field.table_name(), field.field_name());
-        } else {
-          schema.append_cell(field.field_name());
+      //WIP(lyq) construct agg schema 
+      if(select_stmt->is_agg()) { 
+        // use alias 
+        for(const auto& agg_field : select_stmt->all_agg_fields()) {
+          string alias;
+          alias += SelectStmt::agg_field::name(agg_field.func_);
+          alias += "(";
+          if(agg_field.field_is_star) {
+            alias += "*";
+          } else {
+            alias += agg_field.field_.field_name();
+          }
+          alias += ")";
+          std::transform(alias.begin(), alias.end(), alias.begin(), ::toupper);
+          schema.append_cell(alias.c_str());
         }
+      } else {
+        bool with_table_name = select_stmt->tables().size() > 1;
+          for (const Field &field : select_stmt->query_fields()) {
+            if (with_table_name) {
+              schema.append_cell(field.table_name(), field.field_name());
+            } else {
+              schema.append_cell(field.field_name());
+            }
+          }
       }
     } break;
 

@@ -42,13 +42,13 @@ static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
   }
 }
 
-static void wildcard_agg_fields(Table *table, AggFuncType func, std::vector<SelectStmt::agg_field>& fields) {
-  const TableMeta &table_meta = table->table_meta();
-  const int field_num = table_meta.field_num();
-  for (int i = table_meta.sys_field_num(); i < field_num; i++) {
-    fields.push_back(SelectStmt::agg_field(func, Field(table,table_meta.field(i))));
-  }
-}
+// static void wildcard_agg_fields(Table *table, AggFuncType func, std::vector<SelectStmt::agg_field>& fields) {
+//   const TableMeta &table_meta = table->table_meta();
+//   const int field_num = table_meta.field_num();
+//   for (int i = table_meta.sys_field_num(); i < field_num; i++) {
+//     fields.push_back(SelectStmt::agg_field(func, Field(table,table_meta.field(i))));
+//   }
+// }
 
 
 RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
@@ -99,6 +99,13 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     for(int i = static_cast<int>(select_sql.agg_funcs.size())-1; i >= 0; i--) {
       const AggFuncType func = select_sql.agg_funcs[i].func;
       const RelAttrSqlNode &relation_attr = select_sql.agg_funcs[i].attr;
+      // handle empty field name 
+      // select count() from t;
+      // select count(*, num) from t;
+      if(relation_attr.attribute_name.empty()) {
+        return RC::BAD_AGG;  
+      }
+
       // handle "*"
       if(0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
         if(func != AggFuncType::COUNT_FUNC) {
@@ -117,25 +124,46 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         // handle  *.rel
         if(relation_attr.relation_name == "*") {
           return RC::SCHEMA_FIELD_MISSING;
-        }
+        } else if(relation_attr.relation_name == "") {
+          // fix() select count(a) from t;
+          // select count(a) from t1, t2; -> select count(t1.a), count(t2.a) from t1 join t2;
+          
 
-        
-        auto iter = table_map.find(relation_attr.relation_name);
-        if(iter == table_map.end()) {
-          return RC::SCHEMA_TABLE_NOT_EXIST;
-        }
-        Table* table = iter->second;
 
-        const auto field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
-        // avg semantic legal check, todo(lyq)
-        // sum avg only on INTS and FLOATS
-        if(func == AggFuncType::AVG_FUNC || func == AggFuncType::SUM_FUNC) {
-          if(field_meta->type() != AttrType::INTS && field_meta->type() != AttrType::FLOATS) {
-            LOG_ERROR("agg avg or sum on non-arithmetic attr");
+          for (Table *table : tables) {
+              const FieldMeta * field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
+              if(field_meta != nullptr) {
+                agg_fields.push_back(SelectStmt::agg_field(func, Field(table,field_meta)));
+              }
+            // fix(lyq)
+            // SELECT count(num) FROM aggregation_func;
+            // wildcard_agg_fields(table, func, agg_fields);
+          }
+          if(agg_fields.empty()) {
+            LOG_ERROR("no exist field");
             return RC::BAD_AGG;
           }
+
+
+        } else {
+          auto iter = table_map.find(relation_attr.relation_name);
+          if(iter == table_map.end()) {
+            return RC::SCHEMA_TABLE_NOT_EXIST;
+          }
+          Table* table = iter->second;
+
+          const auto field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
+          // avg semantic legal check, todo(lyq)
+          // sum avg only on INTS and FLOATS
+          // todo(lyq, recheck)
+          if(func == AggFuncType::AVG_FUNC || func == AggFuncType::SUM_FUNC) {
+            if(field_meta->type() != AttrType::INTS && field_meta->type() != AttrType::FLOATS) {
+              LOG_ERROR("agg avg or sum on non-arithmetic attr");
+              return RC::BAD_AGG;
+            }
+          }
+          agg_fields.push_back(agg_field(func, Field(table, field_meta)));
         }
-        agg_fields.push_back(agg_field(func, Field(table, field_meta)));
      }
     }
   }

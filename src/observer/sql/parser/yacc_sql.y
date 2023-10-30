@@ -121,6 +121,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  std::vector<std::string> *        field_list;
   char *                            string;
   int                               number;
   float                             floats;
@@ -153,6 +154,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <agg_func_call_list>  agg_func_call_list;
 %type <relation_list>       rel_list
 %type <rel_attr_list>       attr_list
+%type <string>              agg_field
+%type <field_list>          agg_field_list;
 %type <expression>          expression
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
@@ -497,19 +500,54 @@ agg_func_call_list:
 
 
 agg_func_call:
-    agg_func LBRACE '*' RBRACE
+    agg_func LBRACE RBRACE
     {
-        $$ = new AggregationFuncSqlNode;
-        $$->func = $1;
-        $$->attr.attribute_name = "*";
+      $$ = new AggregationFuncSqlNode;
+      $$->func = $1;
+      $$->attr.attribute_name = "";
     }
-    | agg_func LBRACE ID RBRACE
+    | agg_func LBRACE agg_field agg_field_list RBRACE
     {
         $$ = new AggregationFuncSqlNode;
         $$->func = $1;
-        $$->attr.attribute_name = $3;
+        if($4 == nullptr) {
+          $$->attr.attribute_name = $3;
+        }else {
+          $$->attr.attribute_name = "";
+          delete($4);
+        }
         free($3);
-    };
+    }
+    ;
+
+
+agg_field_list:
+  // empty 
+  {
+    $$=nullptr;
+  }
+  | COMMA agg_field agg_field_list 
+  {
+    if ($3 != nullptr) {
+      $$ = $3;
+    } else {
+      $$ = new std::vector<std::string>;
+    }
+
+    $$->push_back($2);
+    free($2);
+  }
+
+agg_field:
+  '*'
+  {
+    $$ = new char('*');
+  }
+  | ID 
+  {
+    $$ = $1;
+  }
+
 
 
 agg_func:

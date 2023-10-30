@@ -88,6 +88,7 @@ enum AggFuncType
   SUM_FUNC
 };
 
+
 enum AggType 
 {
   COUNT_STAR,

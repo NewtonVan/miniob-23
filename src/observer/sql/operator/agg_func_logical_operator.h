@@ -9,7 +9,7 @@
 #pragma once
 class AggLogicalOperator : public LogicalOperator {
     public:
-        AggLogicalOperator(const std::vector<SelectStmt::agg_field>& fields):fields_(fields){};
+        explicit AggLogicalOperator(const std::vector<SelectStmt::agg_field>& fields):fields_(fields){};
         virtual ~AggLogicalOperator() = default;
         LogicalOperatorType type() const override {
             return LogicalOperatorType::AGG;
