@@ -135,9 +135,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
               if(field_meta != nullptr) {
                 agg_fields.push_back(SelectStmt::agg_field(func, Field(table,field_meta)));
               }
-            // fix(lyq)
-            // SELECT count(num) FROM aggregation_func;
-            // wildcard_agg_fields(table, func, agg_fields);
           }
           if(agg_fields.empty()) {
             LOG_ERROR("no exist field");

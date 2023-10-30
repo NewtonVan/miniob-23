@@ -106,6 +106,9 @@ struct AggregationFuncSqlNode
   RelAttrSqlNode attr;
 };
 
+struct AggField {
+  std::string name;
+};
 
 
 
