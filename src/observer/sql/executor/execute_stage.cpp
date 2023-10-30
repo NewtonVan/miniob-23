@@ -75,8 +75,8 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
       if (select_stmt->use_project_exprs()) {
         ProjectPhysicalOperator *proj_oper = static_cast<ProjectPhysicalOperator *>(physical_operator.get());
         for (const std::unique_ptr<Expression> &expr : proj_oper->expressions()) {
-          if (expr->type() == ExprType::REL_ATTR) {
-            RelAttrExprSqlNode *attr = static_cast<RelAttrExprSqlNode *>(expr.get());
+          if (expr->type() == ExprType::FIELD) {
+            FieldExpr *attr = static_cast<FieldExpr *>(expr.get());
             if (strlen(attr->field_alias()) > 0) {
               schema.append_cell(attr->field_alias());
             }

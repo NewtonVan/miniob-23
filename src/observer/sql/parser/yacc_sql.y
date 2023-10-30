@@ -136,6 +136,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <number>              type
 %type <condition>           condition
 %type <value>               value
+%type <value>               unsigned_value
 %type <number>              number
 %type <comp>                comp_op
 %type <general_relation_sql_node> general_rel;
@@ -382,6 +383,21 @@ value_list:
     }
     ;
 value:
+    unsigned_value {
+      $$ = $1;
+      @$ = @1;
+    }
+    | '-' NUMBER {
+      $$ = new Value(-(int)$2);
+      @$ = @2;
+    }
+    | '-' FLOAT {
+      $$ = new Value(-(float)$2);
+      @$ = @2;
+    }
+    ;
+
+unsigned_value:
     NUMBER {
       $$ = new Value((int)$1);
       @$ = @1;
@@ -509,7 +525,7 @@ expression:
     | '-' expression %prec UMINUS {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
     }
-    | value {
+    | unsigned_value {
       $$ = new ValueExpr(*$1);
       $$->set_name(token_name(sql_string, &@$));
       delete $1;
