@@ -60,6 +60,6 @@ public:
 private:
   ProjectTuple                             tuple_;
   std::vector<std::unique_ptr<Expression>> expressions_;
-  bool                                     use_project_exprs_;
-  ExpressionTuple                         *expression_tuple_ = nullptr;
+  bool                                     use_project_exprs_ = false;
+  ExpressionTuple                         *expression_tuple_  = nullptr;
 };
