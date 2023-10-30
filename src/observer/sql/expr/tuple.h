@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <cstddef>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -476,6 +477,7 @@ struct hash<AggregationKey> {
 
 struct AggregationValue {
   std::vector<Value> aggregates;
+  std::vector<size_t> not_null_count_;
 };
 
 
@@ -483,21 +485,21 @@ struct AggregationValue {
 
 class AggTuple : public Tuple {
   public:
-    void set_tuple(AggregationValue tuple, std::vector<TupleCellSpec>& specs) {
+    void set_tuple(std::vector<Value>& tuple, std::vector<TupleCellSpec>& specs) {
       tuple_ = tuple;
       specs_ = specs;
     }
 
     int cell_num() const override
     {
-      return tuple_.aggregates.size();
+      return tuple_.size();
     }
 
   RC cell_at(int index, Value &value) const override
   {
     const int left_cell_num =cell_num();
     if (index > 0 && index < cell_num()) {
-      value =  tuple_.aggregates[index];
+      value =  tuple_[index];
       return RC::SUCCESS;
     }
 
@@ -518,7 +520,7 @@ class AggTuple : public Tuple {
 
 
   private:
-    AggregationValue tuple_;
+    std::vector<Value> tuple_;
     std::vector<TupleCellSpec> specs_;
 };
 
@@ -552,16 +554,21 @@ class SimpleHashTable
       case AVG_AGG:
       // deal with float conversion in CombineAggregateValues
         agg_value.aggregates.push_back(Value::get_null(INTS));
+        agg_value.not_null_count_.push_back(0);
         break;
       }
     }
     return agg_value;
   }
+
   
 
   void CombineAggregateValues(AggregationValue *result, const AggregationValue &input) {
     for (uint32_t i = 0; i < agg_types_.size(); i++) {
       Value &agg_val = result->aggregates[i];
+      if(!input.aggregates[i].is_null()) {
+        result->not_null_count_[i]++;
+      }
       switch (agg_types_[i]) {
         case AggType::COUNT_STAR:
           agg_val.set_int(agg_val.get_int() + 1);
@@ -590,7 +597,7 @@ class SimpleHashTable
                 agg_val.set_float(agg_val.get_float() + input.aggregates[i].get_float());
                 break;
               default:
-                LOG_PANIC("sum on type%d and type%d", agg_val.attr_type(), input.aggregates[i].attr_type());
+                LOG_ERROR("sum on type%d and type%d", agg_val.attr_type(), input.aggregates[i].attr_type());
               }
             }
           }
@@ -618,7 +625,7 @@ class SimpleHashTable
                 }
                 break;
               default:
-                LOG_WARN("agg max on type%d", agg_val.attr_type());
+                LOG_ERROR("agg max on type%d", agg_val.attr_type());
               }
             }
           }
@@ -646,7 +653,7 @@ class SimpleHashTable
                 }
                 break;
               default:
-                LOG_WARN("agg max on type%d", agg_val.attr_type());
+                LOG_ERROR("agg min on type%d", agg_val.attr_type());
               }
             }
           }
@@ -678,13 +685,15 @@ class SimpleHashTable
   class Iterator {
    public:
     /** Creates an iterator for the aggregate map. */
-    explicit Iterator(std::unordered_map<AggregationKey, AggregationValue>::const_iterator iter) : iter_{iter} {}
+    explicit Iterator(std::unordered_map<AggregationKey, AggregationValue>::iterator iter) : iter_{iter} {}
 
     /** @return The key of the iterator */
     auto Key() -> const AggregationKey & { return iter_->first; }
 
     /** @return The value of the iterator */
-    auto Val() -> const AggregationValue & { return iter_->second; }
+    auto Val() const -> const AggregationValue & { return iter_->second; }
+
+    auto Val() -> AggregationValue& {return iter_->second; }
 
     /** @return The iterator before it is incremented */
     auto operator++() -> Iterator & {
@@ -700,14 +709,14 @@ class SimpleHashTable
 
    private:
     /** Aggregates map */
-    std::unordered_map<AggregationKey, AggregationValue>::const_iterator iter_;
+    std::unordered_map<AggregationKey, AggregationValue>::iterator iter_;
   };
 
     /** @return Iterator to the start of the hash table */
-  auto Begin() -> Iterator { return Iterator{ht_.cbegin()}; }
+  auto Begin() -> Iterator { return Iterator{ht_.begin()}; }
 
   /** @return Iterator to the end of the hash table */
-  auto End() -> Iterator { return Iterator{ht_.cend()}; }
+  auto End() -> Iterator { return Iterator{ht_.end()}; }
 
 
   private:

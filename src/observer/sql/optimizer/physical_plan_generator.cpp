@@ -259,7 +259,7 @@ RC PhysicalPlanGenerator::create_plan(AggLogicalOperator& agg_oper, std::unique_
     case AggFuncType::COUNT_FUNC:
       if(agg_field.field_is_star) {
         agg_types.push_back(AggType::COUNT_STAR);
-        specs.push_back(TupleCellSpec("", ""));
+        specs.push_back(TupleCellSpec("", "*"));
       } else {
         agg_types.push_back(AggType::COUNT_AGG);
         specs.push_back(TupleCellSpec(agg_field.field_.table_name() , agg_field.field_.field_name()));
@@ -286,9 +286,9 @@ RC PhysicalPlanGenerator::create_plan(AggLogicalOperator& agg_oper, std::unique_
 
   AggPhysicalOperator* agg_phy_oper = new AggPhysicalOperator(agg_types, specs);
 
-    if (child_phy_oper) {
-      agg_phy_oper->add_child(std::move(child_phy_oper));
-    }
+  if (child_phy_oper) {
+    agg_phy_oper->add_child(std::move(child_phy_oper));
+  }
 
   oper = unique_ptr<PhysicalOperator>(agg_phy_oper);
 

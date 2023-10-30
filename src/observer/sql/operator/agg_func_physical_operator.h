@@ -19,6 +19,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/physical_operator.h"
 #include "sql/parser/parse_defs.h"
 #include "sql/parser/value.h"
+#include <cstddef>
+#include <cstring>
 #include <memory>
 
 /**
@@ -28,7 +30,7 @@ See the Mulan PSL v2 for more details. */
 class AggPhysicalOperator : public PhysicalOperator
 {
 public:
-  explicit AggPhysicalOperator(std::vector<AggType>& agg_types, std::vector<TupleCellSpec> specs): sht_(agg_types), agg_types_(agg_types), specs_(specs) {};
+  AggPhysicalOperator(std::vector<AggType>& agg_types, std::vector<TupleCellSpec> specs): sht_(agg_types), agg_types_(agg_types), specs_(specs) {};
 
   virtual ~AggPhysicalOperator() = default;
 
@@ -64,12 +66,23 @@ private:
   /** @return The tuple as an AggregateValue */
   auto MakeAggregateValue(const Tuple *tuple) -> AggregationValue {
     std::vector<Value> vals;
+    std::vector<size_t> counts;
     for (const auto& spec : specs_ ) {
+      // handle *
+      if(strcmp(spec.field_name() , "*") == 0) {
+        vals.push_back(Value(1));
+        counts.push_back(1);
+      }
       Value val;
       tuple->find_cell(spec, val);
       vals.push_back(val);
+      if(!val.is_null()) {
+        counts.push_back(1);
+      } else {
+        counts.push_back(0);
+      }
     }
-    return {vals};
+    return {vals, counts};
   }
 
 
@@ -78,6 +91,7 @@ private:
   std::vector<TupleCellSpec> specs_;
   std::unique_ptr<SimpleHashTable::Iterator>iter_;
   AggTuple tuple_;
+
   bool materialized_child_{false};
   bool finish_{false};
 };

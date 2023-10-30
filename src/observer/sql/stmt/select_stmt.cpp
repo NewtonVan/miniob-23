@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/stmt/select_stmt.h"
 #include "sql/parser/parse_defs.h"
+#include "sql/parser/value.h"
 #include "sql/stmt/filter_stmt.h"
 #include "common/log/log.h"
 #include "common/lang/string.h"
@@ -124,7 +125,16 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           return RC::SCHEMA_TABLE_NOT_EXIST;
         }
         Table* table = iter->second;
+
         const auto field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
+        // avg semantic legal check, todo(lyq)
+        // sum avg only on INTS and FLOATS
+        if(func == AggFuncType::AVG_FUNC || func == AggFuncType::SUM_FUNC) {
+          if(field_meta->type() != AttrType::INTS && field_meta->type() != AttrType::FLOATS) {
+            LOG_ERROR("agg avg or sum on non-arithmetic attr");
+            return RC::BAD_AGG;
+          }
+        }
         agg_fields.push_back(agg_field(func, Field(table, field_meta)));
      }
     }
