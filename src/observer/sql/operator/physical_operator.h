@@ -49,6 +49,7 @@ enum class PhysicalOperatorType
   INSERT,
   UPDATE,
   SORT,
+  DUMMY,
 };
 
 /**

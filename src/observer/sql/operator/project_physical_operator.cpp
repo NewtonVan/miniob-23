@@ -83,6 +83,11 @@ void ProjectPhysicalOperator::init_specs()
       ArithmeticExpr *arithmetic = static_cast<ArithmeticExpr *>(expr.get());
       TupleCellSpec  *spec       = new TupleCellSpec("", "", arithmetic->name().c_str());
       tuple_.add_cell_spec(spec);
+    } else if (expr->type() == ExprType::FUNCTION) {
+      FuncExpr      *func = static_cast<FuncExpr *>(expr.get());
+      TupleCellSpec *spec = new TupleCellSpec("", "", func->name().c_str());
+      tuple_.add_cell_spec(spec);
     }
+    // TODO(chen):
   }
 }

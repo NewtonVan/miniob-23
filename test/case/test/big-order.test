@@ -1,0 +1,23 @@
+CREATE TABLE big_order_by_0(id int, num int, price float, addr char(10), birthday date);
+CREATE TABLE big_order_by_1(id int, num int, price float, addr char(10), birthday date);
+CREATE TABLE big_order_by_2(id int, num int, price float, addr char(10), birthday date);
+CREATE TABLE big_order_by_3(id int, num int, price float, addr char(10), birthday date);
+
+INSERT INTO big_order_by_0 VALUES (8, 37, 60.4, 'Address877', '2019-08-07');
+INSERT INTO big_order_by_1 VALUES (40, 26, 50.5, 'Address175', '1971-10-18');
+INSERT INTO big_order_by_2 VALUES (99, 21, 22.1, 'Address213', '1985-03-28');
+INSERT INTO big_order_by_3 VALUES (90, 26, 98.6, 'Address545', '2017-04-26');
+INSERT INTO big_order_by_0 VALUES (89, 30, 74.5, 'Address995', '1985-02-17');
+INSERT INTO big_order_by_1 VALUES (17, 16, 1.8, 'Address756', '2012-12-08');
+INSERT INTO big_order_by_2 VALUES (44, 23, 63.6, 'Address694', '2014-10-16');
+INSERT INTO big_order_by_3 VALUES (61, 36, 41.8, 'Address349', '1983-01-23');
+INSERT INTO big_order_by_0 VALUES (61, 15, 38.7, 'Address348', '2013-06-08');
+INSERT INTO big_order_by_1 VALUES (12, 33, 56.7, 'Address327', '2019-02-24');
+INSERT INTO big_order_by_2 VALUES (93, 13, 71.8, 'Address435', '2006-08-06');
+INSERT INTO big_order_by_3 VALUES (82, 15, 38.8, 'Address693', '1970-07-15');
+INSERT INTO big_order_by_0 VALUES (64, 16, 64, 'Address823', '2001-01-09');
+INSERT INTO big_order_by_1 VALUES (75, 14, 86.7, 'Address937', '2017-12-02');
+INSERT INTO big_order_by_2 VALUES (48, 25, 5.2, 'Address439', '2009-12-23');
+
+
+select * from big_order_by_0, big_order_by_1, big_order_by_2, big_order_by_3 order by big_order_by_3.birthday, big_order_by_2.addr, big_order_by_0.birthday, big_order_by_2.id, big_order_by_2.num, big_order_by_0.price, big_order_by_2.price, big_order_by_2.birthday;

@@ -25,6 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/table/table.h"
 #include <algorithm>
 #include <memory>
+#include <utility>
 #include <vector>
 
 SelectStmt::~SelectStmt()
@@ -201,7 +202,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->filter_stmt_       = filter_stmt;
   select_stmt->orderby_stmt_ = orderby_stmt;
   select_stmt->join_stmt_         = static_cast<JoinStmt *>(join_stmt);
-  select_stmt->use_project_exprs_ = !field_only;
+  select_stmt->use_project_exprs_ = !field_only || select_stmt->query_fields().empty();
   select_stmt->project_exprs_.swap(select_expressions);
   stmt = select_stmt;
   return RC::SUCCESS;
@@ -391,6 +392,18 @@ RC SelectStmt::rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
       std::unique_ptr<Expression> new_value(new ValueExpr(value->get_value()));
       ret_expr.swap(new_value);
     } break;
+    case ExprType::FUNCTION: {
+      // TODO(chen): func
+      std::vector<std::unique_ptr<Expression>> args;
+      FuncExpr                                *func = static_cast<FuncExpr *>(old_expr);
+      for (std::unique_ptr<Expression> &argv : func->args()) {
+        std::unique_ptr<Expression> new_argv;
+        rewrite_attr_expr_to_field_expr(db, default_table, tables, argv.get(), new_argv);
+        args.emplace_back(std::move(new_argv));
+      }
+      std::unique_ptr<Expression> new_func(new FuncExpr(func->func_type(), args));
+      ret_expr.swap(new_func);
+    }
     default: {
       LOG_DEBUG("type: %d, no need to rewrite", old_expr->type());
     }
