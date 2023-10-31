@@ -44,6 +44,7 @@ public:
   int32_t table_id() const { return table_id_; }
   const char *name() const;
   const FieldMeta *trx_field() const;
+  const FieldMeta *null_mask_field() const;
   const FieldMeta *field(int index) const;
   const FieldMeta *field(const char *name) const;
   const FieldMeta *find_field_by_offset(int offset) const;
@@ -76,5 +77,6 @@ protected:
   std::vector<FieldMeta> fields_;  // 包含sys_fields
   std::vector<IndexMeta> indexes_;
 
+  int sys_fields_size_ = 0;
   int record_size_ = 0;
 };

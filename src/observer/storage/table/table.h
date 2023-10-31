@@ -81,7 +81,7 @@ public:
   RC recover_insert_record(Record &record);
 
   // TODO refactor
-  RC create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name);
+  RC create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name, bool unique, bool multi= false);
 
   RC get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly);
 
@@ -97,6 +97,7 @@ public:
 
 private:
   RC insert_entry_of_indexes(const char *record, const RID &rid);
+  bool insert_valid_for_unique_indexes(const char *record);
   RC delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists);
 
 private:
@@ -112,4 +113,5 @@ private:
   DiskBufferPool      *data_buffer_pool_ = nullptr;  /// 数据文件关联的buffer pool
   RecordFileHandler   *record_handler_   = nullptr;  /// 记录操作
   std::vector<Index *> indexes_;
+  bool mutil_ =  false;
 };

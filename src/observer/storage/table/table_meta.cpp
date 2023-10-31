@@ -27,6 +27,8 @@ static const Json::StaticString FIELD_TABLE_NAME("table_name");
 static const Json::StaticString FIELD_FIELDS("fields");
 static const Json::StaticString FIELD_INDEXES("indexes");
 
+const int null_field_num = 1;
+
 TableMeta::TableMeta(const TableMeta &other)
     : table_id_(other.table_id_),
     name_(other.name_),
@@ -61,29 +63,49 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
   int trx_field_num = 0;
   const vector<FieldMeta> *trx_fields = TrxKit::instance()->trx_fields();
   if (trx_fields != nullptr) {
-    fields_.resize(field_num + trx_fields->size());
-
+    // 新增系统字段，size加1
+    fields_.resize(field_num + trx_fields->size() + null_field_num);
+    sys_fields_size_ = trx_fields->size();
     for (size_t i = 0; i < trx_fields->size(); i++) {
       const FieldMeta &field_meta = (*trx_fields)[i];
-      fields_[i] = FieldMeta(field_meta.name(), field_meta.type(), field_offset, field_meta.len(), false/*visible*/);
+      fields_[i] = FieldMeta(field_meta.name(), field_meta.type(), field_offset, field_meta.len(), false/*visible*/, false);
       field_offset += field_meta.len();
     }
-
     trx_field_num = static_cast<int>(trx_fields->size());
   } else {
-    fields_.resize(field_num);
+    fields_.resize(field_num + null_field_num);
   }
 
+  // Sysfield | nullfield | value1 | value2 | value3 | … | valuen
+  // 新增__null_mask系统字段，用于存储null值bitmap
+  FieldMeta field_meta;
+  rc = field_meta.init("__null_mask", INTS, field_offset, 3, false,
+      false);
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to init null_mask field. rc = %d:%s", rc, strrc(rc));
+    return rc;
+  }
+
+  // 新增系统字段加入字段列表中
+  fields_[trx_field_num] = field_meta;
+  trx_field_num += null_field_num;
+  // 偏移计入进去
+  field_offset += field_meta.len();
+
   for (int i = 0; i < field_num; i++) {
-    const AttrInfoSqlNode &attr_info = attributes[i];
-    rc = fields_[i + trx_field_num].init(attr_info.name.c_str(), 
-            attr_info.type, field_offset, attr_info.length, true/*visible*/);
+    const AttrInfoSqlNode *attr_info = &attributes[i];
+    AttrInfoSqlNode *mutable_attr_info = const_cast<AttrInfoSqlNode*>(attr_info);
+    if (attr_info->type == TEXTS) {
+      mutable_attr_info->length = 65538;
+    }
+    rc = fields_[i + trx_field_num].init(attr_info->name.c_str(),
+            attr_info->type, field_offset, attr_info->length, true/*visible*/, attr_info->null);
     if (rc != RC::SUCCESS) {
-      LOG_ERROR("Failed to init field meta. table name=%s, field name: %s", name, attr_info.name.c_str());
+      LOG_ERROR("Failed to init field meta. table name=%s, field name: %s", name, attr_info->name.c_str());
       return rc;
     }
 
-    field_offset += attr_info.length;
+    field_offset += attr_info->length;
   }
 
   record_size_ = field_offset;
@@ -109,6 +131,8 @@ const FieldMeta *TableMeta::trx_field() const
 {
   return &fields_[0];
 }
+
+const FieldMeta *TableMeta::null_mask_field() const { return &fields_[sys_fields_size_]; }
 
 const std::pair<const FieldMeta *, int> TableMeta::trx_fields() const
 {
@@ -150,9 +174,9 @@ int TableMeta::sys_field_num() const
 {
   const vector<FieldMeta> *trx_fields = TrxKit::instance()->trx_fields();
   if (nullptr == trx_fields) {
-    return 0;
+    return null_field_num;
   }
-  return static_cast<int>(trx_fields->size());
+  return static_cast<int>(trx_fields->size() + null_field_num);
 }
 
 const IndexMeta *TableMeta::index(const char *name) const

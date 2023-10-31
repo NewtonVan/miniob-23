@@ -16,15 +16,20 @@ See the Mulan PSL v2 for more details. */
 
 #include <stddef.h>
 #include <memory>
+#include <variant>
 #include <vector>
 #include <string>
+#include <variant>
 
 #include "sql/parser/value.h"
 
 class Expression;
+class ComparisonExpr;
+
+#define MAX_NUM 20
 
 /**
- * @defgroup SQLParser SQL Parser 
+ * @defgroup SQLParser SQL Parser
  */
 
 /**
@@ -44,7 +49,7 @@ struct RelAttrSqlNode
  * @brief 描述比较运算符
  * @ingroup SQLParser
  */
-enum CompOp 
+enum CompOp
 {
   EQUAL_TO,     ///< "="
   LESS_EQUAL,   ///< "<="
@@ -54,6 +59,8 @@ enum CompOp
   GREAT_THAN,   ///< ">"
   LIKES,         ///< "LIKE"
   NOT_LIKES,     ///< "NOT LIKE"
+  IS_LEFT_NULL,
+  IS_LEFT_NOT_NULL,
   NO_OP
 };
 
@@ -78,6 +85,45 @@ struct ConditionSqlNode
   Value           right_value;     ///< right-hand side value if right_is_attr = FALSE
 };
 
+/**
+ * Describe join
+ */
+struct GeneralRelationSqlNode;
+
+enum JoinType
+{
+  JT_INNER = 0,
+};
+
+// TODO(chen): join type, current inner join
+struct JoinSqlNode
+{
+  JoinType                      join_type;
+  GeneralRelationSqlNode       *left;
+  GeneralRelationSqlNode       *right;
+  std::vector<ComparisonExpr *> conditions;
+
+  explicit JoinSqlNode(JoinType join_type, GeneralRelationSqlNode *left, GeneralRelationSqlNode *right,
+      std::vector<ComparisonExpr *> &&conditions)
+      : join_type(join_type), left(left), right(right), conditions(conditions){};
+};
+
+// TODO(chen): Use union to contain table(string)
+enum GeneralRelationType
+{
+  REL_TABLE = 0,
+  REL_JOIN,
+};
+
+struct GeneralRelationSqlNode
+{
+  GeneralRelationType                      type;
+  std::variant<std::string, JoinSqlNode *> relation;
+
+  explicit GeneralRelationSqlNode(JoinSqlNode *relation) : type(REL_JOIN), relation(relation){};
+  explicit GeneralRelationSqlNode(char *rel) : type(REL_TABLE), relation(std::string(rel)){};
+};
+
 
 enum AggFuncType
 {
@@ -89,7 +135,7 @@ enum AggFuncType
 };
 
 
-enum AggType 
+enum AggType
 {
   COUNT_STAR,
   COUNT_AGG,
@@ -123,12 +169,20 @@ struct AggField {
  * 甚至可以包含复杂的表达式。
  */
 
+typedef struct OrderBy {
+  RelAttrSqlNode order_by_attribute;
+  int order; // 0:asc, 1:desc
+}OrderBy;
+
 struct SelectSqlNode
 {
-  std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
-  std::vector<AggregationFuncSqlNode> agg_funcs;
-  std::vector<std::string>        relations;     ///< 查询的表
-  std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个
+  std::vector<RelAttrSqlNode>   attributes;               ///< attributes in select clause
+  std::vector<std::string>      relations;                ///< 查询的表
+  std::vector<ComparisonExpr *> conditions;               ///< 查询条件，使用AND串联起来多个条件
+  JoinSqlNode                  *join_relation = nullptr;  // TODO(chen): support cascade
+  std::vector<OrderBy>          order_by;
+  std::vector<Expression *>     select_expressions;       ///< 记录含有表达式点select clause,
+  std::vector<AggregationFuncSqlNode> agg_funcs;                                                        ///< 与attributes只有一个可行
 };
 
 /**
@@ -160,7 +214,7 @@ struct InsertSqlNode
 struct DeleteSqlNode
 {
   std::string                   relation_name;  ///< Relation to delete from
-  std::vector<ConditionSqlNode> conditions;
+  std::vector<ComparisonExpr *> conditions;
 };
 
 /**
@@ -169,10 +223,10 @@ struct DeleteSqlNode
  */
 struct UpdateSqlNode
 {
-  std::string                   relation_name;         ///< Relation to update
-  std::string                   attribute_name;        ///< 更新的字段，仅支持一个字段
-  Value                         value;                 ///< 更新的值，仅支持一个字段
-  std::vector<ConditionSqlNode> conditions;
+  std::string                   relation_name;   ///< Relation to update
+  std::string                   attribute_name;  ///< 更新的字段，仅支持一个字段
+  Value                         value;           ///< 更新的值，仅支持一个字段
+  std::vector<ComparisonExpr *> conditions;
 };
 
 /**
@@ -187,6 +241,7 @@ struct AttrInfoSqlNode
   AttrType    type;       ///< Type of attribute
   std::string name;       ///< Attribute name
   size_t      length;     ///< Length of attribute
+  bool        null;
 };
 
 /**
@@ -219,7 +274,9 @@ struct CreateIndexSqlNode
 {
   std::string index_name;      ///< Index name
   std::string relation_name;   ///< Relation name
-  std::string attribute_name;  ///< Attribute name
+//  std::string attribute_name;  ///< Attribute name
+  std::vector<std::string> attribute_names;
+  bool unique;
 };
 
 /**

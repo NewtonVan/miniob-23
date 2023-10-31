@@ -97,6 +97,15 @@ RC BplusTreeIndex::delete_entry(const char *record, const RID *rid)
   return index_handler_.delete_entry(record + field_meta_.offset(), rid);
 }
 
+RC BplusTreeIndex::get_entry(const char *record, /* OUT */ RID *rid) {
+  std::list<RID> rids;
+  index_handler_.get_entry(record + field_meta_.offset(),4, rids);
+  if(rids.empty()) {
+    return RC::RECORD_DUPLICATE_KEY;
+  }
+  return RC::SUCCESS;
+}
+
 IndexScanner *BplusTreeIndex::create_scanner(
     const char *left_key, int left_len, bool left_inclusive, const char *right_key, int right_len, bool right_inclusive)
 {

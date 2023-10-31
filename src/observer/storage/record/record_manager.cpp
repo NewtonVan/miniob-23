@@ -507,11 +507,13 @@ RC RecordFileHandler::get_record(RecordPageHandler &page_handler, const RID *rid
     LOG_ERROR("Invalid rid %p or rec %p, one of them is null.", rid, rec);
     return RC::INVALID_ARGUMENT;
   }
-
-  RC ret = page_handler.init(*disk_buffer_pool_, rid->page_num, readonly);
-  if (OB_FAIL(ret)) {
-    LOG_ERROR("Failed to init record page handler.page number=%d", rid->page_num);
-    return ret;
+  // FIXME
+  if(disk_buffer_pool_ == nullptr || page_handler.get_page_num() != rid->page_num) {
+    RC ret = page_handler.init(*disk_buffer_pool_, rid->page_num, readonly);
+    if (OB_FAIL(ret)) {
+      LOG_ERROR("Failed to init record page handler.page number=%d", rid->page_num);
+      return ret;
+    }
   }
 
   return page_handler.get_record(rid, rec);

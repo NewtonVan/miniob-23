@@ -81,7 +81,6 @@ RC insert_record_from_file(Table *table,
           record_values[i].set_date(int_value);
         }
       }
-
       break;
       case FLOATS: {
         deserialize_stream.clear();
@@ -95,6 +94,9 @@ RC insert_record_from_file(Table *table,
         } else {
           record_values[i].set_float(float_value);
         }
+      } break;
+      case TEXTS: {
+        record_values[i].set_text(file_value.c_str());
       } break;
       case CHARS: {
         record_values[i].set_string(file_value.c_str());

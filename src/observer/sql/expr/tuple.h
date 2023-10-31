@@ -37,7 +37,7 @@ class Table;
 /**
  * @defgroup Tuple
  * @brief Tuple 元组，表示一行数据，当前返回客户端时使用
- * @details 
+ * @details
  * tuple是一种可以嵌套的数据结构。
  * 比如select t1.a+t2.b from t1, t2;
  * 需要使用下面的结构表示：
@@ -48,36 +48,21 @@ class Table;
  *      /     \
  *   Row(t1) Row(t2)
  * @endcode
- * 
+ *
  */
 
 /**
  * @brief 元组的结构，包含哪些字段(这里成为Cell)，每个字段的说明
  * @ingroup Tuple
  */
-class TupleSchema 
+class TupleSchema
 {
 public:
-  void append_cell(const TupleCellSpec &cell)
-  {
-    cells_.push_back(cell);
-  }
-  void append_cell(const char *table, const char *field)
-  {
-    append_cell(TupleCellSpec(table, field));
-  }
-  void append_cell(const char *alias)
-  {
-    append_cell(TupleCellSpec(alias));
-  }
-  int cell_num() const
-  {
-    return static_cast<int>(cells_.size());
-  }
-  const TupleCellSpec &cell_at(int i) const
-  {
-    return cells_[i];
-  }
+  void                 append_cell(const TupleCellSpec &cell) { cells_.push_back(cell); }
+  void                 append_cell(const char *table, const char *field) { append_cell(TupleCellSpec(table, field)); }
+  void                 append_cell(const char *alias) { append_cell(TupleCellSpec(alias)); }
+  int                  cell_num() const { return static_cast<int>(cells_.size()); }
+  const TupleCellSpec &cell_at(int i) const { return cells_[i]; }
 
 private:
   std::vector<TupleCellSpec> cells_;
@@ -87,10 +72,10 @@ private:
  * @brief 元组的抽象描述
  * @ingroup Tuple
  */
-class Tuple 
+class Tuple
 {
 public:
-  Tuple() = default;
+  Tuple()          = default;
   virtual ~Tuple() = default;
 
   /**
@@ -101,7 +86,7 @@ public:
 
   /**
    * @brief 获取指定位置的Cell
-   * 
+   *
    * @param index 位置
    * @param[out] cell  返回的Cell
    */
@@ -109,7 +94,7 @@ public:
 
   /**
    * @brief 根据cell的描述，获取cell的值
-   * 
+   *
    * @param spec cell的描述
    * @param[out] cell 返回的cell
    */
@@ -118,10 +103,13 @@ public:
   virtual std::string to_string() const
   {
     std::string str;
+    // 获取tuple中字段的个数
     const int cell_num = this->cell_num();
     for (int i = 0; i < cell_num - 1; i++) {
       Value cell;
+      // 获得字段0的值
       cell_at(i, cell);
+      // 将字段0的值转换为字符串
       str += cell.to_string();
       str += ", ";
     }
@@ -140,7 +128,7 @@ public:
  * @ingroup Tuple
  * @details 直接就是获取表中的一条记录
  */
-class RowTuple : public Tuple 
+class RowTuple : public Tuple
 {
 public:
   RowTuple() = default;
@@ -152,10 +140,7 @@ public:
     speces_.clear();
   }
 
-  void set_record(Record *record)
-  {
-    this->record_ = record;
-  }
+  void set_record(Record *record) { this->record_ = record; }
 
   void set_schema(const Table *table, const std::vector<FieldMeta> *fields)
   {
@@ -166,10 +151,7 @@ public:
     }
   }
 
-  int cell_num() const override
-  {
-    return speces_.size();
-  }
+  int cell_num() const override { return speces_.size(); }
 
   RC cell_at(int index, Value &cell) const override
   {
@@ -178,8 +160,16 @@ public:
       return RC::INVALID_ARGUMENT;
     }
 
-    FieldExpr *field_expr = speces_[index];
+    FieldExpr       *field_expr = speces_[index];
     const FieldMeta *field_meta = field_expr->field().meta();
+    int null_mask_field_offset = table_->table_meta().null_mask_field()->offset();
+    int null_mask =
+        *(int *)(this->record_->data() + null_mask_field_offset) & 0x00FFFFFFFF;
+    // 判断这个字段是否为空
+    if (null_mask >> index & 1) {
+      cell.set_type(NULLS);
+      return RC::SUCCESS;
+    }
     cell.set_type(field_meta->type());
     cell.set_data(this->record_->data() + field_meta->offset(), field_meta->len());
     return RC::SUCCESS;
@@ -195,7 +185,7 @@ public:
 
     for (size_t i = 0; i < speces_.size(); ++i) {
       const FieldExpr *field_expr = speces_[i];
-      const Field &field = field_expr->field();
+      const Field     &field      = field_expr->field();
       if (0 == strcmp(field_name, field.field_name())) {
         return cell_at(i, cell);
       }
@@ -215,19 +205,13 @@ public:
   }
 #endif
 
-  Record &record()
-  {
-    return *record_;
-  }
+  Record &record() { return *record_; }
 
-  const Record &record() const
-  {
-    return *record_;
-  }
+  const Record &record() const { return *record_; }
 
 private:
-  Record *record_ = nullptr;
-  const Table *table_ = nullptr;
+  Record                  *record_ = nullptr;
+  const Table             *table_  = nullptr;
   std::vector<FieldExpr *> speces_;
 };
 
@@ -238,7 +222,7 @@ private:
  * 投影也可以是很复杂的操作，比如某些字段需要做类型转换、重命名、表达式运算、函数计算等。
  * 当前的实现是比较简单的，只是选择部分字段，不做任何其他操作。
  */
-class ProjectTuple : public Tuple 
+class ProjectTuple : public Tuple
 {
 public:
   ProjectTuple() = default;
@@ -250,19 +234,10 @@ public:
     speces_.clear();
   }
 
-  void set_tuple(Tuple *tuple)
-  {
-    this->tuple_ = tuple;
-  }
+  void set_tuple(Tuple *tuple) { this->tuple_ = tuple; }
 
-  void add_cell_spec(TupleCellSpec *spec)
-  {
-    speces_.push_back(spec);
-  }
-  int cell_num() const override
-  {
-    return speces_.size();
-  }
+  void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
+  int  cell_num() const override { return speces_.size(); }
 
   RC cell_at(int index, Value &cell) const override
   {
@@ -277,10 +252,7 @@ public:
     return tuple_->find_cell(*spec, cell);
   }
 
-  RC find_cell(const TupleCellSpec &spec, Value &cell) const override
-  {
-    return tuple_->find_cell(spec, cell);
-  }
+  RC find_cell(const TupleCellSpec &spec, Value &cell) const override { return tuple_->find_cell(spec, cell); }
 
 #if 0
   RC cell_spec_at(int index, const TupleCellSpec *&spec) const override
@@ -294,25 +266,22 @@ public:
 #endif
 private:
   std::vector<TupleCellSpec *> speces_;
-  Tuple *tuple_ = nullptr;
+  Tuple                       *tuple_ = nullptr;
 };
 
-class ExpressionTuple : public Tuple 
+class ExpressionTuple : public Tuple
 {
 public:
-  ExpressionTuple(std::vector<std::unique_ptr<Expression>> &expressions)
-    : expressions_(expressions)
-  {
-  }
-  
+  ExpressionTuple(std::vector<std::unique_ptr<Expression>> &expressions) : expressions_(expressions) {}
+
   virtual ~ExpressionTuple()
   {
+    if (tuple_ != nullptr) {
+      delete tuple_;
+    }
   }
 
-  int cell_num() const override
-  {
-    return expressions_.size();
-  }
+  int cell_num() const override { return expressions_.size(); }
 
   RC cell_at(int index, Value &cell) const override
   {
@@ -321,6 +290,10 @@ public:
     }
 
     const Expression *expr = expressions_[index].get();
+
+    if (tuple_ != nullptr) {
+      return expr->get_value(*tuple_, cell);
+    }
     return expr->try_get_value(cell);
   }
 
@@ -328,36 +301,35 @@ public:
   {
     for (const std::unique_ptr<Expression> &expr : expressions_) {
       if (0 == strcmp(spec.alias(), expr->name().c_str())) {
+        if (tuple_ != nullptr) {
+          return expr->get_value(*tuple_, cell);
+        }
         return expr->try_get_value(cell);
       }
     }
     return RC::NOTFOUND;
   }
 
+  void set_tuple(Tuple *tuple) { tuple_ = tuple; }
 
 private:
   const std::vector<std::unique_ptr<Expression>> &expressions_;
+  Tuple                                          *tuple_;
 };
 
 /**
  * @brief 一些常量值组成的Tuple
  * @ingroup Tuple
  */
-class ValueListTuple : public Tuple 
+class ValueListTuple : public Tuple
 {
 public:
-  ValueListTuple() = default;
+  ValueListTuple()          = default;
   virtual ~ValueListTuple() = default;
 
-  void set_cells(const std::vector<Value> &cells)
-  {
-    cells_ = cells;
-  }
+  void set_cells(const std::vector<Value> &cells) { cells_ = cells; }
 
-  virtual int cell_num() const override
-  {
-    return static_cast<int>(cells_.size());
-  }
+  virtual int cell_num() const override { return static_cast<int>(cells_.size()); }
 
   virtual RC cell_at(int index, Value &cell) const override
   {
@@ -369,10 +341,7 @@ public:
     return RC::SUCCESS;
   }
 
-  virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override
-  {
-    return RC::INTERNAL;
-  }
+  virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override { return RC::INTERNAL; }
 
 private:
   std::vector<Value> cells_;
@@ -383,25 +352,16 @@ private:
  * @ingroup Tuple
  * @details 在join算子中使用
  */
-class JoinedTuple : public Tuple 
+class JoinedTuple : public Tuple
 {
 public:
-  JoinedTuple() = default;
+  JoinedTuple()          = default;
   virtual ~JoinedTuple() = default;
 
-  void set_left(Tuple *left)
-  {
-    left_ = left;
-  }
-  void set_right(Tuple *right)
-  {
-    right_ = right;
-  }
+  void set_left(Tuple *left) { left_ = left; }
+  void set_right(Tuple *right) { right_ = right; }
 
-  int cell_num() const override
-  {
-    return left_->cell_num() + right_->cell_num();
-  }
+  int cell_num() const override { return left_->cell_num() + right_->cell_num(); }
 
   RC cell_at(int index, Value &value) const override
   {
@@ -428,9 +388,52 @@ public:
   }
 
 private:
-  Tuple *left_ = nullptr;
+  Tuple *left_  = nullptr;
   Tuple *right_ = nullptr;
 };
+
+
+class SortTuple : public Tuple {
+public:
+  void set_tuple(std::vector<Value>& values, std::vector<TupleCellSpec *> specs) {
+    values_ = values;
+    specs_ = specs;
+  }
+  virtual ~SortTuple() = default;
+
+  int cell_num() const override
+  {
+    return values_.size();
+  }
+
+  RC cell_at(int index, Value &value) const override
+  {
+    const int left_cell_num =cell_num();
+    if (index > 0 && index < cell_num()) {
+      value = values_[index];
+      return RC::SUCCESS;
+    }
+    return RC::NOTFOUND;
+  }
+
+  RC find_cell(const TupleCellSpec &spec, Value &value) const override
+  {
+    for (size_t i = 0; i < specs_.size(); ++i) {
+      if (0 == strcmp(spec.table_name(), specs_[i]->table_name())
+          && 0 == strcmp(spec.field_name() , specs_[i]->field_name())
+          && 0 == strcmp(spec.alias() , specs_[i]->alias()) ) {
+        return cell_at(i, value);
+      }
+    }
+    return RC::NOTFOUND;
+  }
+
+private:
+  std::vector<TupleCellSpec *>  specs_;
+  std::vector<Value> values_;
+};
+
+
 
 
 
@@ -496,7 +499,7 @@ class AggTuple : public Tuple {
       return tuple_.size();
     }
 
-  RC cell_at(int index, Value &value) const override // fix 
+  RC cell_at(int index, Value &value) const override // fix
   {
     // const int left_cell_num =cell_num();
     if (index >= 0 && index < cell_num()) {
@@ -510,12 +513,12 @@ class AggTuple : public Tuple {
   RC find_cell(const TupleCellSpec &spec, Value &value) const override
   {
     for (size_t i = 0; i < specs_.size(); ++i) {
-      if (0 == strcmp(spec.table_name(), specs_[i].table_name()) 
+      if (0 == strcmp(spec.table_name(), specs_[i].table_name())
       && 0 == strcmp(spec.field_name() , specs_[i].field_name())
       && 0 == strcmp(spec.alias() , specs_[i].alias()) ) {
         return cell_at(i, value);
       }
-    } 
+    }
     return RC::NOTFOUND;
   }
 
@@ -532,7 +535,7 @@ class AggTuple : public Tuple {
 
 
 // agg hash table
-class SimpleHashTable 
+class SimpleHashTable
 {
   public:
     SimpleHashTable(std::vector<AggType>& agg_types): agg_types_(agg_types) {};
@@ -542,7 +545,7 @@ class SimpleHashTable
       return agg_types_.size();
     }
 
-  
+
   AggregationValue gen_base_aggregates() {
     AggregationValue agg_value;
     for(int i =0; i < agg_types_.size(); i++) {
@@ -562,7 +565,7 @@ class SimpleHashTable
     return agg_value;
   }
 
-  
+
 
   void CombineAggregateValues(AggregationValue *result, const AggregationValue &input) {
     for (uint32_t i = 0; i < agg_types_.size(); i++) {
@@ -584,7 +587,7 @@ class SimpleHashTable
           }
           break;
         case AggType::SUM_AGG:
-        case AggType::AVG_AGG: // calc avg when agg executor down 
+        case AggType::AVG_AGG: // calc avg when agg executor down
           if (!input.aggregates[i].is_null()) {
             if (agg_val.is_null()) {
               agg_val = input.aggregates[i];
@@ -659,7 +662,7 @@ class SimpleHashTable
                   agg_val = input.aggregates[i];
                 }
                 break;
-              
+
               case AttrType::CHARS: // fix agg min/max on char is legal
                 if(agg_val.get_string() > input.aggregates[i].get_string()) {
                   agg_val = input.aggregates[i];
@@ -734,14 +737,14 @@ class SimpleHashTable
 
   private:
     //
-    // funcs[i] exec on cell_specs[i]   
+    // funcs[i] exec on cell_specs[i]
     std::vector<AggType> agg_types_;
 
     // todo(lyq)
     // without group_by, we only need one AggregationValue
     // we suppose the key for it is fix number "1"
     std::unordered_map<AggregationKey, AggregationValue> ht_;
-    
+
 };
 
 

@@ -22,11 +22,11 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/comparator.h"
 #include "common/lang/string.h"
 
-const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "dates", "floats", "booleans"};
+const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "dates", "floats", "texts", "nulls", "booleans"};
 
 const char *attr_type_to_string(AttrType type)
 {
-  if (type >= UNDEFINED && type <= FLOATS) {
+  if (type >= UNDEFINED && type <= NULLS) {
     return ATTR_TYPE_NAME[type];
   }
   return "unknown";
@@ -201,6 +201,9 @@ void Value::set_data(char *data, int length)
       num_value_.float_value_ = *(float *)data;
       length_ = length;
     } break;
+    case TEXTS: {
+      set_text(data);
+    } break;
     case BOOLEANS: {
       num_value_.bool_value_ = *(int *)data != 0;
       length_ = length;
@@ -229,12 +232,22 @@ void Value::set_float(float val)
   num_value_.float_value_ = val;
   length_ = sizeof(val);
 }
+
+void Value::set_text(const char *s)
+{
+    attr_type_ = TEXTS;
+    strncpy(text_value_, s, 65537);
+    text_value_[65537] = '\0'; // 确保字符数组以 null 终止
+    length_ = 65538;
+}
+
 void Value::set_boolean(bool val)
 {
   attr_type_ = BOOLEANS;
   num_value_.bool_value_ = val;
   length_ = sizeof(val);
 }
+
 void Value::set_string(const char *s, int len /*= 0*/)
 {
   attr_type_ = CHARS;
@@ -259,6 +272,9 @@ void Value::set_value(const Value &value)
     case FLOATS: {
       set_float(value.get_float());
     } break;
+    case TEXTS: {
+      set_text(value.get_text());
+    } break;
     case CHARS: {
       set_string(value.get_string().c_str());
     } break;
@@ -277,6 +293,9 @@ const char *Value::data() const
     case CHARS: {
       return str_value_.c_str();
     } break;
+    case TEXTS: {
+      return text_value_;
+    } break;
     default: {
       return (const char *)&num_value_;
     } break;
@@ -293,6 +312,11 @@ std::string Value::to_string() const
     case FLOATS: {
       os << common::double_to_str(num_value_.float_value_);
     } break;
+    case TEXTS: {
+      std::string text = text_value_;
+      std::transform(text.begin(), text.end(), text.begin(), ::toupper);  // 转换为大写
+      os << text;
+    } break;
     case BOOLEANS: {
       os << num_value_.bool_value_;
     } break;
@@ -303,6 +327,9 @@ std::string Value::to_string() const
       char buf[11];
       deserialize_date(buf, sizeof(buf), num_value_.date_value_);
       os << buf;
+    } break;
+    case NULLS: {
+      os << "null";
     } break;
     default: {
       LOG_WARN("unsupported attr type: %d", attr_type_);
@@ -326,11 +353,20 @@ int Value::compare(const Value &other) const
       case FLOATS: {
         return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other.num_value_.float_value_);
       } break;
+      case TEXTS: {
+        return common::compare_string((void *)this->text_value_,
+            strlen(this->text_value_),
+            (void *)other.text_value_,
+            strlen(other.text_value_));
+      } break;
       case CHARS: {
         return common::compare_string((void *)this->str_value_.c_str(),
             this->str_value_.length(),
             (void *)other.str_value_.c_str(),
             other.str_value_.length());
+      } break;
+      case NULLS: {
+        return false;
       } break;
       case BOOLEANS: {
         return common::compare_int((void *)&this->num_value_.bool_value_, (void *)&other.num_value_.bool_value_);
@@ -345,6 +381,20 @@ int Value::compare(const Value &other) const
   } else if (this->attr_type_ == FLOATS && other.attr_type_ == INTS) {
     float other_data = other.num_value_.int_value_;
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
+  } else if (this->attr_type_ == CHARS && other.attr_type_ == FLOATS) {
+    float this_data = common::str_prefix_double(this->str_value_);
+    return common::compare_float((void *)&this_data, (void *)&other.num_value_.float_value_);
+  } else if (this->attr_type_ == FLOATS && other.attr_type_ == CHARS) {
+    float other_data = common::str_prefix_double(other.str_value_);
+    return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
+  } else if (this->attr_type_ == CHARS && other.attr_type_ == INTS) {
+    float this_data  = common::str_prefix_double(this->str_value_);
+    float other_data = other.get_int();
+    return common::compare_float((void *)&this_data, (void *)&other_data);
+  } else if (this->attr_type_ == INTS && other.attr_type_ == CHARS) {
+    float this_data  = this->get_int();
+    float other_data = common::str_prefix_double(other.get_string());
+    return common::compare_float((void *)&this_data, (void *)&other_data);
   }
   LOG_WARN("not supported");
   return -1;  // TODO return rc?
@@ -440,6 +490,10 @@ float Value::get_float() const
     }
   }
   return 0;
+}
+
+const char* Value::get_text() const {
+  return text_value_;
 }
 
 std::string Value::get_string() const

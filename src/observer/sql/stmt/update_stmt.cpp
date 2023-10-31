@@ -62,11 +62,28 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
 
   const AttrType field_type = field_meta->type();
   const AttrType value_type = update.value.attr_type();
+  Value* mutableValue = const_cast<Value *>(&update.value);
   if (field_type != value_type) {
-    // TODO try to convert the value type to field type
-    LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+    if(field_type == AttrType::DATES && value_type == AttrType::CHARS) {
+      int64_t date;
+      bool valid = serialize_date(&date, mutableValue->data());
+      if (!valid) {
+        return RC::INVALID_ARGUMENT;
+      } else {
+        mutableValue->set_type(AttrType::DATES);
+        mutableValue->set_date(date);
+      }
+    } else if(field_type == AttrType::TEXTS && value_type == AttrType::CHARS) {
+      mutableValue->set_text(mutableValue->data());
+      if(strlen(mutableValue->get_text()) > 65535) {
+        return RC::INVALID_ARGUMENT;
+      }
+    }else {
+      // TODO try to convert the value type to field type
+      LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
             table_name, field_meta->name(), field_type, value_type);
-    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
   }
 
   // build filter_stmt
@@ -75,7 +92,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
 
   FilterStmt *filter_stmt = nullptr;
   RC          rc          = FilterStmt::create(
-      db, table, &table_map, update.conditions.data(), static_cast<int>(update.conditions.size()), filter_stmt);
+      db, table, &table_map, update.conditions, static_cast<int>(update.conditions.size()), filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to create filter statement. rc=%d:%s", rc, strrc(rc));
     return rc;

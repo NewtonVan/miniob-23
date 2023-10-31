@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/optimizer/logical_plan_generator.h"
 
 #include "common/rc.h"
+#include "sql/expr/expression.h"
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/calc_logical_operator.h"
 #include "sql/operator/project_logical_operator.h"
@@ -25,9 +26,12 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/join_logical_operator.h"
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/explain_logical_operator.h"
+#include "sql/operator/sort_logical_operator.h"
 #include "sql/operator/agg_func_logical_operator.h"
 
 #include "sql/operator/update_logical_operator.h"
+#include "sql/stmt/join_stmt.h"
+#include "sql/stmt/single_table_stmt.h"
 #include "sql/stmt/stmt.h"
 #include "sql/stmt/calc_stmt.h"
 #include "sql/stmt/select_stmt.h"
@@ -36,8 +40,12 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/delete_stmt.h"
 #include "sql/stmt/explain_stmt.h"
 #include "sql/stmt/update_stmt.h"
+#include "storage/field/field.h"
 #include "storage/table/table.h"
+#include <algorithm>
 #include <memory>
+#include <utility>
+#include <vector>
 
 using namespace std;
 
@@ -87,34 +95,105 @@ RC LogicalPlanGenerator::create_plan(CalcStmt *calc_stmt, std::unique_ptr<Logica
   return RC::SUCCESS;
 }
 
+RC LogicalPlanGenerator::create_plan(JoinStmt *join_stmt, std::unique_ptr<LogicalOperator> &logical_operator)
+{
+  RC                               rc = RC::SUCCESS;
+  std::unique_ptr<LogicalOperator> left_op;
+  if (join_stmt->left()->type() == StmtType::JOIN) {
+    rc = create_plan(static_cast<JoinStmt *>(join_stmt->left()), left_op);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+  } else if (join_stmt->left()->type() == StmtType::SINGLE_TABLE) {
+    SingleTableStmt *left_table_stmt = static_cast<SingleTableStmt *>(join_stmt->left());
+    Table           *table           = left_table_stmt->table();
+
+    unique_ptr<LogicalOperator> table_get_oper(
+        new TableGetLogicalOperator(table, left_table_stmt->query_fields(), true));
+    left_op = std::make_unique<TableGetLogicalOperator>(table, left_table_stmt->query_fields(), true);
+  }
+
+  std::unique_ptr<LogicalOperator> right_op;
+  if (join_stmt->right()->type() == StmtType::JOIN) {
+    rc = create_plan(static_cast<JoinStmt *>(join_stmt->right()), right_op);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+  } else if (join_stmt->right()->type() == StmtType::SINGLE_TABLE) {
+    SingleTableStmt *right_table_stmt = static_cast<SingleTableStmt *>(join_stmt->right());
+    Table           *table            = right_table_stmt->table();
+
+    unique_ptr<LogicalOperator> table_get_oper(
+        new TableGetLogicalOperator(table, right_table_stmt->query_fields(), true));
+    right_op = std::make_unique<TableGetLogicalOperator>(table, right_table_stmt->query_fields(), true);
+  }
+
+  // TODO(chen): expression
+  std::vector<unique_ptr<Expression>> cmp_exprs;
+  const std::vector<FilterUnit *>    &filter_units = join_stmt->join_condition()->filter_units();
+  for (const FilterUnit *filter_unit : filter_units) {
+    const FilterObj &filter_obj_left  = filter_unit->left();
+    const FilterObj &filter_obj_right = filter_unit->right();
+
+    unique_ptr<Expression> left(filter_obj_left.is_attr
+                                    ? static_cast<Expression *>(new FieldExpr(filter_obj_left.field))
+                                    : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
+
+    unique_ptr<Expression> right(filter_obj_right.is_attr
+                                     ? static_cast<Expression *>(new FieldExpr(filter_obj_right.field))
+                                     : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
+
+    ComparisonExpr *cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
+    cmp_exprs.emplace_back(cmp_expr);
+  }
+
+  unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, cmp_exprs));
+  JoinLogicalOperator        *join_oper = new JoinLogicalOperator(std::move(conjunction_expr));
+  join_oper->add_child(std::move(left_op));
+  join_oper->add_child(std::move(right_op));
+
+  logical_operator = unique_ptr<LogicalOperator>(join_oper);
+
+  return RC::SUCCESS;
+}
+
 RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
   unique_ptr<LogicalOperator> table_oper(nullptr);
 
   const std::vector<Table *> &tables     = select_stmt->tables();
-  const std::vector<Field>   &all_fields = select_stmt->query_fields();
+  const std::vector<Field>   &query_fields = select_stmt->query_fields();
   const std::vector<SelectStmt::agg_field> all_agg_fields = select_stmt->all_agg_fields();
 
-  // generate access method (i.e. table get oper )
-  for (Table *table : tables) {
-    std::vector<Field> fields;
-    for (const Field &field : all_fields) {
-      if (0 == strcmp(field.table_name(), table->name())) {
-        fields.push_back(field);
-      }
+  if (select_stmt->join_stmt() != nullptr) {
+    RC rc = RC::SUCCESS;
+    rc    = create_plan(select_stmt->join_stmt(), table_oper);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to create join logical plan. rc=%s", strrc(rc));
+      return rc;
     }
+  } else {
+    for (Table *table : tables) {
+      std::vector<Field> fields;
+      for (const Field &field : query_fields) {
+        if (0 == strcmp(field.table_name(), table->name())) {
+          fields.push_back(field);
+        }
+      }
 
-    unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, true /*readonly*/));
-    if (table_oper == nullptr) {
-      table_oper = std::move(table_get_oper);
-    } else {
-      JoinLogicalOperator *join_oper = new JoinLogicalOperator;
-      join_oper->add_child(std::move(table_oper));
-      join_oper->add_child(std::move(table_get_oper));
-      table_oper = unique_ptr<LogicalOperator>(join_oper);
+      unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, true /*readonly*/));
+      if (table_oper == nullptr) {
+        table_oper = std::move(table_get_oper);
+      } else {
+        JoinLogicalOperator *join_oper = new JoinLogicalOperator;
+        join_oper->add_child(std::move(table_oper));
+        join_oper->add_child(std::move(table_get_oper));
+        table_oper = unique_ptr<LogicalOperator>(join_oper);
+      }
     }
   }
 
+  // 生成predicate operator
   unique_ptr<LogicalOperator> predicate_oper;
   RC                          rc = create_plan(select_stmt->filter_stmt(), predicate_oper);
   if (rc != RC::SUCCESS) {
@@ -122,9 +201,20 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     return rc;
   }
 
-  // WIP(lyq) agg logicalOperator comes in 
+  std::vector<Field> all_fields;
+  for (auto &table : tables) {
+    const std::vector<FieldMeta> *field_metas = table->table_meta().field_metas();
+    const Table *table_ptr = table; // 指向当前表的指针
+    for (const FieldMeta &field_meta : *field_metas) {
+      all_fields.emplace_back(table_ptr, &field_meta);
+    }
+  }
+  unique_ptr<SortLogicalOperator> sort_oper(new SortLogicalOperator(all_fields, select_stmt->orderby_stmt()));
+
+
+  // WIP(lyq) agg logicalOperator comes in
   if(select_stmt->is_agg()) {
-    unique_ptr<LogicalOperator> agg_oper(new AggLogicalOperator(all_agg_fields));    
+    unique_ptr<LogicalOperator> agg_oper(new AggLogicalOperator(all_agg_fields));
     if(predicate_oper) {
       if(table_oper) {
         predicate_oper->add_child(std::move(table_oper));
@@ -141,17 +231,53 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     return RC::SUCCESS;
   }
 
-  unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_fields));
+
+  unique_ptr<LogicalOperator> project_oper;
+  if (select_stmt->use_project_exprs()) {
+    unique_ptr<LogicalOperator> proj_exprs(
+        new ProjectLogicalOperator(query_fields, std::move(select_stmt->project_exprs())));
+    project_oper.swap(proj_exprs);
+  } else {
+    unique_ptr<LogicalOperator> proj_fields(new ProjectLogicalOperator(query_fields));
+    project_oper.swap(proj_fields);
+  }
   if (predicate_oper) {
     if (table_oper) {
+      if (select_stmt->join_stmt() != nullptr || select_stmt->tables().size() > 1) {
+        // inner join case
+        rc = static_cast<JoinLogicalOperator *>(table_oper.get())
+                 ->push_down_predicate(static_cast<PredicateLogicalOperator *>(predicate_oper.get()));
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("failed to push down filter into join logical plan. rc=%s", strrc(rc));
+          return rc;
+        }
+      }
+
       predicate_oper->add_child(std::move(table_oper));
+
+      // TODO : 优化算子添加逻辑
+      if(select_stmt->orderby_stmt() != nullptr) {
+        sort_oper->add_child(std::move(predicate_oper));
+        predicate_oper = std::move(sort_oper);
+      }
     }
+
     project_oper->add_child(std::move(predicate_oper));
   } else {
     if (table_oper) {
+
+      // TODO : 优化算子添加逻辑
+      if(select_stmt->orderby_stmt() != nullptr) {
+        sort_oper->add_child(std::move(table_oper));
+        table_oper = std::move(sort_oper);
+      }
+
       project_oper->add_child(std::move(table_oper));
     }
   }
+
+
+
 
   logical_operator.swap(project_oper);
   return RC::SUCCESS;
@@ -165,13 +291,25 @@ RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<Logical
     const FilterObj &filter_obj_left  = filter_unit->left();
     const FilterObj &filter_obj_right = filter_unit->right();
 
-    unique_ptr<Expression> left(filter_obj_left.is_attr
-                                    ? static_cast<Expression *>(new FieldExpr(filter_obj_left.field))
-                                    : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
+    Expression *left_ptr = nullptr;
+    if (filter_obj_left.expr != nullptr) {
+      left_ptr = filter_obj_left.expr;
+    } else if (filter_obj_left.is_attr) {
+      left_ptr = static_cast<Expression *>(new FieldExpr(filter_obj_left.field));
+    } else {
+      left_ptr = static_cast<Expression *>(new ValueExpr(filter_obj_left.value));
+    }
+    unique_ptr<Expression> left(left_ptr);
 
-    unique_ptr<Expression> right(filter_obj_right.is_attr
-                                     ? static_cast<Expression *>(new FieldExpr(filter_obj_right.field))
-                                     : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
+    Expression *right_ptr = nullptr;
+    if (filter_obj_right.expr != nullptr) {
+      right_ptr = filter_obj_right.expr;
+    } else if (filter_obj_right.is_attr) {
+      right_ptr = static_cast<Expression *>(new FieldExpr(filter_obj_right.field));
+    } else {
+      right_ptr = static_cast<Expression *>(new ValueExpr(filter_obj_right.value));
+    }
+    unique_ptr<Expression> right(right_ptr);
 
     ComparisonExpr *cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
     cmp_exprs.emplace_back(cmp_expr);
