@@ -435,3 +435,46 @@ private:
   Tuple *left_ = nullptr;
   Tuple *right_ = nullptr;
 };
+
+
+class SortTuple : public Tuple {
+public:
+  void set_tuple(std::vector<Value>& values, std::vector<TupleCellSpec *> specs) {
+    values_ = values;
+    specs_ = specs;
+  }
+  virtual ~SortTuple() = default;
+
+  int cell_num() const override
+  {
+    return values_.size();
+  }
+
+  RC cell_at(int index, Value &value) const override
+  {
+    const int left_cell_num =cell_num();
+    if (index > 0 && index < cell_num()) {
+      value = values_[index];
+      return RC::SUCCESS;
+    }
+    return RC::NOTFOUND;
+  }
+
+  RC find_cell(const TupleCellSpec &spec, Value &value) const override
+  {
+    for (size_t i = 0; i < specs_.size(); ++i) {
+      if (0 == strcmp(spec.table_name(), specs_[i]->table_name())
+          && 0 == strcmp(spec.field_name() , specs_[i]->field_name())
+          && 0 == strcmp(spec.alias() , specs_[i]->alias()) ) {
+        return cell_at(i, value);
+      }
+    }
+    return RC::NOTFOUND;
+  }
+
+private:
+  std::vector<TupleCellSpec *>  specs_;
+  std::vector<Value> values_;
+};
+
+

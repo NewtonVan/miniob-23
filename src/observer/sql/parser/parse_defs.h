@@ -133,12 +133,18 @@ struct GeneralRelationSqlNode
  * 甚至可以包含复杂的表达式。
  */
 
+typedef struct OrderBy {
+  RelAttrSqlNode order_by_attribute;
+  int order; // 0:asc, 1:desc
+}OrderBy;
+
 struct SelectSqlNode
 {
   std::vector<RelAttrSqlNode>   attributes;               ///< attributes in select clause
   std::vector<std::string>      relations;                ///< 查询的表
   std::vector<ConditionSqlNode> conditions;               ///< 查询条件，使用AND串联起来多个条件
   JoinSqlNode                  *join_relation = nullptr;  // TODO(chen): support cascade
+  std::vector<OrderBy>          order_by;
 };
 
 /**

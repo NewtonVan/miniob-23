@@ -25,6 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/join_logical_operator.h"
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/explain_logical_operator.h"
+#include "sql/operator/sort_logical_operator.h"
 
 #include "sql/operator/update_logical_operator.h"
 #include "sql/stmt/join_stmt.h"
@@ -158,7 +159,8 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
   unique_ptr<LogicalOperator> table_oper(nullptr);
 
   const std::vector<Table *> &tables     = select_stmt->tables();
-  const std::vector<Field>   &all_fields = select_stmt->query_fields();
+  const std::vector<Field>   &query_fields = select_stmt->query_fields();
+
   if (select_stmt->join_stmt() != nullptr) {
     RC rc = RC::SUCCESS;
     rc    = create_plan(select_stmt->join_stmt(), table_oper);
@@ -169,7 +171,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
   } else {
     for (Table *table : tables) {
       std::vector<Field> fields;
-      for (const Field &field : all_fields) {
+      for (const Field &field : query_fields) {
         if (0 == strcmp(field.table_name(), table->name())) {
           fields.push_back(field);
         }
@@ -187,6 +189,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     }
   }
 
+  // 生成predicate operator
   unique_ptr<LogicalOperator> predicate_oper;
   RC                          rc = create_plan(select_stmt->filter_stmt(), predicate_oper);
   if (rc != RC::SUCCESS) {
@@ -194,7 +197,19 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     return rc;
   }
 
-  unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_fields));
+  std::vector<Field> all_fields;
+  for (auto &table : tables) {
+    const std::vector<FieldMeta> *field_metas = table->table_meta().field_metas();
+    const Table *table_ptr = table; // 指向当前表的指针
+    for (const FieldMeta &field_meta : *field_metas) {
+      all_fields.emplace_back(table_ptr, &field_meta);
+    }
+  }
+
+  unique_ptr<SortLogicalOperator> sort_oper(new SortLogicalOperator(all_fields, select_stmt->orderby_stmt()));
+
+  // 生成project operator
+  unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(query_fields));
   if (predicate_oper) {
     if (table_oper) {
       if (select_stmt->join_stmt() != nullptr || select_stmt->tables().size() > 1) {
@@ -206,14 +221,32 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
           return rc;
         }
       }
+
       predicate_oper->add_child(std::move(table_oper));
+
+      // TODO : 优化算子添加逻辑
+      if(select_stmt->orderby_stmt() != nullptr) {
+        sort_oper->add_child(std::move(predicate_oper));
+        predicate_oper = std::move(sort_oper);
+      }
     }
+
     project_oper->add_child(std::move(predicate_oper));
   } else {
     if (table_oper) {
+
+      // TODO : 优化算子添加逻辑
+      if(select_stmt->orderby_stmt() != nullptr) {
+        sort_oper->add_child(std::move(table_oper));
+        table_oper = std::move(sort_oper);
+      }
+
       project_oper->add_child(std::move(table_oper));
     }
   }
+
+
+
 
   logical_operator.swap(project_oper);
   return RC::SUCCESS;

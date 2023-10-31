@@ -97,6 +97,37 @@ public:
     return attr_type_;
   }
 
+
+  bool operator==(const Value &other) const
+  {
+    return 0 == compare(other);
+  }
+
+  bool operator!=(const Value &other) const
+  {
+    return 0 != compare(other);
+  }
+
+  bool operator<(const Value &other) const
+  {
+    return 0 > compare(other);
+  }
+
+  bool operator<=(const Value &other) const
+  {
+    return 0 >= compare(other);
+  }
+
+  bool operator>(const Value &other) const
+  {
+    return 0 < compare(other);
+  }
+
+  bool operator>=(const Value &other) const
+  {
+    return 0 <= compare(other);
+  }
+
 public:
   /**
    * 获取对应的值

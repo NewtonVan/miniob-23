@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/rc.h"
 #include "sql/parser/parse_defs.h"
 #include "sql/stmt/filter_stmt.h"
+#include "sql/stmt/orderby_stmt.h"
 #include "common/log/log.h"
 #include "common/lang/string.h"
 #include "sql/stmt/join_stmt.h"
@@ -155,6 +156,16 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     return rc;
   }
 
+  // create order_by stmt
+  OrderByStmt *orderby_stmt = nullptr;
+  if(!select_sql.order_by.empty()) {
+    rc = OrderByStmt::create(db, default_table, &table_map, select_sql.order_by, select_sql.order_by.size(), orderby_stmt);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot construct order by stmt");
+      return rc;
+    }
+  }
+
   // create join stmt
   Stmt *join_stmt = nullptr;
   if (select_sql.join_relation != nullptr) {
@@ -172,6 +183,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->tables_.swap(tables);
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->filter_stmt_ = filter_stmt;
+  select_stmt->orderby_stmt_ = orderby_stmt;
   select_stmt->join_stmt_   = static_cast<JoinStmt *>(join_stmt);
   stmt                      = select_stmt;
   return RC::SUCCESS;

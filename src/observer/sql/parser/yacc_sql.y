@@ -102,6 +102,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         NULLABLE
         NULL_T
         UNIQUE
+		ORDER
+		BY
+		ASC
         EQ
         LT
         GT
@@ -117,6 +120,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   enum CompOp                       comp;
   RelAttrSqlNode *                  rel_attr;
   std::vector<std::string> *        attr_names;
+  OrderBy *                         order_item;
+  std::vector<OrderBy> *            order_item_list;
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
   Expression *                      expression;
@@ -145,9 +150,12 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <value>               value
 %type <number>              number
 %type <comp>                comp_op
-%type <general_relation_sql_node> general_rel;
+%type <general_relation_sql_node> general_rel
 %type <rel_attr>            rel_attr
 %type <attr_names>          attr_name_list
+%type <bools>               order
+%type <order_item>          order_item
+%type <order_item_list>     order_item_list
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
 %type <bools>               nullable;
@@ -532,7 +540,74 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       free($7);
     }
+    | SELECT select_attr FROM ID rel_list where ORDER BY order_item order_item_list
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes.swap(*$2);
+        delete $2;
+      }
+      if ($5 != nullptr) {
+        $$->selection.relations.swap(*$5);
+        delete $5;
+      }
+      $$->selection.relations.push_back($4);
+      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
+
+      std::vector<OrderBy> *order_by_attrs = $10;
+      if(order_by_attrs != nullptr) {
+        $$->selection.order_by.swap(*order_by_attrs);
+      }
+      $$->selection.order_by.emplace_back(*$9);
+      std::reverse($$->selection.order_by.begin(), $$->selection.order_by.end());
+      delete $9;
+
+      if ($6 != nullptr) {
+        $$->selection.conditions.swap(*$6);
+        delete $6;
+      }
+      free($4);
+    }
     ;
+
+order_item:
+	rel_attr order {
+        $$ = new OrderBy;
+        $$->order_by_attribute = *$1;
+        $$->order = $2;
+        delete $1;
+	}
+	;
+
+order:
+	/* empty */ {
+		$$ = 0;
+	}
+	| ASC {
+		$$ = 0;
+	}
+	| DESC {
+		$$ = 1;
+	}
+	;
+
+order_item_list:
+	/* empty */
+	{
+	    $$ = nullptr;
+	}
+	| COMMA order_item order_item_list
+	{
+        if($3 != nullptr) {
+            $$ = $3;
+        } else {
+            $$ = new std::vector<OrderBy>;
+        }
+        $$->emplace_back(*$2);
+        delete $2;
+	}
+	;
+
 calc_stmt:
     CALC expression_list
     {

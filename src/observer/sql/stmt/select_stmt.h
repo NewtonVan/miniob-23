@@ -25,6 +25,7 @@ See the Mulan PSL v2 for more details. */
 
 class FieldMeta;
 class FilterStmt;
+class OrderByStmt;
 class Db;
 class Table;
 
@@ -49,6 +50,7 @@ public:
   const std::vector<Table *> &tables() const { return tables_; }
   const std::vector<Field>   &query_fields() const { return query_fields_; }
   FilterStmt                 *filter_stmt() const { return filter_stmt_; }
+  OrderByStmt                *orderby_stmt() const { return  orderby_stmt_; }
   JoinStmt                   *join_stmt() const { return join_stmt_; }
 
 private:
@@ -56,4 +58,5 @@ private:
   std::vector<Table *> tables_;
   FilterStmt          *filter_stmt_ = nullptr;
   JoinStmt            *join_stmt_   = nullptr;
+  OrderByStmt *orderby_stmt_ = nullptr;
 };

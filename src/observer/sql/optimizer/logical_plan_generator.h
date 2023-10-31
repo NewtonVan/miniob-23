@@ -24,6 +24,7 @@ class Stmt;
 class CalcStmt;
 class SelectStmt;
 class FilterStmt;
+class OrderByStmt;
 class InsertStmt;
 class UpdateStmt;
 class DeleteStmt;
