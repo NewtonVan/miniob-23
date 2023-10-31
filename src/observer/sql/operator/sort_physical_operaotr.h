@@ -34,7 +34,7 @@ private:
   std::vector<std::shared_ptr<TupleCellSpec>> specs_;
 
   bool is_first_ = true;
-  std::vector<std::shared_ptr<SortTuple>> tuples_;
+  std::vector<SortTuple> tuples_;
   std::vector<int> ordered_idx_;
   int it_;
 };

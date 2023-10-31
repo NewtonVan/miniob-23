@@ -13,6 +13,7 @@ RC SortPhysicalOperator::open(Trx *trx)
     rc = RC::INTERNAL;
     LOG_WARN("SortOperater child open failed!");
   }
+  tuples_.reserve(8192);
   return rc;
 }
 
@@ -49,8 +50,8 @@ RC SortPhysicalOperator::fetch_table()
       values.push_back(std::make_shared<Value>(value));
     }
 
-    auto tuple = std::make_shared<SortTuple>();
-    tuple->set_tuple(values, specs_);
+    auto tuple = SortTuple();
+    tuple.set_tuple(values, specs_);
     tuples_.push_back(tuple); // 使用 shared_ptr 管理 SortTuple 对象
   }
 
@@ -125,7 +126,7 @@ RC SortPhysicalOperator::close()
 Tuple *SortPhysicalOperator::current_tuple()
 {
   if(it_ < ordered_idx_.size()) {
-    return tuples_[ordered_idx_[it_]].get();
+    return &tuples_[ordered_idx_[it_]];
   }
   return nullptr;
 }
