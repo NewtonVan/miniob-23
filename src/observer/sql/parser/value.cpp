@@ -236,9 +236,9 @@ void Value::set_float(float val)
 void Value::set_text(const char *s)
 {
     attr_type_ = TEXTS;
-    strncpy(text_value_, s, 65537);
-    text_value_[65537] = '\0'; // 确保字符数组以 null 终止
-    length_ = 65538;
+    strncpy(text_value_, s, MAX_TEXT_SIZE-1);
+    text_value_[MAX_TEXT_SIZE-1] = '\0'; // 确保字符数组以 null 终止
+    length_ = MAX_TEXT_SIZE;
 }
 
 void Value::set_boolean(bool val)

@@ -36,10 +36,10 @@ RC SortPhysicalOperator::fetch_table()
       Expression *expr = unit->expr();
       Value       value;
       expr->get_value(*children_[0]->current_tuple(), value);
-      pair_value.emplace_back(std::move(value));
+      pair_value.push_back(std::move(value));
     }
     // 当前tuple需要排序属性的值存储下来
-    pair_sort_table.emplace_back(std::make_pair(pair_value, index++));
+    pair_sort_table.push_back(std::make_pair(pair_value, index++));
 
     Tuple *current_tuple = children_[0]->current_tuple();
 
@@ -51,8 +51,8 @@ RC SortPhysicalOperator::fetch_table()
     }
 
     auto tuple = SortTuple();
-    tuple.set_tuple(values, specs_);
-    tuples_.push_back(tuple); // 使用 shared_ptr 管理 SortTuple 对象
+    tuple.set_tuple(values, &specs_);
+    tuples_.push_back(std::move(tuple));
   }
 
   // 获取到每个排序单元的排序顺序
@@ -133,6 +133,5 @@ Tuple *SortPhysicalOperator::current_tuple()
 
 void SortPhysicalOperator::add_spec(const Table *table, const FieldMeta *field_meta)
 {
-  auto spec = TupleCellSpec(table->name(), field_meta->name(), field_meta->name());
-  specs_.push_back(spec);
+  specs_.push_back(TupleCellSpec(table->name(), field_meta->name(), field_meta->name()));
 }

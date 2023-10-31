@@ -394,9 +394,9 @@ private:
 
 class SortTuple : public Tuple {
 public:
-  void set_tuple(std::vector<Value>& values, std::vector<TupleCellSpec> specs) {
+  void set_tuple(std::vector<Value>& values, std::vector<TupleCellSpec>* specs) {
     values_ = std::move(values); // 使用移动语义避免不必要的拷贝
-    specs_ = std::move(specs);    // 使用移动语义避免不必要的拷贝
+    specs_ = specs;    // 使用移动语义避免不必要的拷贝
   }
 
   virtual ~SortTuple() = default;
@@ -418,10 +418,10 @@ public:
 
   RC find_cell(const TupleCellSpec &spec, Value &value) const override
   {
-    for (size_t i = 0; i < specs_.size(); ++i) {
-      if (0 == strcmp(spec.table_name(), specs_[i].table_name())
-          && 0 == strcmp(spec.field_name() , specs_[i].field_name())
-          && 0 == strcmp(spec.alias() , specs_[i].alias()) ) {
+    for (size_t i = 0; i < specs_->size(); ++i) {
+      if (0 == strcmp(spec.table_name(), specs_->at(i).table_name())
+          && 0 == strcmp(spec.field_name() , specs_->at(i).field_name())
+          && 0 == strcmp(spec.alias() , specs_->at(i).alias()) ) {
         return cell_at(i, value);
       }
     }
@@ -429,7 +429,7 @@ public:
   }
 
 private:
-  std::vector<TupleCellSpec> specs_;
+  std::vector<TupleCellSpec> *specs_;
   std::vector<Value> values_;
 };
 

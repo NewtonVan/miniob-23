@@ -20,6 +20,8 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 #include <cstdint>
 #include "math.h"
+#include "util.h"
+
 
 /**
  * @brief 属性的类型
@@ -191,5 +193,5 @@ private:
     bool bool_value_;
   } num_value_;
   std::string str_value_;
-  char text_value_[65538]; // 新增的用于存储text类型值的成员变量
+  char text_value_[MAX_TEXT_SIZE]; // 新增的用于存储text类型值的成员变量
 };
