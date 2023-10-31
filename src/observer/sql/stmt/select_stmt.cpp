@@ -303,6 +303,16 @@ RC SelectStmt::collectQueryFieldsInExpression(
     case ExprType::VALUE: {
 
     } break;
+    case ExprType::FUNCTION: {
+      FuncExpr *func = static_cast<FuncExpr *>(select_expr);
+      for (std::unique_ptr<Expression> &argv : func->args()) {
+        rc = collectQueryFieldsInExpression(argv.get(), query_attr, field_only);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("fail to collect in children");
+          return rc;
+        }
+      }
+    }
     default: {
       LOG_WARN("Unsupported query expressions, type: %d",  select_expr->type());
       return RC::INTERNAL;
