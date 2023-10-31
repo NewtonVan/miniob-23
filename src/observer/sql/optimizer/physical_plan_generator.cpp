@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include <utility>
 #include <vector>
 
+#include "sql/operator/dummy_scan_physical_operator.h"
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/operator/update_logical_operator.h"
@@ -230,6 +231,9 @@ RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &project_oper, uniq
       LOG_WARN("failed to create project logical operator's child physical operator. rc=%s", strrc(rc));
       return rc;
     }
+  } else {
+    // TODO(chen): convert from dummy logical instead of directly create
+    child_phy_oper = unique_ptr<PhysicalOperator>(new DummyScanPhysicalOperator());
   }
 
   ProjectPhysicalOperator *project_operator = new ProjectPhysicalOperator(project_oper.expressions());

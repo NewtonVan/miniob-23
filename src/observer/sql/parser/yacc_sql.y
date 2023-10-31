@@ -62,6 +62,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         TABLES
         INDEX
         CALC
+        LENGTH
+        ROUND
+        DATE_FORMAT
         INNER
         JOIN
         SELECT
@@ -115,28 +118,30 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
-  ParsedSqlNode *                   sql_node;
-  ComparisonExpr *                   condition;
-  Value *                           value;
-  enum CompOp                       comp;
-  RelAttrSqlNode *                  rel_attr;
-  std::vector<std::string> *        attr_names;
-  OrderBy *                         order_item;
-  std::vector<OrderBy> *            order_item_list;
-  std::vector<AttrInfoSqlNode> *    attr_infos;
-  AttrInfoSqlNode *                 attr_info;
-  Expression *                      expression;
-  std::vector<Expression *> *       expression_list;
-  std::vector<Value> *              value_list;
-  std::vector<ComparisonExpr *> *    condition_list;
-  std::vector<RelAttrSqlNode> *     rel_attr_list;
-  std::vector<std::string> *        relation_list;
-  JoinSqlNode *                     join_relation;
-  GeneralRelationSqlNode *          general_relation_sql_node;
-  char *                            string;
-  int                               number;
-  float                             floats;
-  bool                              bools;
+  ParsedSqlNode *                             sql_node;
+  ComparisonExpr *                            condition;
+  Value *                                     value;
+  enum CompOp                                 comp;
+  RelAttrSqlNode *                            rel_attr;
+  std::vector<std::string> *                  attr_names;
+  OrderBy *                                   order_item;
+  std::vector<OrderBy> *                      order_item_list;
+  std::vector<AttrInfoSqlNode> *              attr_infos;
+  AttrInfoSqlNode *                           attr_info;
+  Expression *                                expression;
+  std::vector<Expression *> *                 expression_list;
+  std::vector<Value> *                        value_list;
+  std::vector<ComparisonExpr *> *             condition_list;
+  std::vector<RelAttrSqlNode> *               rel_attr_list;
+  RelationSqlNode *                           single_table;
+  std::vector<RelationSqlNode> *              relation_list;
+  JoinSqlNode *                               join_relation;
+  GeneralRelationSqlNode *                    general_relation_sql_node;
+  char *                                      string;
+  int                                         number;
+  float                                       floats;
+  bool                                        bools;
+  std::vector<std::unique_ptr<Expression>> *  func_args;
 }
 
 %token <number> NUMBER
@@ -166,8 +171,13 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <condition_list>      condition_list
 %type <condition_list>      join_condition
 %type <expression_list>     select_attr
+%type <single_table>        single_table
 %type <relation_list>       rel_list
 %type <expression>          expression
+%type <func_args>           length_args
+%type <func_args>           round_args
+%type <func_args>           date_format_args
+%type <expression>          func_expr
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
@@ -519,7 +529,7 @@ update_stmt:      /*  update 语句的语法解析树*/
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where
+    SELECT select_attr FROM single_table rel_list where
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -530,7 +540,7 @@ select_stmt:        /*  select 语句的语法解析树*/
         $$->selection.relations.swap(*$5);
         delete $5;
       }
-      $$->selection.relations.push_back($4);
+      $$->selection.relations.push_back(std::move(*$4));
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
 
       if ($6 != nullptr) {
@@ -556,7 +566,7 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       free($7);
     }
-    | SELECT select_attr FROM ID rel_list where ORDER BY order_item order_item_list
+    | SELECT select_attr FROM single_table rel_list where ORDER BY order_item order_item_list
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -567,7 +577,7 @@ select_stmt:        /*  select 语句的语法解析树*/
         $$->selection.relations.swap(*$5);
         delete $5;
       }
-      $$->selection.relations.push_back($4);
+      $$->selection.relations.push_back(std::move(*$4));
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
 
       std::vector<OrderBy> *order_by_attrs = $10;
@@ -583,6 +593,15 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $6;
       }
       free($4);
+    }
+    | SELECT expression_list
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        std::reverse($2->begin(), $2->end());
+        $$->selection.select_expressions.swap(*$2);
+        delete $2;
+      }
     }
     ;
 
@@ -677,7 +696,7 @@ expression:
     }
     | rel_attr {
       $$ = new RelAttrExprSqlNode($1);
-      $$->set_name($1->attribute_name);
+      $$->set_name($1->name());
     }
     | rel_attr ID {
       $$ = new RelAttrExprSqlNode($1, $2);
@@ -687,8 +706,79 @@ expression:
       $$ = new RelAttrExprSqlNode($1, $3);
       $$->set_name($3);
     }
+    | func_expr {
+      $$ = $1;
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | func_expr ID {
+      $$ = $1;
+      $$->set_name($2);
+    }
+    | func_expr AS ID {
+      $$ = $1;
+      $$->set_name($3);
+    }
     ;
 
+func_expr:
+    LENGTH LBRACE length_args RBRACE {
+      $$ = new FuncExpr(FuncExpr::FuncType::LENGTH, *$3);
+    }
+    | ROUND LBRACE round_args RBRACE {
+      $$ = new FuncExpr(FuncExpr::FuncType::ROUND, *$3);
+    }
+    | DATE_FORMAT LBRACE date_format_args RBRACE {
+      $$ = new FuncExpr(FuncExpr::FuncType::DATE_FORMAT, *$3);
+    }
+    ;
+
+length_args:
+    SSS {
+      $$ = new std::vector<std::unique_ptr<Expression>>;
+      char *tmp = common::substr($1,1,strlen($1)-2);
+      ValueExpr *value_expr = new ValueExpr(Value(tmp));
+      std::unique_ptr<Expression> target(value_expr);
+      $$->emplace_back(std::move(target));
+      free(tmp);
+    }
+    | rel_attr {
+      $$ = new std::vector<std::unique_ptr<Expression>>;
+      RelAttrExprSqlNode *attr_expr = new RelAttrExprSqlNode($1);
+      attr_expr->set_name($1->name());
+      std::unique_ptr<Expression> target(attr_expr);
+      $$->emplace_back(std::move(target));
+    }
+    ;
+
+round_args:
+    expression {
+      $$ = new std::vector<std::unique_ptr<Expression>>;
+      std::unique_ptr<Expression> target($1);
+      $$->emplace_back(std::move(target));
+    }
+    | expression COMMA NUMBER {
+      $$ = new std::vector<std::unique_ptr<Expression>>;
+      std::unique_ptr<Expression> target($1);
+      ValueExpr *value_expr = new ValueExpr(Value((int)$3));
+      std::unique_ptr<Expression> precise(value_expr);
+      $$->emplace_back(std::move(target));
+      $$->emplace_back(std::move(precise));
+    }
+    ;
+
+date_format_args:
+    expression COMMA SSS {
+      $$ = new std::vector<std::unique_ptr<Expression>>;
+      char *tmp = common::substr($3,1,strlen($3)-2);
+      ValueExpr *format_expr = new ValueExpr(Value(tmp));
+      std::unique_ptr<Expression> target($1);
+      std::unique_ptr<Expression> format(format_expr);
+      $$->emplace_back(std::move(target));
+      $$->emplace_back(std::move(format));
+    }
+    ;
+    
+ 
 select_attr:
     '*' {
       $$ = new std::vector<Expression *>;
@@ -723,15 +813,34 @@ rel_list:
     {
       $$ = nullptr;
     }
-    | COMMA ID rel_list {
+    | COMMA single_table rel_list {
       if ($3 != nullptr) {
         $$ = $3;
       } else {
-        $$ = new std::vector<std::string>;
+        $$ = new std::vector<RelationSqlNode>;
       }
 
-      $$->push_back($2);
+      $$->push_back(std::move(*$2));
+    }
+    ;
+ 
+single_table:
+    ID
+    {
+      $$ = new RelationSqlNode($1);
+      free($1);
+    }
+    | ID ID
+    {
+      $$ = new RelationSqlNode($1, $2);
+      free($1);
       free($2);
+    }
+    | ID AS ID
+    {
+      $$ = new RelationSqlNode($1, $3);
+      free($1);
+      free($3);
     }
     ;
 general_rel:

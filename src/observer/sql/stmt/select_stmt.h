@@ -14,6 +14,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <string>
+#include <unordered_map>
 #include <vector>
 #include <memory>
 
@@ -44,8 +46,9 @@ public:
 
 public:
   static RC create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt);
+  // TODO(chen): handle alias issue
   static RC collectJoinTables(Db *db, GeneralRelationSqlNode *rel, std::vector<Table *> &tables,
-      std::unordered_map<std::string, Table *> &table_map);
+      std::unordered_map<std::string, Table *> &table_map, std::unordered_map<std::string, std::string> &alias_map);
   static RC collectQueryFields(
       const std::vector<Expression *> &select_expressions, std::vector<RelAttrSqlNode> &query_attr, bool &field_only);
   static RC collectQueryFieldsInExpression(
@@ -56,20 +59,20 @@ public:
       const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field);
 
 public:
-  const std::vector<Table *> &tables() const { return tables_; }
-  const std::vector<Field>   &query_fields() const { return query_fields_; }
-  FilterStmt                 *filter_stmt() const { return filter_stmt_; }
-  JoinStmt                   *join_stmt() const { return join_stmt_; }
-  OrderByStmt                *orderby_stmt() const { return  orderby_stmt_; }
+  const std::vector<Table *>               &tables() const { return tables_; }
+  const std::vector<Field>                 &query_fields() const { return query_fields_; }
+  FilterStmt                               *filter_stmt() const { return filter_stmt_; }
+  JoinStmt                                 *join_stmt() const { return join_stmt_; }
+  OrderByStmt                              *orderby_stmt() const { return orderby_stmt_; }
   std::vector<std::unique_ptr<Expression>> &project_exprs() { return project_exprs_; }
   bool                                      use_project_exprs() const { return use_project_exprs_; }
 
 private:
-  std::vector<Field>   query_fields_;
-  std::vector<Table *> tables_;
+  std::vector<Field>                       query_fields_;
+  std::vector<Table *>                     tables_;
   std::vector<std::unique_ptr<Expression>> project_exprs_;
-  FilterStmt          *filter_stmt_ = nullptr;
-  JoinStmt            *join_stmt_   = nullptr;
-  OrderByStmt *orderby_stmt_ = nullptr;
+  FilterStmt                              *filter_stmt_       = nullptr;
+  JoinStmt                                *join_stmt_         = nullptr;
+  OrderByStmt                             *orderby_stmt_      = nullptr;
   bool                                     use_project_exprs_ = false;
 };
