@@ -168,8 +168,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // create order_by stmt
   OrderByStmt *orderby_stmt = nullptr;
-  if(!select_sql.order_by.empty()) {
-    rc = OrderByStmt::create(db, default_table, &table_map, select_sql.order_by, select_sql.order_by.size(), orderby_stmt);
+  if (!select_sql.order_by.empty()) {
+    rc = OrderByStmt::create(
+        db, default_table, &table_map, select_sql.order_by, select_sql.order_by.size(), orderby_stmt);
     if (rc != RC::SUCCESS) {
       LOG_WARN("cannot construct order by stmt");
       return rc;
@@ -179,7 +180,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   std::vector<std::unique_ptr<Expression>> select_expressions;
   for (int i = 0; i < select_sql.select_expressions.size(); ++i) {
     std::unique_ptr<Expression> select_expr;
-    rewrite_attr_expr_to_field_expr(db, default_table, &table_map, select_sql.select_expressions[i], select_expr);
+    rc = rewrite_attr_expr_to_field_expr(db, default_table, &table_map, select_sql.select_expressions[i], select_expr);
+    if (OB_FAIL(rc)) {
+      LOG_WARN("fail to rewrite, idx: %d, rc: %s", i, strrc(rc));
+      return rc;
+    }
     select_expressions.emplace_back(std::move(select_expr));
   }
 
@@ -200,7 +205,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->tables_.swap(tables);
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->filter_stmt_       = filter_stmt;
-  select_stmt->orderby_stmt_ = orderby_stmt;
+  select_stmt->orderby_stmt_      = orderby_stmt;
   select_stmt->join_stmt_         = static_cast<JoinStmt *>(join_stmt);
   select_stmt->use_project_exprs_ = !field_only || select_stmt->query_fields().empty();
   select_stmt->project_exprs_.swap(select_expressions);

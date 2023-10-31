@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/tuple.h"
 #include "sql/parser/value.h"
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <utility>
@@ -104,14 +105,13 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
   RC rc = RC::SUCCESS;
 
   // 左右其中一个为空，且比较符号不是IS_LEFT_NULL和IS_LEFT_NULL，则永远返回false，因为null和任何值比较都返回false
-  if(left.attr_type() != right.attr_type()
-      && (left.attr_type() == NULLS || right.attr_type() == NULLS)
-      && comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NULL) {
+  if (left.attr_type() != right.attr_type() && (left.attr_type() == NULLS || right.attr_type() == NULLS) &&
+      comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NULL) {
     result = false;
     return rc;
   }
 
-  if(left.attr_type() == NULLS && right.attr_type() == NULLS && comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NULL) {
+  if (left.attr_type() == NULLS && right.attr_type() == NULLS && comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NULL) {
     result = false;
     return rc;
   }
@@ -443,14 +443,25 @@ RC FuncExpr::eval_func(std::vector<Value> &args, Value &value) const
       value.set_float(rnd_num);
     } break;
     case FuncType::DATE_FORMAT: {
-      int64_t           date   = args[0].get_date();
+      int64_t date = 0;
+      if (args[0].attr_type() == AttrType::CHARS) {
+        if (!serialize_date(&date, args[0].get_string().c_str())) {
+          LOG_WARN("fail to serialize %s", args[0].get_string().c_str());
+        }
+      } else if (args[0].attr_type() == AttrType::DATES || args[0].attr_type() == AttrType::INTS) {
+        date = args[0].get_date();
+      } else {
+        LOG_WARN("unknown format: %d", args[0].attr_type());
+        return RC::INVALID_ARGUMENT;
+      }
       const std::string format = args[1].get_string();
-      std::string       formatted_date(common::DateTime::format_date(date, format));
+      std::string       formatted_date(common::DateTime::format_date(deserialize_date_ts(date), format));
       if (formatted_date.empty()) {
         LOG_WARN("invalid date/format, date: %d, format: %s", date, format.c_str());
         return RC::INTERNAL;
       }
-      return RC::UNIMPLENMENT;
+      value.set_string(formatted_date.c_str(), formatted_date.length());
+      return RC::SUCCESS;
     } break;
     default: {
       rc = RC::INTERNAL;

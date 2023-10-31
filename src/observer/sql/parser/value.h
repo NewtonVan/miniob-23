@@ -19,61 +19,53 @@ See the Mulan PSL v2 for more details. */
 
 /**
  * @brief 属性的类型
- * 
+ *
  */
 enum AttrType
 {
   UNDEFINED,
-  CHARS,          ///< 字符串类型
-  INTS,           ///< 整数类型(4字节)
-  DATES,           ///< 日期类型
-  FLOATS,         ///< 浮点数类型(4字节)
-  TEXTS,          ///< 文本类型
+  CHARS,   ///< 字符串类型
+  INTS,    ///< 整数类型(4字节)
+  DATES,   ///< 日期类型
+  FLOATS,  ///< 浮点数类型(4字节)
+  TEXTS,   ///< 文本类型
   NULLS,
-  BOOLEANS,       ///< boolean类型，当前不是由parser解析出来的，是程序内部使用的
+  BOOLEANS,  ///< boolean类型，当前不是由parser解析出来的，是程序内部使用的
 };
 
 const char *attr_type_to_string(AttrType type);
-AttrType attr_type_from_string(const char *s);
+AttrType    attr_type_from_string(const char *s);
 
-bool deserialize_date(char *out, size_t len_out, int in);
-bool serialize_date(int64_t *out, const char *in);
-bool PerformLikeComparison(const std::string& left, const std::string& right);
-bool PerformNotLikeComparison(const std::string& left, const std::string& right);
+bool   deserialize_date(char *out, size_t len_out, int in);
+time_t deserialize_date_ts(int64_t in);
+bool   serialize_date(int64_t *out, const char *in);
+bool   PerformLikeComparison(const std::string &left, const std::string &right);
+bool   PerformNotLikeComparison(const std::string &left, const std::string &right);
 
 /**
  * @brief 属性的值
- * 
+ *
  */
-class Value 
+class Value
 {
 public:
   Value() = default;
 
-  Value(AttrType attr_type, char *data, int length = 4) : attr_type_(attr_type)
-  {
-    this->set_data(data, length);
-  }
+  Value(AttrType attr_type, char *data, int length = 4) : attr_type_(attr_type) { this->set_data(data, length); }
 
   explicit Value(int val);
   explicit Value(int64_t val);
   explicit Value(float val);
   explicit Value(bool val);
   explicit Value(const char *s, int len = 0);
-//  explicit Value(const char *s, int len = 4096, AttrType attr_type = TEXTS);
+  //  explicit Value(const char *s, int len = 4096, AttrType attr_type = TEXTS);
 
-  Value(const Value &other) = default;
+  Value(const Value &other)            = default;
   Value &operator=(const Value &other) = default;
 
-  void set_type(AttrType type)
-  {
-    this->attr_type_ = type;
-  }
+  void set_type(AttrType type) { this->attr_type_ = type; }
   void set_data(char *data, int length);
-  void set_data(const char *data, int length)
-  {
-    this->set_data(const_cast<char *>(data), length);
-  }
+  void set_data(const char *data, int length) { this->set_data(const_cast<char *>(data), length); }
   void set_int(int val);
   void set_date(int64_t val);
   void set_float(float val);
@@ -87,69 +79,45 @@ public:
   int compare(const Value &other) const;
 
   const char *data() const;
-  int length() const
-  {
-    return length_;
-  }
+  int         length() const { return length_; }
 
-  AttrType attr_type() const
-  {
-    return attr_type_;
-  }
+  AttrType attr_type() const { return attr_type_; }
 
+  bool operator==(const Value &other) const { return 0 == compare(other); }
 
-  bool operator==(const Value &other) const
-  {
-    return 0 == compare(other);
-  }
+  bool operator!=(const Value &other) const { return 0 != compare(other); }
 
-  bool operator!=(const Value &other) const
-  {
-    return 0 != compare(other);
-  }
+  bool operator<(const Value &other) const { return 0 > compare(other); }
 
-  bool operator<(const Value &other) const
-  {
-    return 0 > compare(other);
-  }
+  bool operator<=(const Value &other) const { return 0 >= compare(other); }
 
-  bool operator<=(const Value &other) const
-  {
-    return 0 >= compare(other);
-  }
+  bool operator>(const Value &other) const { return 0 < compare(other); }
 
-  bool operator>(const Value &other) const
-  {
-    return 0 < compare(other);
-  }
-
-  bool operator>=(const Value &other) const
-  {
-    return 0 <= compare(other);
-  }
+  bool operator>=(const Value &other) const { return 0 <= compare(other); }
 
 public:
   /**
    * 获取对应的值
    * 如果当前的类型与期望获取的类型不符，就会执行转换操作
    */
-  int get_int() const;
-  int64_t get_date() const;
-  float get_float() const;
-  const char* get_text() const;
+  int         get_int() const;
+  int64_t     get_date() const;
+  float       get_float() const;
+  const char *get_text() const;
   std::string get_string() const;
-  bool get_boolean() const;
+  bool        get_boolean() const;
 
 private:
   AttrType attr_type_ = UNDEFINED;
-  int length_ = 0;
+  int      length_    = 0;
 
-  union {
-    int int_value_;
+  union
+  {
+    int     int_value_;
     int64_t date_value_;
-    float float_value_;
-    bool bool_value_;
+    float   float_value_;
+    bool    bool_value_;
   } num_value_;
   std::string str_value_;
-  char text_value_[65538]; // 新增的用于存储text类型值的成员变量
+  char        text_value_[65538];  // 新增的用于存储text类型值的成员变量
 };

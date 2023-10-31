@@ -422,13 +422,17 @@ bool DateTime::is_valid_xml_datetime(const std::string &str)
   return true;
 }
 
-std::string DateTime::format_date(int64_t date, const std::string &format)
+std::string DateTime::format_date(int64_t ts, const std::string &format)
 {
 
   std::string result_date_str;
-  int         year  = date / 10000;
-  int         month = (date / 100) % 100;
-  int         day   = date % 100;
+  // 将时间戳转换为本地时间结构
+  std::tm *localTime = std::localtime(&ts);
+
+  // 从本地时间结构中提取年、月、日
+  int year  = localTime->tm_year + 1900;  // 年份需要加上 1900
+  int month = localTime->tm_mon + 1;      // 月份从 0 开始，需要加上 1
+  int day   = localTime->tm_mday;
   for (size_t i = 0; i < format.length(); i++) {
     // A ~ z
     if (65 <= format[i] && format[i] <= 122) {

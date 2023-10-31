@@ -1,0 +1,2 @@
+
+select date_format('2020-01-23', '%y-%m-%d, %Y');

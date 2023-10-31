@@ -596,6 +596,7 @@ select_stmt:        /*  select 语句的语法解析树*/
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
+        std::reverse($2->begin(), $2->end());
         $$->selection.select_expressions.swap(*$2);
         delete $2;
       }
@@ -706,6 +707,14 @@ expression:
     | func_expr {
       $$ = $1;
       $$->set_name(token_name(sql_string, &@$));
+    }
+    | func_expr ID {
+      $$ = $1;
+      $$->set_name($2);
+    }
+    | func_expr AS ID {
+      $$ = $1;
+      $$->set_name($3);
     }
     ;
 
