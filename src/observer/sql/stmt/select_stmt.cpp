@@ -304,6 +304,7 @@ RC SelectStmt::collectQueryFieldsInExpression(
 
     } break;
     case ExprType::FUNCTION: {
+      field_only     = false;
       FuncExpr *func = static_cast<FuncExpr *>(select_expr);
       for (std::unique_ptr<Expression> &argv : func->args()) {
         rc = collectQueryFieldsInExpression(argv.get(), query_attr, field_only);
