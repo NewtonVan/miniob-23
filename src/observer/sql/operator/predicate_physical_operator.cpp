@@ -69,3 +69,5 @@ Tuple *PredicatePhysicalOperator::current_tuple()
 {
   return children_[0]->current_tuple();
 }
+
+

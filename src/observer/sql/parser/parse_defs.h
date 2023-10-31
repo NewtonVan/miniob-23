@@ -124,6 +124,40 @@ struct GeneralRelationSqlNode
   explicit GeneralRelationSqlNode(char *rel) : type(REL_TABLE), relation(std::string(rel)){};
 };
 
+
+enum AggFuncType
+{
+  MAX_FUNC = 0,
+  MIN_FUNC,
+  AVG_FUNC,
+  COUNT_FUNC,
+  SUM_FUNC
+};
+
+
+enum AggType
+{
+  COUNT_STAR,
+  COUNT_AGG,
+  SUM_AGG,
+  MIN_AGG,
+  MAX_AGG,
+  AVG_AGG,
+};
+
+
+struct AggregationFuncSqlNode
+{
+  AggFuncType    func;
+  RelAttrSqlNode attr;
+};
+
+struct AggField {
+  std::string name;
+};
+
+
+
 /**
  * @brief 描述一个select语句
  * @ingroup SQLParser
@@ -148,7 +182,7 @@ struct SelectSqlNode
   JoinSqlNode                  *join_relation = nullptr;  // TODO(chen): support cascade
   std::vector<OrderBy>          order_by;
   std::vector<Expression *>     select_expressions;       ///< 记录含有表达式点select clause,
-                                                          ///< 与attributes只有一个可行
+  std::vector<AggregationFuncSqlNode> agg_funcs;                                                        ///< 与attributes只有一个可行
 };
 
 /**

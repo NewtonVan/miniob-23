@@ -74,44 +74,49 @@ extern int yydebug;
     TRX_ROLLBACK = 280,
     INT_T = 281,
     DATE_T = 282,
-    STRING_T = 283,
-    FLOAT_T = 284,
-    TEXT_T = 285,
-    HELP = 286,
-    EXIT = 287,
-    DOT = 288,
-    INTO = 289,
-    VALUES = 290,
-    FROM = 291,
-    WHERE = 292,
-    AND = 293,
-    SET = 294,
-    ON = 295,
-    LOAD = 296,
-    DATA = 297,
-    INFILE = 298,
-    EXPLAIN = 299,
-    LIKE = 300,
-    NOT_LIKE = 301,
-    IS = 302,
-    NOT = 303,
-    NULLABLE = 304,
-    NULL_T = 305,
-    UNIQUE = 306,
-    ORDER = 307,
-    BY = 308,
-    ASC = 309,
-    EQ = 310,
-    LT = 311,
-    GT = 312,
-    LE = 313,
-    GE = 314,
-    NE = 315,
-    NUMBER = 316,
-    FLOAT = 317,
-    ID = 318,
-    SSS = 319,
-    UMINUS = 320
+    MIN = 283,
+    MAX = 284,
+    AVG = 285,
+    COUNT = 286,
+    SUM = 287,
+    STRING_T = 288,
+    FLOAT_T = 289,
+    TEXT_T = 290,
+    HELP = 291,
+    EXIT = 292,
+    DOT = 293,
+    INTO = 294,
+    VALUES = 295,
+    FROM = 296,
+    WHERE = 297,
+    AND = 298,
+    SET = 299,
+    ON = 300,
+    LOAD = 301,
+    DATA = 302,
+    INFILE = 303,
+    EXPLAIN = 304,
+    LIKE = 305,
+    NOT_LIKE = 306,
+    IS = 307,
+    NOT = 308,
+    NULLABLE = 309,
+    NULL_T = 310,
+    UNIQUE = 311,
+    ORDER = 312,
+    BY = 313,
+    ASC = 314,
+    EQ = 315,
+    LT = 316,
+    GT = 317,
+    LE = 318,
+    GE = 319,
+    NE = 320,
+    NUMBER = 321,
+    FLOAT = 322,
+    ID = 323,
+    SSS = 324,
+    UMINUS = 325
   };
 #endif
 
@@ -119,7 +124,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 117 "yacc_sql.y"
+#line 122 "yacc_sql.y"
 
   ParsedSqlNode *                   sql_node;
   ComparisonExpr *                   condition;
@@ -137,14 +142,19 @@ union YYSTYPE
   std::vector<ComparisonExpr *> *    condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  std::vector<std::string> *        field_list;
+  AggField*                         field;
   JoinSqlNode *                     join_relation;
   GeneralRelationSqlNode *          general_relation_sql_node;
   char *                            string;
   int                               number;
   float                             floats;
+  AggregationFuncSqlNode *          agg_func_call;
+  enum AggFuncType                  agg_func;
+  std::vector<AggregationFuncSqlNode> * agg_func_call_list;
   bool                              bools;
 
-#line 148 "yacc_sql.hpp"
+#line 158 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

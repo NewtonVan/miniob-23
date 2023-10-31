@@ -16,16 +16,21 @@ See the Mulan PSL v2 for more details. */
 #include "common/rc.h"
 #include "sql/expr/expression.h"
 #include "sql/parser/parse_defs.h"
+#include "sql/parser/value.h"
 #include "sql/stmt/filter_stmt.h"
 #include "sql/stmt/orderby_stmt.h"
 #include "common/log/log.h"
 #include "common/lang/string.h"
 #include "sql/stmt/join_stmt.h"
 #include "storage/db/db.h"
+#include "storage/field/field.h"
+#include "storage/field/field_meta.h"
 #include "storage/table/table.h"
 #include <algorithm>
 #include <memory>
 #include <vector>
+#include <cstring>
+#include <sys/socket.h>
 
 SelectStmt::~SelectStmt()
 {
@@ -43,6 +48,15 @@ static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
     field_metas.push_back(Field(table, table_meta.field(i)));
   }
 }
+
+// static void wildcard_agg_fields(Table *table, AggFuncType func, std::vector<SelectStmt::agg_field>& fields) {
+//   const TableMeta &table_meta = table->table_meta();
+//   const int field_num = table_meta.field_num();
+//   for (int i = table_meta.sys_field_num(); i < field_num; i++) {
+//     fields.push_back(SelectStmt::agg_field(func, Field(table,table_meta.field(i))));
+//   }
+// }
+
 
 RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 {
@@ -79,7 +93,94 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     }
   }
 
-  // collect query fields in `select` statement
+
+  Table *default_table = nullptr;
+  if (tables.size() == 1) {
+    default_table = tables[0];
+  }
+
+  bool is_agg = !select_sql.agg_funcs.empty();
+  if(is_agg && !select_sql.attributes.empty()) {
+    return RC::BAD_AGG;
+  }
+
+
+  std::vector<agg_field> agg_fields;
+
+  if(is_agg) {
+    // is handle multi-table needed
+
+    // collect query fields in `select` statement
+    for(int i = static_cast<int>(select_sql.agg_funcs.size())-1; i >= 0; i--) {
+      const AggFuncType func = select_sql.agg_funcs[i].func;
+      const RelAttrSqlNode &relation_attr = select_sql.agg_funcs[i].attr;
+      // handle empty field name
+      // select count() from t;
+      // select count(*, num) from t;
+      if(relation_attr.attribute_name.empty()) {
+        return RC::BAD_AGG;
+      }
+
+      // handle "*"
+      if(0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
+        if(func != AggFuncType::COUNT_FUNC) {
+          return RC::BAD_AGG;
+        }
+        // '*'
+        if(relation_attr.relation_name.empty()) {
+          // count on first field of default table
+          agg_fields.push_back(agg_field(func, Field(nullptr, nullptr)));
+          agg_fields.back().field_is_star = true;
+        } else {
+          // 't1.*'
+          return RC::BAD_AGG;
+        }
+      } else  {
+        // handle  *.rel
+        if(relation_attr.relation_name == "*") {
+          return RC::SCHEMA_FIELD_MISSING;
+        } else if(relation_attr.relation_name == "") {
+          // fix() select count(a) from t;
+          // select count(a) from t1, t2; -> select count(t1.a), count(t2.a) from t1 join t2;
+
+
+
+          for (Table *table : tables) {
+              const FieldMeta * field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
+              if(field_meta != nullptr) {
+                agg_fields.push_back(SelectStmt::agg_field(func, Field(table,field_meta)));
+              }
+          }
+          if(agg_fields.empty()) {
+            LOG_ERROR("no exist field");
+            return RC::BAD_AGG;
+          }
+
+
+        } else {
+          auto iter = table_map.find(relation_attr.relation_name);
+          if(iter == table_map.end()) {
+            return RC::SCHEMA_TABLE_NOT_EXIST;
+          }
+          Table* table = iter->second;
+
+          const auto field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
+          // avg semantic legal check, todo(lyq)
+          // sum avg only on INTS and FLOATS
+          // todo(lyq, recheck)
+          if(func == AggFuncType::AVG_FUNC || func == AggFuncType::SUM_FUNC) {
+            if(field_meta->type() != AttrType::INTS && field_meta->type() != AttrType::FLOATS) {
+              LOG_ERROR("agg avg or sum on non-arithmetic attr");
+              return RC::BAD_AGG;
+            }
+          }
+          agg_fields.push_back(agg_field(func, Field(table, field_meta)));
+        }
+     }
+    }
+  }
+
+
   std::vector<Field> query_fields;
   // FIXME(CHEN): too hacky, fix this after merge our job
   std::vector<RelAttrSqlNode> query_attrs;
@@ -147,10 +248,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_fields.size());
 
-  Table *default_table = nullptr;
-  if (tables.size() == 1) {
-    default_table = tables[0];
-  }
+
 
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
@@ -196,6 +294,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
   // TODO add expression copy
+  select_stmt->agg_fields_.swap(agg_fields);
+  select_stmt->is_agg_ = is_agg;
   select_stmt->tables_.swap(tables);
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->filter_stmt_       = filter_stmt;
