@@ -56,20 +56,20 @@ public:
       const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field);
 
 public:
-  const std::vector<Table *> &tables() const { return tables_; }
-  const std::vector<Field>   &query_fields() const { return query_fields_; }
-  FilterStmt                 *filter_stmt() const { return filter_stmt_; }
-  JoinStmt                   *join_stmt() const { return join_stmt_; }
-  OrderByStmt                *orderby_stmt() const { return  orderby_stmt_; }
+  const std::vector<Table *>               &tables() const { return tables_; }
+  const std::vector<Field>                 &query_fields() const { return query_fields_; }
+  FilterStmt                               *filter_stmt() const { return filter_stmt_; }
+  JoinStmt                                 *join_stmt() const { return join_stmt_; }
+  OrderByStmt                              *orderby_stmt() const { return orderby_stmt_; }
   std::vector<std::unique_ptr<Expression>> &project_exprs() { return project_exprs_; }
   bool                                      use_project_exprs() const { return use_project_exprs_; }
 
 private:
-  std::vector<Field>   query_fields_;
-  std::vector<Table *> tables_;
+  std::vector<Field>                       query_fields_;
+  std::vector<Table *>                     tables_;
   std::vector<std::unique_ptr<Expression>> project_exprs_;
-  FilterStmt          *filter_stmt_ = nullptr;
-  JoinStmt            *join_stmt_   = nullptr;
-  OrderByStmt *orderby_stmt_ = nullptr;
+  FilterStmt                              *filter_stmt_       = nullptr;
+  JoinStmt                                *join_stmt_         = nullptr;
+  OrderByStmt                             *orderby_stmt_      = nullptr;
   bool                                     use_project_exprs_ = false;
 };

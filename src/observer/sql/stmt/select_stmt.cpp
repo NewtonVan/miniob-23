@@ -178,14 +178,17 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   std::vector<std::unique_ptr<Expression>> select_expressions;
-  for (int i = 0; i < select_sql.select_expressions.size(); ++i) {
-    std::unique_ptr<Expression> select_expr;
-    rc = rewrite_attr_expr_to_field_expr(db, default_table, &table_map, select_sql.select_expressions[i], select_expr);
-    if (OB_FAIL(rc)) {
-      LOG_WARN("fail to rewrite, idx: %d, rc: %s", i, strrc(rc));
-      return rc;
+  if (!field_only || query_fields.empty()) {
+    for (int i = 0; i < select_sql.select_expressions.size(); ++i) {
+      std::unique_ptr<Expression> select_expr;
+      rc =
+          rewrite_attr_expr_to_field_expr(db, default_table, &table_map, select_sql.select_expressions[i], select_expr);
+      if (OB_FAIL(rc)) {
+        LOG_WARN("fail to rewrite, idx: %d, rc: %s", i, strrc(rc));
+        return rc;
+      }
+      select_expressions.emplace_back(std::move(select_expr));
     }
-    select_expressions.emplace_back(std::move(select_expr));
   }
 
   // create join stmt
@@ -410,6 +413,7 @@ RC SelectStmt::rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
       ret_expr.swap(new_func);
     }
     default: {
+      // TODO(chen): handle '*'
       LOG_DEBUG("type: %d, no need to rewrite", old_expr->type());
     }
   }
