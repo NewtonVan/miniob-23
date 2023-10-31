@@ -385,13 +385,13 @@ private:
   Tuple *right_ = nullptr;
 };
 
-
 class SortTuple : public Tuple {
 public:
-  void set_tuple(std::vector<Value>& values, std::vector<TupleCellSpec *> specs) {
-    values_ = values;
-    specs_ = specs;
+  void set_tuple(std::vector<std::shared_ptr<Value>> values, std::vector<std::shared_ptr<TupleCellSpec>> specs) {
+    values_ = std::move(values); // 使用移动语义避免不必要的拷贝
+    specs_ = std::move(specs);    // 使用移动语义避免不必要的拷贝
   }
+
   virtual ~SortTuple() = default;
 
   int cell_num() const override
@@ -403,7 +403,7 @@ public:
   {
     const int left_cell_num =cell_num();
     if (index > 0 && index < cell_num()) {
-      value = values_[index];
+      value = *values_[index];
       return RC::SUCCESS;
     }
     return RC::NOTFOUND;
@@ -422,8 +422,8 @@ public:
   }
 
 private:
-  std::vector<TupleCellSpec *>  specs_;
-  std::vector<Value> values_;
+  std::vector<std::shared_ptr<TupleCellSpec>> specs_;
+  std::vector<std::shared_ptr<Value>> values_;
 };
 
 

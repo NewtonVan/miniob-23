@@ -26,7 +26,7 @@ RC SortPhysicalOperator::fetch_table()
   // 被order by选择属性的值的数组
   std::vector<Value> pair_value;
   // 获得order by的排序单元
-  auto &units = orderby_stmt_->orderby_units();
+  const auto &units = orderby_stmt_->orderby_units();
 
   while (RC::SUCCESS == (rc = children_[0]->next())) {
     pair_value.clear();
@@ -35,22 +35,23 @@ RC SortPhysicalOperator::fetch_table()
       Expression *expr = unit->expr();
       Value       value;
       expr->get_value(*children_[0]->current_tuple(), value);
-      pair_value.emplace_back(value);
+      pair_value.emplace_back(std::move(value));
     }
     // 当前tuple需要排序属性的值存储下来
     pair_sort_table.emplace_back(std::make_pair(pair_value, index++));
 
     Tuple *current_tuple = children_[0]->current_tuple();
 
-    std::vector<Value> values;
+    std::vector<std::shared_ptr<Value>> values;
     for (int i = 0; i < current_tuple->cell_num(); i++) {
       Value value;
       current_tuple->cell_at(i, value);
-      values.emplace_back(value);
+      values.push_back(std::make_shared<Value>(value));
     }
-    auto tuple = new SortTuple();
+
+    auto tuple = std::make_shared<SortTuple>();
     tuple->set_tuple(values, specs_);
-    tuples_.push_back(tuple);
+    tuples_.push_back(tuple); // 使用 shared_ptr 管理 SortTuple 对象
   }
 
   // 获取到每个排序单元的排序顺序
@@ -124,13 +125,13 @@ RC SortPhysicalOperator::close()
 Tuple *SortPhysicalOperator::current_tuple()
 {
   if(it_ < ordered_idx_.size()) {
-    return tuples_[ordered_idx_[it_]];
+    return tuples_[ordered_idx_[it_]].get();
   }
   return nullptr;
 }
 
 void SortPhysicalOperator::add_spec(const Table *table, const FieldMeta *field_meta)
 {
-  TupleCellSpec *spec = new TupleCellSpec(table->name(), field_meta->name(), field_meta->name());
+  auto spec = std::make_shared<TupleCellSpec>(table->name(), field_meta->name(), field_meta->name());
   specs_.push_back(spec);
 }
