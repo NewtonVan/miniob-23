@@ -66,6 +66,15 @@ RC SortPhysicalOperator::fetch_table()
     for (size_t i = 0; i < cells_a.size(); ++i) {
       auto &cell_a = cells_a[i];
       auto &cell_b = cells_b[i];
+      if (cell_a.attr_type() == NULLS && cell_b.attr_type() == NULLS) {
+        continue;
+      }
+      if (cell_a.attr_type() == NULLS) {
+        return !order[i];
+      }
+      if (cell_b.attr_type() == NULLS) {
+        return order[i];
+      }
       if (cell_a != cell_b) {
         return order[i] ? cell_a > cell_b : cell_a < cell_b ;
       }
