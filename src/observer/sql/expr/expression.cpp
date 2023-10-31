@@ -13,6 +13,8 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/expr/expression.h"
+#include "common/log/log.h"
+#include "common/rc.h"
 #include "sql/expr/tuple.h"
 
 using namespace std;
@@ -22,6 +24,12 @@ RC FieldExpr::get_value(const Tuple &tuple, Value &value) const
   return tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
 }
 
+RC RelAttrExprSqlNode::get_value(const Tuple &tuple, Value &value) const
+{
+  LOG_ERROR("RelAttrExpr only used as a container in parse stage");
+  return RC::INTERNAL;
+}
+
 RC ValueExpr::get_value(const Tuple &tuple, Value &value) const
 {
   value = value_;
@@ -29,12 +37,10 @@ RC ValueExpr::get_value(const Tuple &tuple, Value &value) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////
-CastExpr::CastExpr(unique_ptr<Expression> child, AttrType cast_type)
-    : child_(std::move(child)), cast_type_(cast_type)
+CastExpr::CastExpr(unique_ptr<Expression> child, AttrType cast_type) : child_(std::move(child)), cast_type_(cast_type)
 {}
 
-CastExpr::~CastExpr()
-{}
+CastExpr::~CastExpr() {}
 
 RC CastExpr::cast(const Value &value, Value &cast_value) const
 {
@@ -83,8 +89,7 @@ ComparisonExpr::ComparisonExpr(CompOp comp, unique_ptr<Expression> left, unique_
     : comp_(comp), left_(std::move(left)), right_(std::move(right))
 {}
 
-ComparisonExpr::~ComparisonExpr()
-{}
+ComparisonExpr::~ComparisonExpr() {}
 
 RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &result) const
 {
@@ -104,7 +109,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
   }
 
   int cmp_result = left.compare(right);
-  result = false;
+  result         = false;
   switch (comp_) {
     case EQUAL_TO: {
       LOG_DEBUG("EQUAL_TO cmp_result: %d", cmp_result);
@@ -149,13 +154,13 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
 RC ComparisonExpr::try_get_value(Value &cell) const
 {
   if (left_->type() == ExprType::VALUE && right_->type() == ExprType::VALUE) {
-    ValueExpr *left_value_expr = static_cast<ValueExpr *>(left_.get());
-    ValueExpr *right_value_expr = static_cast<ValueExpr *>(right_.get());
-    const Value &left_cell = left_value_expr->get_value();
-    const Value &right_cell = right_value_expr->get_value();
+    ValueExpr   *left_value_expr  = static_cast<ValueExpr *>(left_.get());
+    ValueExpr   *right_value_expr = static_cast<ValueExpr *>(right_.get());
+    const Value &left_cell        = left_value_expr->get_value();
+    const Value &right_cell       = right_value_expr->get_value();
 
     bool value = false;
-    RC rc = compare_value(left_cell, right_cell, value);
+    RC   rc    = compare_value(left_cell, right_cell, value);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to compare tuple cells. rc=%s", strrc(rc));
     } else {
@@ -173,18 +178,27 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   Value right_value;
 
   RC rc = left_->get_value(tuple, left_value);
+
+  if (rc == RC::INTERNAL_DIV_ZERO) {
+    value.set_boolean(false);
+    return RC::SUCCESS;
+  }
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
   rc = right_->get_value(tuple, right_value);
+  if (rc == RC::INTERNAL_DIV_ZERO) {
+    value.set_boolean(false);
+    return RC::SUCCESS;
+  }
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
     return rc;
   }
 
   bool bool_value = false;
-  rc = compare_value(left_value, right_value, bool_value);
+  rc              = compare_value(left_value, right_value, bool_value);
   if (rc == RC::SUCCESS) {
     value.set_boolean(bool_value);
   }
@@ -238,12 +252,11 @@ AttrType ArithmeticExpr::value_type() const
     return left_->value_type();
   }
 
-  if (left_->value_type() == AttrType::INTS &&
-      right_->value_type() == AttrType::INTS &&
+  if (left_->value_type() == AttrType::INTS && right_->value_type() == AttrType::INTS &&
       arithmetic_type_ != Type::DIV) {
     return AttrType::INTS;
   }
-  
+
   return AttrType::FLOATS;
 }
 
@@ -281,15 +294,19 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
     case Type::DIV: {
       if (target_type == AttrType::INTS) {
         if (right_value.get_int() == 0) {
-          // NOTE: 设置为整数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为整数最大值。
+          // NOTE:
+          // 设置为整数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为整数最大值。
           value.set_int(numeric_limits<int>::max());
+          return RC::INTERNAL_DIV_ZERO;
         } else {
           value.set_int(left_value.get_int() / right_value.get_int());
         }
       } else {
         if (right_value.get_float() > -EPSILON && right_value.get_float() < EPSILON) {
-          // NOTE: 设置为浮点数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为浮点数最大值。
+          // NOTE:
+          // 设置为浮点数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为浮点数最大值。
           value.set_float(numeric_limits<float>::max());
+          return RC::INTERNAL_DIV_ZERO;
         } else {
           value.set_float(left_value.get_float() / right_value.get_float());
         }
@@ -324,10 +341,12 @@ RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value) const
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
-  rc = right_->get_value(tuple, right_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-    return rc;
+  if (arithmetic_type_ != ArithmeticExpr::Type::NEGATIVE) {
+    rc = right_->get_value(tuple, right_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
   }
   return calc_value(left_value, right_value, value);
 }

@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <stddef.h>
 #include <memory>
+#include <variant>
 #include <vector>
 #include <string>
 #include <variant>
@@ -23,11 +24,12 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/value.h"
 
 class Expression;
+class ComparisonExpr;
 
 #define MAX_NUM 20
 
 /**
- * @defgroup SQLParser SQL Parser 
+ * @defgroup SQLParser SQL Parser
  */
 
 /**
@@ -47,7 +49,7 @@ struct RelAttrSqlNode
  * @brief 描述比较运算符
  * @ingroup SQLParser
  */
-enum CompOp 
+enum CompOp
 {
   EQUAL_TO,     ///< "="
   LESS_EQUAL,   ///< "<="
@@ -99,10 +101,10 @@ struct JoinSqlNode
   JoinType                      join_type;
   GeneralRelationSqlNode       *left;
   GeneralRelationSqlNode       *right;
-  std::vector<ConditionSqlNode> conditions;
+  std::vector<ComparisonExpr *> conditions;
 
   explicit JoinSqlNode(JoinType join_type, GeneralRelationSqlNode *left, GeneralRelationSqlNode *right,
-      std::vector<ConditionSqlNode> &&conditions)
+      std::vector<ComparisonExpr *> &&conditions)
       : join_type(join_type), left(left), right(right), conditions(conditions){};
 };
 
@@ -142,9 +144,11 @@ struct SelectSqlNode
 {
   std::vector<RelAttrSqlNode>   attributes;               ///< attributes in select clause
   std::vector<std::string>      relations;                ///< 查询的表
-  std::vector<ConditionSqlNode> conditions;               ///< 查询条件，使用AND串联起来多个条件
+  std::vector<ComparisonExpr *> conditions;               ///< 查询条件，使用AND串联起来多个条件
   JoinSqlNode                  *join_relation = nullptr;  // TODO(chen): support cascade
   std::vector<OrderBy>          order_by;
+  std::vector<Expression *>     select_expressions;       ///< 记录含有表达式点select clause,
+                                                          ///< 与attributes只有一个可行
 };
 
 /**
@@ -176,7 +180,7 @@ struct InsertSqlNode
 struct DeleteSqlNode
 {
   std::string                   relation_name;  ///< Relation to delete from
-  std::vector<ConditionSqlNode> conditions;
+  std::vector<ComparisonExpr *> conditions;
 };
 
 /**
@@ -185,10 +189,10 @@ struct DeleteSqlNode
  */
 struct UpdateSqlNode
 {
-  std::string                   relation_name;         ///< Relation to update
-  std::string                   attribute_name;        ///< 更新的字段，仅支持一个字段
-  Value                         value;                 ///< 更新的值，仅支持一个字段
-  std::vector<ConditionSqlNode> conditions;
+  std::string                   relation_name;   ///< Relation to update
+  std::string                   attribute_name;  ///< 更新的字段，仅支持一个字段
+  Value                         value;           ///< 更新的值，仅支持一个字段
+  std::vector<ComparisonExpr *> conditions;
 };
 
 /**

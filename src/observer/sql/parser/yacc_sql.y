@@ -55,6 +55,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 
 //标识tokens
 %token  SEMICOLON
+        AS
         CREATE
         DROP
         TABLE
@@ -115,7 +116,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
   ParsedSqlNode *                   sql_node;
-  ConditionSqlNode *                condition;
+  ComparisonExpr *                   condition;
   Value *                           value;
   enum CompOp                       comp;
   RelAttrSqlNode *                  rel_attr;
@@ -127,7 +128,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   Expression *                      expression;
   std::vector<Expression *> *       expression_list;
   std::vector<Value> *              value_list;
-  std::vector<ConditionSqlNode> *   condition_list;
+  std::vector<ComparisonExpr *> *    condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
   JoinSqlNode *                     join_relation;
@@ -148,6 +149,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <number>              type
 %type <condition>           condition
 %type <value>               value
+%type <value>               unsigned_value
 %type <number>              number
 %type <comp>                comp_op
 %type <general_relation_sql_node> general_rel
@@ -163,9 +165,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <condition_list>      where
 %type <condition_list>      condition_list
 %type <condition_list>      join_condition
-%type <rel_attr_list>       select_attr
+%type <expression_list>     select_attr
 %type <relation_list>       rel_list
-%type <rel_attr_list>       attr_list
 %type <expression>          expression
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
@@ -455,6 +456,21 @@ value_list:
     }
     ;
 value:
+    unsigned_value {
+      $$ = $1;
+      @$ = @1;
+    }
+    | '-' NUMBER {
+      $$ = new Value(-(int)$2);
+      @$ = @2;
+    }
+    | '-' FLOAT {
+      $$ = new Value(-(float)$2);
+      @$ = @2;
+    }
+    ;
+
+unsigned_value:
     NUMBER {
       $$ = new Value((int)$1);
       @$ = @1;
@@ -507,7 +523,7 @@ select_stmt:        /*  select 语句的语法解析树*/
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
-        $$->selection.attributes.swap(*$2);
+        $$->selection.select_expressions.swap(*$2);
         delete $2;
       }
       if ($5 != nullptr) {
@@ -527,7 +543,7 @@ select_stmt:        /*  select 语句的语法解析树*/
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
-        $$->selection.attributes.swap(*$2);
+        $$->selection.select_expressions.swap(*$2);
         delete $2;
       }
 
@@ -544,7 +560,7 @@ select_stmt:        /*  select 语句的语法解析树*/
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
-        $$->selection.attributes.swap(*$2);
+        $$->selection.select_expressions.swap(*$2);
         delete $2;
       }
       if ($5 != nullptr) {
@@ -654,29 +670,36 @@ expression:
     | '-' expression %prec UMINUS {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
     }
-    | value {
+    | unsigned_value {
       $$ = new ValueExpr(*$1);
       $$->set_name(token_name(sql_string, &@$));
       delete $1;
+    }
+    | rel_attr {
+      $$ = new RelAttrExprSqlNode($1);
+      $$->set_name($1->attribute_name);
+    }
+    | rel_attr ID {
+      $$ = new RelAttrExprSqlNode($1, $2);
+      $$->set_name($2);
+    }
+    | rel_attr AS ID {
+      $$ = new RelAttrExprSqlNode($1, $3);
+      $$->set_name($3);
     }
     ;
 
 select_attr:
     '*' {
-      $$ = new std::vector<RelAttrSqlNode>;
-      RelAttrSqlNode attr;
-      attr.relation_name  = "";
-      attr.attribute_name = "*";
-      $$->emplace_back(attr);
+      $$ = new std::vector<Expression *>;
+      RelAttrSqlNode *attr = new RelAttrSqlNode;
+      attr->relation_name  = "";
+      attr->attribute_name = "*";
+      $$->emplace_back(new RelAttrExprSqlNode(attr));
     }
-    | rel_attr attr_list {
-      if ($2 != nullptr) {
-        $$ = $2;
-      } else {
-        $$ = new std::vector<RelAttrSqlNode>;
-      }
-      $$->emplace_back(*$1);
-      delete $1;
+    | expression_list {
+      std::reverse($1->begin(), $1->end());
+      $$ = $1;
     }
     ;
 
@@ -692,23 +715,6 @@ rel_attr:
       $$->attribute_name = $3;
       free($1);
       free($3);
-    }
-    ;
-
-attr_list:
-    /* empty */
-    {
-      $$ = nullptr;
-    }
-    | COMMA rel_attr attr_list {
-      if ($3 != nullptr) {
-        $$ = $3;
-      } else {
-        $$ = new std::vector<RelAttrSqlNode>;
-      }
-
-      $$->emplace_back(*$2);
-      delete $2;
     }
     ;
 
@@ -767,110 +773,37 @@ condition_list:
       $$ = nullptr;
     }
     | condition {
-      $$ = new std::vector<ConditionSqlNode>;
-      $$->emplace_back(*$1);
-      delete $1;
+      $$ = new std::vector<ComparisonExpr *>;
+      $$->emplace_back($1);
     }
     | condition AND condition_list {
       $$ = $3;
-      $$->emplace_back(*$1);
-      delete $1;
+      $$->emplace_back($1);
     }
     ;
 condition:
-    rel_attr IS NULL_T
+    expression IS NULL_T
     {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 1;
-      $$->left_attr = *$1;
-      $$->right_is_attr = 0;
-      $$->right_value = Value();
-      $$->right_value.set_type(NULLS);
-      $$->comp = IS_LEFT_NULL;
-
-      delete $1;
+      std::unique_ptr<Expression> left($1);
+      Value value = Value();
+      value.set_type(NULLS);
+      ValueExpr *value_expr = new ValueExpr(value);
+      std::unique_ptr<Expression> right(value_expr);
+      $$ = new ComparisonExpr(IS_LEFT_NULL, std::move(left), std::move(right));
     }
-    | rel_attr IS NOT NULL_T
+    | expression IS NOT NULL_T
     {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 1;
-      $$->left_attr = *$1;
-      $$->right_is_attr = 0;
-      $$->right_value = Value();
-      $$->comp = IS_LEFT_NOT_NULL;
-
-      delete $1;
+      std::unique_ptr<Expression> left($1);
+      Value value = Value();
+      ValueExpr *value_expr = new ValueExpr(value);
+      std::unique_ptr<Expression> right(value_expr);
+      $$ = new ComparisonExpr(IS_LEFT_NOT_NULL, std::move(left), std::move(right));
     }
-    | value IS NULL_T
+    | expression comp_op expression
     {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
-      $$->left_value = *$1;
-      $$->right_is_attr = 0;
-      $$->right_value = Value();
-      $$->right_value.set_type(NULLS);
-      $$->comp = IS_LEFT_NULL;
-
-      delete $1;
-    }
-    | value IS NOT NULL_T
-    {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
-      $$->left_value = *$1;
-      $$->right_is_attr = 0;
-      $$->right_value = Value();
-      $$->comp = IS_LEFT_NOT_NULL;
-
-      delete $1;
-    }
-    | rel_attr comp_op value
-    {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 1;
-      $$->left_attr = *$1;
-      $$->right_is_attr = 0;
-      $$->right_value = *$3;
-      $$->comp = $2;
-
-      delete $1;
-      delete $3;
-    }
-    | value comp_op value 
-    {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
-      $$->left_value = *$1;
-      $$->right_is_attr = 0;
-      $$->right_value = *$3;
-      $$->comp = $2;
-
-      delete $1;
-      delete $3;
-    }
-    | rel_attr comp_op rel_attr
-    {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 1;
-      $$->left_attr = *$1;
-      $$->right_is_attr = 1;
-      $$->right_attr = *$3;
-      $$->comp = $2;
-
-      delete $1;
-      delete $3;
-    }
-    | value comp_op rel_attr
-    {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
-      $$->left_value = *$1;
-      $$->right_is_attr = 1;
-      $$->right_attr = *$3;
-      $$->comp = $2;
-
-      delete $1;
-      delete $3;
+      std::unique_ptr<Expression> left($1);
+      std::unique_ptr<Expression> right($3);
+      $$ = new ComparisonExpr($2, std::move(left), std::move(right));
     }
     ;
 

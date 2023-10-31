@@ -77,8 +77,8 @@ QUOTE            [\'\"]
 {WHITE_SAPCE}                                        // ignore whitespace
 \n                                                   ;
 
-[\-]?{DIGIT}+                           yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
-[\-]?{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
+{DIGIT}+                           yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
+{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
 
 ";"                                     RETURN_TOKEN(SEMICOLON);
 {DOT}                                   RETURN_TOKEN(DOT);
@@ -86,6 +86,7 @@ EXIT                                    RETURN_TOKEN(EXIT);
 HELP                                    RETURN_TOKEN(HELP);
 DESC                                    RETURN_TOKEN(DESC);
 CREATE                                  RETURN_TOKEN(CREATE);
+AS                                      RETURN_TOKEN(AS);
 DROP                                    RETURN_TOKEN(DROP);
 TABLE                                   RETURN_TOKEN(TABLE);
 TABLES                                  RETURN_TOKEN(TABLES);

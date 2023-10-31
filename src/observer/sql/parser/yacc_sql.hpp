@@ -50,67 +50,68 @@ extern int yydebug;
   enum yytokentype
   {
     SEMICOLON = 258,
-    CREATE = 259,
-    DROP = 260,
-    TABLE = 261,
-    TABLES = 262,
-    INDEX = 263,
-    CALC = 264,
-    INNER = 265,
-    JOIN = 266,
-    SELECT = 267,
-    DESC = 268,
-    SHOW = 269,
-    SYNC = 270,
-    INSERT = 271,
-    DELETE = 272,
-    UPDATE = 273,
-    LBRACE = 274,
-    RBRACE = 275,
-    COMMA = 276,
-    TRX_BEGIN = 277,
-    TRX_COMMIT = 278,
-    TRX_ROLLBACK = 279,
-    INT_T = 280,
-    DATE_T = 281,
-    STRING_T = 282,
-    FLOAT_T = 283,
-    TEXT_T = 284,
-    HELP = 285,
-    EXIT = 286,
-    DOT = 287,
-    INTO = 288,
-    VALUES = 289,
-    FROM = 290,
-    WHERE = 291,
-    AND = 292,
-    SET = 293,
-    ON = 294,
-    LOAD = 295,
-    DATA = 296,
-    INFILE = 297,
-    EXPLAIN = 298,
-    LIKE = 299,
-    NOT_LIKE = 300,
-    IS = 301,
-    NOT = 302,
-    NULLABLE = 303,
-    NULL_T = 304,
-    UNIQUE = 305,
-    ORDER = 306,
-    BY = 307,
-    ASC = 308,
-    EQ = 309,
-    LT = 310,
-    GT = 311,
-    LE = 312,
-    GE = 313,
-    NE = 314,
-    NUMBER = 315,
-    FLOAT = 316,
-    ID = 317,
-    SSS = 318,
-    UMINUS = 319
+    AS = 259,
+    CREATE = 260,
+    DROP = 261,
+    TABLE = 262,
+    TABLES = 263,
+    INDEX = 264,
+    CALC = 265,
+    INNER = 266,
+    JOIN = 267,
+    SELECT = 268,
+    DESC = 269,
+    SHOW = 270,
+    SYNC = 271,
+    INSERT = 272,
+    DELETE = 273,
+    UPDATE = 274,
+    LBRACE = 275,
+    RBRACE = 276,
+    COMMA = 277,
+    TRX_BEGIN = 278,
+    TRX_COMMIT = 279,
+    TRX_ROLLBACK = 280,
+    INT_T = 281,
+    DATE_T = 282,
+    STRING_T = 283,
+    FLOAT_T = 284,
+    TEXT_T = 285,
+    HELP = 286,
+    EXIT = 287,
+    DOT = 288,
+    INTO = 289,
+    VALUES = 290,
+    FROM = 291,
+    WHERE = 292,
+    AND = 293,
+    SET = 294,
+    ON = 295,
+    LOAD = 296,
+    DATA = 297,
+    INFILE = 298,
+    EXPLAIN = 299,
+    LIKE = 300,
+    NOT_LIKE = 301,
+    IS = 302,
+    NOT = 303,
+    NULLABLE = 304,
+    NULL_T = 305,
+    UNIQUE = 306,
+    ORDER = 307,
+    BY = 308,
+    ASC = 309,
+    EQ = 310,
+    LT = 311,
+    GT = 312,
+    LE = 313,
+    GE = 314,
+    NE = 315,
+    NUMBER = 316,
+    FLOAT = 317,
+    ID = 318,
+    SSS = 319,
+    UMINUS = 320
   };
 #endif
 
@@ -118,10 +119,10 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 116 "yacc_sql.y"
+#line 117 "yacc_sql.y"
 
   ParsedSqlNode *                   sql_node;
-  ConditionSqlNode *                condition;
+  ComparisonExpr *                   condition;
   Value *                           value;
   enum CompOp                       comp;
   RelAttrSqlNode *                  rel_attr;
@@ -133,7 +134,7 @@ union YYSTYPE
   Expression *                      expression;
   std::vector<Expression *> *       expression_list;
   std::vector<Value> *              value_list;
-  std::vector<ConditionSqlNode> *   condition_list;
+  std::vector<ComparisonExpr *> *    condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
   JoinSqlNode *                     join_relation;
@@ -143,7 +144,7 @@ union YYSTYPE
   float                             floats;
   bool                              bools;
 
-#line 147 "yacc_sql.hpp"
+#line 148 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
