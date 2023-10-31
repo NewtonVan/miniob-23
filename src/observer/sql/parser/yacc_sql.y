@@ -408,8 +408,8 @@ attr_def:
     ;
 
 nullable:
-    { $$ = false; }
-    | NULLABLE { $$ = true; }
+    { $$ = true; }
+    | NULL_T { $$ = true; }
     | NOT NULL_T { $$ = false; }
     ;
 
