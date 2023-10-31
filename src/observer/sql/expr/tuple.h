@@ -394,7 +394,7 @@ private:
 
 class SortTuple : public Tuple {
 public:
-  void set_tuple(std::vector<std::shared_ptr<Value>> values, std::vector<std::shared_ptr<TupleCellSpec>> specs) {
+  void set_tuple(std::vector<Value>& values, std::vector<TupleCellSpec> specs) {
     values_ = std::move(values); // 使用移动语义避免不必要的拷贝
     specs_ = std::move(specs);    // 使用移动语义避免不必要的拷贝
   }
@@ -410,7 +410,7 @@ public:
   {
     const int left_cell_num =cell_num();
     if (index > 0 && index < cell_num()) {
-      value = *values_[index];
+      value = values_[index];
       return RC::SUCCESS;
     }
     return RC::NOTFOUND;
@@ -419,9 +419,9 @@ public:
   RC find_cell(const TupleCellSpec &spec, Value &value) const override
   {
     for (size_t i = 0; i < specs_.size(); ++i) {
-      if (0 == strcmp(spec.table_name(), specs_[i]->table_name())
-          && 0 == strcmp(spec.field_name() , specs_[i]->field_name())
-          && 0 == strcmp(spec.alias() , specs_[i]->alias()) ) {
+      if (0 == strcmp(spec.table_name(), specs_[i].table_name())
+          && 0 == strcmp(spec.field_name() , specs_[i].field_name())
+          && 0 == strcmp(spec.alias() , specs_[i].alias()) ) {
         return cell_at(i, value);
       }
     }
@@ -429,8 +429,8 @@ public:
   }
 
 private:
-  std::vector<std::shared_ptr<TupleCellSpec>> specs_;
-  std::vector<std::shared_ptr<Value>> values_;
+  std::vector<TupleCellSpec> specs_;
+  std::vector<Value> values_;
 };
 
 

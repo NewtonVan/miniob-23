@@ -13,7 +13,7 @@ RC SortPhysicalOperator::open(Trx *trx)
     rc = RC::INTERNAL;
     LOG_WARN("SortOperater child open failed!");
   }
-  tuples_.reserve(8192);
+  tuples_.reserve(81920);
   return rc;
 }
 
@@ -43,11 +43,11 @@ RC SortPhysicalOperator::fetch_table()
 
     Tuple *current_tuple = children_[0]->current_tuple();
 
-    std::vector<std::shared_ptr<Value>> values;
+    std::vector<Value> values;
     for (int i = 0; i < current_tuple->cell_num(); i++) {
       Value value;
       current_tuple->cell_at(i, value);
-      values.push_back(std::make_shared<Value>(value));
+      values.push_back(std::move(value));
     }
 
     auto tuple = SortTuple();
@@ -133,6 +133,6 @@ Tuple *SortPhysicalOperator::current_tuple()
 
 void SortPhysicalOperator::add_spec(const Table *table, const FieldMeta *field_meta)
 {
-  auto spec = std::make_shared<TupleCellSpec>(table->name(), field_meta->name(), field_meta->name());
+  auto spec = TupleCellSpec(table->name(), field_meta->name(), field_meta->name());
   specs_.push_back(spec);
 }

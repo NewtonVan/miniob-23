@@ -31,7 +31,7 @@ private:
 private:
   Table* table_ = nullptr;
   OrderByStmt *orderby_stmt_ = nullptr;
-  std::vector<std::shared_ptr<TupleCellSpec>> specs_;
+  std::vector<TupleCellSpec> specs_;
 
   bool is_first_ = true;
   std::vector<SortTuple> tuples_;
