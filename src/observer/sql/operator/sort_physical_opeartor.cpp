@@ -5,6 +5,7 @@
 #include "sql/operator/sort_physical_operaotr.h"
 #include "sql/stmt/orderby_stmt.h"
 #include <algorithm>
+#include <thread>
 
 RC SortPhysicalOperator::open(Trx *trx)
 {
@@ -16,13 +17,91 @@ RC SortPhysicalOperator::open(Trx *trx)
   return rc;
 }
 
+typedef std::pair<std::vector<Value>, int> CmpPair;
+
+void parallel_sort(std::vector<CmpPair> &data, size_t num_threads, const bool* order) {
+  size_t chunk_size = data.size() / num_threads;
+  std::vector<std::thread> threads;
+
+  auto cmp = [&order](const CmpPair &a, const CmpPair &b) {
+    auto &cells_a = a.first;
+    auto &cells_b = b.first;
+    assert(cells_a.size() == cells_b.size());
+    for (size_t i = 0; i < cells_a.size(); ++i) {
+      auto &cell_a = cells_a[i];
+      auto &cell_b = cells_b[i];
+      if (cell_a.attr_type() == NULLS && cell_b.attr_type() == NULLS) {
+        continue;
+      }
+      if (cell_a.attr_type() == NULLS) {
+        return !order[i];
+      }
+      if (cell_b.attr_type() == NULLS) {
+        return order[i];
+      }
+      if (cell_a != cell_b) {
+        return order[i] ? cell_a > cell_b : cell_a < cell_b ;
+      }
+    }
+    return false;  // completely same
+  };
+
+  for (size_t i = 0; i < num_threads; ++i) {
+    size_t start = i * chunk_size;
+    size_t end = (i == num_threads - 1) ? data.size() : start + chunk_size;
+
+    threads.emplace_back([start, end, &data, &order, &cmp]() {
+      std::sort(data.begin() + start, data.begin() + end, cmp);
+    });
+  }
+
+  for (auto &thread : threads) {
+    thread.join();
+  }
+}
+
+void merge_sort(std::vector<CmpPair> &data, size_t num_threads, const bool* order) {
+  size_t chunk_size = data.size() / num_threads;
+
+  auto cmp = [&order](const CmpPair &a, const CmpPair &b) {
+    auto &cells_a = a.first;
+    auto &cells_b = b.first;
+    assert(cells_a.size() == cells_b.size());
+    for (size_t i = 0; i < cells_a.size(); ++i) {
+      auto &cell_a = cells_a[i];
+      auto &cell_b = cells_b[i];
+      if (cell_a.attr_type() == NULLS && cell_b.attr_type() == NULLS) {
+        continue;
+      }
+      if (cell_a.attr_type() == NULLS) {
+        return !order[i];
+      }
+      if (cell_b.attr_type() == NULLS) {
+        return order[i];
+      }
+      if (cell_a != cell_b) {
+        return order[i] ? cell_a > cell_b : cell_a < cell_b ;
+      }
+    }
+    return false;  // completely same
+  };
+
+  for (size_t i = chunk_size; i < data.size(); i *= 2) {
+    for (size_t j = 0; j < data.size(); j += 2 * i) {
+      size_t start = j;
+      size_t middle = j + i;
+      size_t end = std::min(j + 2 * i, data.size());
+      std::inplace_merge(data.begin() + start, data.begin() + middle, data.begin() + end, cmp);
+    }
+  }
+}
+
 RC SortPhysicalOperator::fetch_table()
 {
   RC rc = RC::SUCCESS;
   tuples_.reserve(81920);
 
   int index = 0;
-  typedef std::pair<std::vector<Value>, int> CmpPair;
   std::vector<CmpPair> pair_sort_table;
 
   // 被order by选择属性的值的数组
@@ -58,33 +137,14 @@ RC SortPhysicalOperator::fetch_table()
 
   // 获取到每个排序单元的排序顺序
   bool order[units.size()];
+//  std::vector<bool> order(units.size());
   for (std::vector<OrderByUnit *>::size_type i = 0; i < units.size(); ++i) {
     order[i] = units[i]->sort_type();
   }
 
-  auto cmp = [&order](const CmpPair &a, const CmpPair &b) {
-    auto &cells_a = a.first;
-    auto &cells_b = b.first;
-    assert(cells_a.size() == cells_b.size());
-    for (size_t i = 0; i < cells_a.size(); ++i) {
-      auto &cell_a = cells_a[i];
-      auto &cell_b = cells_b[i];
-      if (cell_a.attr_type() == NULLS && cell_b.attr_type() == NULLS) {
-        continue;
-      }
-      if (cell_a.attr_type() == NULLS) {
-        return !order[i];
-      }
-      if (cell_b.attr_type() == NULLS) {
-        return order[i];
-      }
-      if (cell_a != cell_b) {
-        return order[i] ? cell_a > cell_b : cell_a < cell_b ;
-      }
-    }
-    return false;  // completely same
-  };
-  std::sort(pair_sort_table.begin(), pair_sort_table.end(), cmp);
+  const int thread_num = 6;
+  parallel_sort(pair_sort_table, thread_num, order);
+  merge_sort(pair_sort_table, thread_num, order);
 
   // fill ordered_idx_
   for (size_t i = 0; i < pair_sort_table.size(); ++i) {
