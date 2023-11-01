@@ -164,8 +164,10 @@ union YYSTYPE
   AggregationFuncSqlNode *          agg_func_call;
   enum AggFuncType                  agg_func;
   std::vector<AggregationFuncSqlNode> * agg_func_call_list;
+  UpdateUnit *                                update_unit;
+  std::vector<UpdateUnit> *                   update_unit_list;
 
-#line 169 "yacc_sql.hpp"
+#line 171 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
