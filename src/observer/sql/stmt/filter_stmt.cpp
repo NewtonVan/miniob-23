@@ -60,12 +60,12 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
 {
   LOG_DEBUG("create filter stmt");
   RC rc = RC::SUCCESS;
-  stmt = nullptr;
+  stmt  = nullptr;
 
   FilterStmt *tmp_stmt = new FilterStmt();
   for (int i = 0; i < condition_num; i++) {
     FilterUnit *filter_unit = nullptr;
-    rc = create_filter_unit(db, default_table, tables, conditions[i], filter_unit);
+    rc                      = create_filter_unit(db, default_table, tables, conditions[i], filter_unit);
     if (rc != RC::SUCCESS) {
       delete tmp_stmt;
       LOG_WARN("failed to create filter unit. condition index=%d", i);
@@ -126,9 +126,9 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   AttrType lefr_attr_name;
   if (condition.left_is_attr) {
     LOG_DEBUG("condition.left_is_attr");
-    Table *table = nullptr;
+    Table           *table = nullptr;
     const FieldMeta *field = nullptr;
-    rc = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
+    rc                     = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
     if (rc != RC::SUCCESS) {
       LOG_WARN("cannot find attr");
       return rc;
@@ -147,9 +147,9 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   AttrType right_attr_name;
   if (condition.right_is_attr) {
     LOG_DEBUG("condition.right_is_attr");
-    Table *table = nullptr;
+    Table           *table = nullptr;
     const FieldMeta *field = nullptr;
-    rc = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
+    rc                     = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
     if (rc != RC::SUCCESS) {
       LOG_WARN("cannot find attr");
       return rc;
@@ -167,9 +167,9 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
 
   LOG_DEBUG("filter_unit->left().value.attr_type(): %d, filter_unit->right().value.attr_type(): %d", filter_unit->left().value.attr_type(), filter_unit->right().value.attr_type());
   LOG_DEBUG("filter_unit->left().value.data(): %s, filter_unit->right().value.data(): %s", filter_unit->left().value.data(), filter_unit->right().value.data());
-  if(lefr_attr_name == DATES && filter_unit->right().value.attr_type() == CHARS) {
+  if (lefr_attr_name == DATES && filter_unit->right().value.attr_type() == CHARS) {
     int64_t date;
-    bool valid = serialize_date(&date, filter_unit->right().value.data());
+    bool    valid = serialize_date(&date, filter_unit->right().value.data());
     if (!valid) {
       LOG_DEBUG("invalid date: %s", filter_unit->right().value.data());
       return RC::INVALID_ARGUMENT;
@@ -177,9 +177,9 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       filter_unit->right().value.set_type(DATES);
       filter_unit->right().value.set_date(date);
     }
-  } else if(right_attr_name == DATES && filter_unit->left().value.attr_type() == CHARS) {
+  } else if (right_attr_name == DATES && filter_unit->left().value.attr_type() == CHARS) {
     int64_t date;
-    bool valid = serialize_date(&date, filter_unit->left().value.data());
+    bool    valid = serialize_date(&date, filter_unit->left().value.data());
     if (!valid) {
       LOG_DEBUG("invalid date: %s", filter_unit->left().value.data());
       return RC::INVALID_ARGUMENT;
@@ -189,17 +189,18 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     }
   }
 
-  if(lefr_attr_name == TEXTS && filter_unit->right().value.attr_type() == CHARS) {
+  if (lefr_attr_name == TEXTS && filter_unit->right().value.attr_type() == CHARS) {
     filter_unit->right().value.set_type(TEXTS);
     filter_unit->right().value.set_text(filter_unit->right().value.data());
-  } else if(right_attr_name == TEXTS && filter_unit->left().value.attr_type() == CHARS) {
+  } else if (right_attr_name == TEXTS && filter_unit->left().value.attr_type() == CHARS) {
     filter_unit->left().value.set_type(TEXTS);
     filter_unit->left().value.set_text(filter_unit->left().value.data());
   }
 
-//  if(lefr_attr_name != filter_unit->right().value.attr_type() && condition.comp != IS_LEFT_NOT_NULL && condition.comp != IS_LEFT_NULL && lefr_attr_name != NULLS) {
-//    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-//  }
+  //  if(lefr_attr_name != filter_unit->right().value.attr_type() && condition.comp != IS_LEFT_NOT_NULL &&
+  //  condition.comp != IS_LEFT_NULL && lefr_attr_name != NULLS) {
+  //    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+  //  }
 
   filter_unit->set_comp(comp);
 
@@ -248,7 +249,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_left(filter_obj);
-    left_attr_type = table->table_meta().field(static_cast<RelAttrExprSqlNode *>(condition->left().get())->get_rel_attr()->attribute_name.c_str())->type();
+    left_attr_type =
+        table->table_meta()
+            .field(static_cast<RelAttrExprSqlNode *>(condition->left().get())->get_rel_attr()->attribute_name.c_str())
+            ->type();
   } else if (condition->left()->type() == ExprType::VALUE) {
     LOG_DEBUG("FilterObj filter_obj set value");
     FilterObj filter_obj;
@@ -259,6 +263,17 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_expr(condition->left().get());
     filter_unit->set_left(filter_obj);
+  } else if (condition->left()->type() == ExprType::FUNCTION) {
+    FuncExpr *func = static_cast<FuncExpr *>(condition->left().get());
+    for (std::unique_ptr<Expression> &argv : func->args()) {
+      rewrite_attr_expr_to_field_expr(db, default_table, tables, argv);
+    }
+    FilterObj filter_obj;
+    filter_obj.init_expr(condition->left().get());
+    filter_unit->set_left(filter_obj);
+  } else {
+    LOG_WARN("unsupported left expr, %d", condition->left()->type());
+    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
   }
 
   AttrType right_attr_type;
@@ -279,7 +294,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_right(filter_obj);
-    right_attr_type = table->table_meta().field(static_cast<RelAttrExprSqlNode *>(condition->right().get())->get_rel_attr()->attribute_name.c_str())->type();
+    right_attr_type =
+        table->table_meta()
+            .field(static_cast<RelAttrExprSqlNode *>(condition->right().get())->get_rel_attr()->attribute_name.c_str())
+            ->type();
   } else if (condition->right()->type() == ExprType::VALUE) {
     LOG_DEBUG("filter_obj.init_value(condition.right_value)");
     FilterObj filter_obj;
@@ -290,11 +308,22 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_expr(condition->right().get());
     filter_unit->set_right(filter_obj);
+  } else if (condition->right()->type() == ExprType::FUNCTION) {
+    FuncExpr *func = static_cast<FuncExpr *>(condition->right().get());
+    for (std::unique_ptr<Expression> &argv : func->args()) {
+      rewrite_attr_expr_to_field_expr(db, default_table, tables, argv);
+    }
+    FilterObj filter_obj;
+    filter_obj.init_expr(condition->right().get());
+    filter_unit->set_right(filter_obj);
+  } else {
+    LOG_WARN("unsupported right expr, %d", condition->right()->type());
+    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
   }
 
   LOG_DEBUG("filter_unit->left().value.attr_type(): %d, filter_unit->right().value.attr_type(): %d", filter_unit->left().value.attr_type(), filter_unit->right().value.attr_type());
   LOG_DEBUG("filter_unit->left().value.data(): %s, filter_unit->right().value.data(): %s", filter_unit->left().value.data(), filter_unit->right().value.data());
-  if (condition->left()->type() == ExprType::REL_ATTR && left_attr_type == DATES  &&
+  if (condition->left()->type() == ExprType::REL_ATTR && left_attr_type == DATES &&
       filter_unit->right().value.attr_type() == CHARS) {
     int64_t date;
     bool    valid = serialize_date(&date, filter_unit->right().value.data());
@@ -318,11 +347,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     }
   }
 
-
-  if(left_attr_type == TEXTS && filter_unit->right().value.attr_type() == CHARS) {
+  if (left_attr_type == TEXTS && filter_unit->right().value.attr_type() == CHARS) {
     filter_unit->right().value.set_type(TEXTS);
     filter_unit->right().value.set_text(filter_unit->right().value.data());
-  } else if(right_attr_type == TEXTS && filter_unit->left().value.attr_type() == CHARS) {
+  } else if (right_attr_type == TEXTS && filter_unit->left().value.attr_type() == CHARS) {
     filter_unit->left().value.set_type(TEXTS);
     filter_unit->left().value.set_text(filter_unit->left().value.data());
   }
@@ -354,6 +382,7 @@ RC FilterStmt::rewrite_attr_expr_to_field_expr(
       }
 
       std::unique_ptr<Expression> field_expr(new FieldExpr(table, field));
+      field_expr->set_name(expr->name());
       expr.swap(field_expr);
       LOG_DEBUG("rel attr expr rewrited to FieldExpr");
     } break;

@@ -28,6 +28,9 @@ See the Mulan PSL v2 for more details. */
 #include "storage/table/table.h"
 #include <algorithm>
 #include <memory>
+#include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 #include <cstring>
 #include <sys/socket.h>
@@ -66,30 +69,38 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   // collect tables in `from` statement
-  std::vector<Table *>                     tables;
-  std::unordered_map<std::string, Table *> table_map;
+  std::vector<Table *>                         tables;
+  std::unordered_map<std::string, std::string> alias2tables;
+  std::unordered_map<std::string, Table *>     table_map;
   if (select_sql.join_relation != nullptr) {
     std::unique_ptr<GeneralRelationSqlNode> rel = std::make_unique<GeneralRelationSqlNode>(select_sql.join_relation);
-    if (RC::SUCCESS != collectJoinTables(db, rel.get(), tables, table_map)) {
+    if (RC::SUCCESS != collectJoinTables(db, rel.get(), tables, table_map, alias2tables)) {
       LOG_WARN("invalid argument. tables in join not exist");
       return RC::SCHEMA_TABLE_NOT_EXIST;
     }
   } else {
     for (size_t i = 0; i < select_sql.relations.size(); i++) {
-      const char *table_name = select_sql.relations[i].c_str();
-      if (nullptr == table_name) {
+      if (select_sql.relations[i].relation.empty()) {
         LOG_WARN("invalid argument. relation name is null. index=%d", i);
         return RC::INVALID_ARGUMENT;
       }
       // select_sql.conditions.data()->right_value.data()
-      Table *table = db->find_table(table_name);
+      Table *table = db->find_table(select_sql.relations[i].relation.c_str());
       if (nullptr == table) {
-        LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
+        LOG_WARN("no such table. db=%s, table_name=%s", db->name(), select_sql.relations[i].relation.c_str());
         return RC::SCHEMA_TABLE_NOT_EXIST;
       }
 
       tables.push_back(table);
-      table_map.insert(std::pair<std::string, Table *>(table_name, table));
+      table_map.insert(std::pair<std::string, Table *>(select_sql.relations[i].relation, table));
+      if (!select_sql.relations[i].alias.empty()) {
+        table_map.insert(std::pair<std::string, Table *>(select_sql.relations[i].alias, table));
+        alias2tables.insert(
+            std::pair<std::string, std::string>(select_sql.relations[i].alias, select_sql.relations[i].relation));
+      } else {
+        alias2tables.insert(
+            std::pair<std::string, std::string>(select_sql.relations[i].relation, select_sql.relations[i].relation));
+      }
     }
   }
 
@@ -267,8 +278,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // create order_by stmt
   OrderByStmt *orderby_stmt = nullptr;
-  if(!select_sql.order_by.empty()) {
-    rc = OrderByStmt::create(db, default_table, &table_map, select_sql.order_by, select_sql.order_by.size(), orderby_stmt);
+  if (!select_sql.order_by.empty()) {
+    rc = OrderByStmt::create(
+        db, default_table, &table_map, select_sql.order_by, select_sql.order_by.size(), orderby_stmt);
     if (rc != RC::SUCCESS) {
       LOG_WARN("cannot construct order by stmt");
       return rc;
@@ -276,10 +288,17 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   std::vector<std::unique_ptr<Expression>> select_expressions;
-  for (int i = 0; i < select_sql.select_expressions.size(); ++i) {
-    std::unique_ptr<Expression> select_expr;
-    rewrite_attr_expr_to_field_expr(db, default_table, &table_map, select_sql.select_expressions[i], select_expr);
-    select_expressions.emplace_back(std::move(select_expr));
+  if (!field_only || query_fields.empty()) {
+    for (int i = 0; i < select_sql.select_expressions.size(); ++i) {
+      std::unique_ptr<Expression> select_expr;
+      rc =
+          rewrite_attr_expr_to_field_expr(db, default_table, &table_map, select_sql.select_expressions[i], select_expr);
+      if (OB_FAIL(rc)) {
+        LOG_WARN("fail to rewrite, idx: %d, rc: %s", i, strrc(rc));
+        return rc;
+      }
+      select_expressions.emplace_back(std::move(select_expr));
+    }
   }
 
   // create join stmt
@@ -301,16 +320,16 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->tables_.swap(tables);
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->filter_stmt_       = filter_stmt;
-  select_stmt->orderby_stmt_ = orderby_stmt;
+  select_stmt->orderby_stmt_      = orderby_stmt;
   select_stmt->join_stmt_         = static_cast<JoinStmt *>(join_stmt);
-  select_stmt->use_project_exprs_ = !field_only;
+  select_stmt->use_project_exprs_ = !field_only || select_stmt->query_fields().empty();
   select_stmt->project_exprs_.swap(select_expressions);
   stmt = select_stmt;
   return RC::SUCCESS;
 }
 
 RC SelectStmt::collectJoinTables(Db *db, GeneralRelationSqlNode *rel, std::vector<Table *> &tables,
-    std::unordered_map<std::string, Table *> &table_map)
+    std::unordered_map<std::string, Table *> &table_map, std::unordered_map<std::string, std::string> &alias_map)
 {
   if (rel->type == REL_TABLE) {
     const char *table_name = std::get<std::string>(rel->relation).c_str();
@@ -327,6 +346,7 @@ RC SelectStmt::collectJoinTables(Db *db, GeneralRelationSqlNode *rel, std::vecto
 
     tables.push_back(table);
     table_map.insert(std::pair<std::string, Table *>(table_name, table));
+    alias_map.insert(std::pair<std::string, std::string>(table_name, table_name));
 
     return RC::SUCCESS;
   }
@@ -334,11 +354,11 @@ RC SelectStmt::collectJoinTables(Db *db, GeneralRelationSqlNode *rel, std::vecto
   // handle cascade join
   JoinSqlNode *join = std::get<JoinSqlNode *>(rel->relation);
   RC           rc   = RC::SUCCESS;
-  rc                = collectJoinTables(db, join->left, tables, table_map);
+  rc                = collectJoinTables(db, join->left, tables, table_map, alias_map);
   if (rc != RC::SUCCESS) {
     return rc;
   }
-  rc = collectJoinTables(db, join->right, tables, table_map);
+  rc = collectJoinTables(db, join->right, tables, table_map, alias_map);
   if (rc != RC::SUCCESS) {
     return rc;
   }
@@ -395,6 +415,17 @@ RC SelectStmt::collectQueryFieldsInExpression(
     } break;
     case ExprType::VALUE: {
 
+    } break;
+    case ExprType::FUNCTION: {
+      field_only     = false;
+      FuncExpr *func = static_cast<FuncExpr *>(select_expr);
+      for (std::unique_ptr<Expression> &argv : func->args()) {
+        rc = collectQueryFieldsInExpression(argv.get(), query_attr, field_only);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("fail to collect in children");
+          return rc;
+        }
+      }
     } break;
     default: {
       LOG_WARN("Unsupported query expressions, type: %d",  select_expr->type());
@@ -453,6 +484,7 @@ RC SelectStmt::rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
       }
 
       std::unique_ptr<Expression> field_expr(new FieldExpr(table, field));
+      field_expr->set_name(rel_attr->name());
       ret_expr.swap(field_expr);
       LOG_DEBUG("rel attr expr rewrited to FieldExpr");
     } break;
@@ -493,7 +525,20 @@ RC SelectStmt::rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
       std::unique_ptr<Expression> new_value(new ValueExpr(value->get_value()));
       ret_expr.swap(new_value);
     } break;
+    case ExprType::FUNCTION: {
+      // TODO(chen): func
+      std::vector<std::unique_ptr<Expression>> args;
+      FuncExpr                                *func = static_cast<FuncExpr *>(old_expr);
+      for (std::unique_ptr<Expression> &argv : func->args()) {
+        std::unique_ptr<Expression> new_argv;
+        rewrite_attr_expr_to_field_expr(db, default_table, tables, argv.get(), new_argv);
+        args.emplace_back(std::move(new_argv));
+      }
+      std::unique_ptr<Expression> new_func(new FuncExpr(func->func_type(), args));
+      ret_expr.swap(new_func);
+    }
     default: {
+      // TODO(chen): handle '*'
       LOG_DEBUG("type: %d, no need to rewrite", old_expr->type());
     }
   }

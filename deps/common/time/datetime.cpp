@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "pthread.h"
 #include "stdio.h"
 #include "string.h"
+#include <cstdint>
 #include <iomanip>
 #include <sstream>
 #include <string>
@@ -62,10 +63,10 @@ std::string DateTime::time_t_to_str(int timet)
 
 std::string DateTime::time_t_to_xml_str(time_t timet)
 {
-  std::string ret_val;
+  std::string        ret_val;
   std::ostringstream oss;
-  struct tm tmbuf;
-  tm *tm_info = gmtime_r(&timet, &tmbuf);
+  struct tm          tmbuf;
+  tm                *tm_info = gmtime_r(&timet, &tmbuf);
   oss << tm_info->tm_year + 1900 << "-";
   if ((tm_info->tm_mon + 1) <= 9)
     oss << "0";
@@ -88,7 +89,7 @@ std::string DateTime::time_t_to_xml_str(time_t timet)
 
 std::string DateTime::str_to_time_t_str(std::string &xml_str)
 {
-  tm tmp;
+  tm                 tmp;
   std::ostringstream oss;
   sscanf(xml_str.c_str(),
       "%04d-%02d-%02dT%02d:%02d:%02dZ",
@@ -98,8 +99,8 @@ std::string DateTime::str_to_time_t_str(std::string &xml_str)
       &tmp.tm_hour,
       &tmp.tm_min,
       &tmp.tm_sec);
-  m_date = julian_date(tmp.tm_year, tmp.tm_mon, tmp.tm_mday);
-  m_time = make_hms(tmp.tm_hour, tmp.tm_min, tmp.tm_sec, 0);
+  m_date           = julian_date(tmp.tm_year, tmp.tm_mon, tmp.tm_mday);
+  m_time           = make_hms(tmp.tm_hour, tmp.tm_min, tmp.tm_sec, 0);
   time_t timestamp = to_time_t();
   oss << std::dec << std::setw(10) << timestamp;
   return oss.str();
@@ -124,8 +125,8 @@ DateTime DateTime::now()
 std::string DateTime::to_xml_date_time()
 {
 
-  std::string ret_val;
-  tm tm_info;
+  std::string        ret_val;
+  tm                 tm_info;
   std::ostringstream oss;
 
   tm_info = to_tm();
@@ -174,26 +175,26 @@ void DateTime::add_duration_date_time(std::string xml_duration)
   int e_year, e_month, e_day, e_hour, e_min, e_sec, e_millis = 0;
 
   // months
-  tmp_month = s_month + dur_t.tm_mon;
-  e_month = ((tmp_month - 1) % 12) + 1;
+  tmp_month       = s_month + dur_t.tm_mon;
+  e_month         = ((tmp_month - 1) % 12) + 1;
   int carry_month = ((tmp_month - 1) / 12);
 
   // years
   e_year = s_year + dur_t.tm_year + carry_month;
 
   // seconds
-  tmp_sec = s_sec + dur_t.tm_sec;
-  e_sec = tmp_sec % 60;
+  tmp_sec       = s_sec + dur_t.tm_sec;
+  e_sec         = tmp_sec % 60;
   int carry_sec = tmp_sec / 60;
 
   // minutes
-  tmp_min = s_min + dur_t.tm_min + carry_sec;
-  e_min = tmp_min % 60;
+  tmp_min       = s_min + dur_t.tm_min + carry_sec;
+  e_min         = tmp_min % 60;
   int carry_min = tmp_min / 60;
 
   // hours
-  tmp_hour = s_hour + dur_t.tm_hour + carry_min;
-  e_hour = tmp_hour % 24;
+  tmp_hour     = s_hour + dur_t.tm_hour + carry_min;
+  e_hour       = tmp_hour % 24;
   int carry_hr = tmp_hour / 24;
 
   // days
@@ -206,11 +207,11 @@ void DateTime::add_duration_date_time(std::string xml_duration)
       tmp_day = s_day;
     }
   }
-  e_day = tmp_day + dur_t.tm_mday + carry_hr;
+  e_day         = tmp_day + dur_t.tm_mday + carry_hr;
   int carry_day = 0;
   while (true) {
     if (e_day < 1) {
-      e_day = e_day + max_day_in_month_for(e_year, e_month - 1);
+      e_day     = e_day + max_day_in_month_for(e_year, e_month - 1);
       carry_day = -1;
     } else {
       if (e_day > max_day_in_month_for(e_year, e_month)) {
@@ -221,8 +222,8 @@ void DateTime::add_duration_date_time(std::string xml_duration)
       }
     }
     tmp_month = e_month + carry_day;
-    e_month = ((tmp_month - 1) % 12) + 1;
-    e_year = e_year + (tmp_month - 1) / 12;
+    e_month   = ((tmp_month - 1) % 12) + 1;
+    e_year    = e_year + (tmp_month - 1) / 12;
   }
   m_date = julian_date(e_year, e_month, e_day);
   m_time = make_hms(e_hour, e_min, e_sec, e_millis);
@@ -232,7 +233,7 @@ void DateTime::add_duration_date_time(std::string xml_duration)
 int DateTime::max_day_in_month_for(int yr, int month)
 {
   int tmp_month = ((month - 1) % 12) + 1;
-  int tmp_year = yr + ((tmp_month - 1) / 12);
+  int tmp_year  = yr + ((tmp_month - 1) / 12);
 
   if (tmp_month == MON_JAN || tmp_month == MON_MAR || tmp_month == MON_MAY || tmp_month == MON_JUL ||
       tmp_month == MON_AUG || tmp_month == MON_OCT || tmp_month == MON_DEC) {
@@ -285,7 +286,7 @@ void DateTime::parse_duration(std::string dur_str, struct tm &tm_t)
   }
 
   int ind_d = dur_str.find('D', index);
-  int sign = 1;
+  int sign  = 1;
   if (ind_d != -1) {
     if (dur_str[index] == '-') {
       sign = -1;
@@ -344,8 +345,8 @@ void DateTime::parse_duration(std::string dur_str, struct tm &tm_t)
 #define OBJ_ID_TIMESTMP_DIGITS 14
 std::string Now::unique()
 {
-  struct timeval tv;
-  uint64_t temp;
+  struct timeval  tv;
+  uint64_t        temp;
   static uint64_t last_unique = 0;
 #if defined(LINUX)
   static pthread_mutex_t mutex = PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP;
@@ -394,7 +395,7 @@ bool DateTime::is_valid_xml_datetime(const std::string &str)
   }
 
   // check month, date, hour, min, second is valid
-  tm tmp;
+  tm  tmp;
   int ret = sscanf(str.c_str(),
       "%04d-%02d-%02dT%02d:%02d:%02dZ",
       &tmp.tm_year,
@@ -419,6 +420,156 @@ bool DateTime::is_valid_xml_datetime(const std::string &str)
     return false;
 
   return true;
+}
+
+std::string DateTime::format_date(int64_t ts, const std::string &format)
+{
+
+  std::string result_date_str;
+  // 将时间戳转换为本地时间结构
+  std::tm *localTime = std::localtime(&ts);
+
+  // 从本地时间结构中提取年、月、日
+  int year  = localTime->tm_year + 1900;  // 年份需要加上 1900
+  int month = localTime->tm_mon + 1;      // 月份从 0 开始，需要加上 1
+  int day   = localTime->tm_mday;
+  for (size_t i = 0; i < format.length(); i++) {
+    // A ~ z
+    if (65 <= format[i] && format[i] <= 122) {
+      switch (format[i]) {
+        case 'Y': {
+          char tmp[5];
+          sprintf(tmp, "%d", year);
+          result_date_str += tmp;
+          break;
+        }
+        case 'y': {
+          char tmp[5];
+          sprintf(tmp, "%d", year % 100);
+          if (0 <= (year % 100) && (year % 100) <= 9) {
+            result_date_str += "0";
+          }
+          result_date_str += tmp;
+          break;
+        }
+        case 'M': {
+          switch (month) {
+            case 1: {
+              result_date_str += "January";
+              break;
+            }
+            case 2: {
+              result_date_str += "February";
+              break;
+            }
+            case 3: {
+              result_date_str += "March";
+              break;
+            }
+            case 4: {
+              result_date_str += "April";
+              break;
+            }
+            case 5: {
+              result_date_str += "May";
+              break;
+            }
+            case 6: {
+              result_date_str += "June";
+              break;
+            }
+            case 7: {
+              result_date_str += "July";
+              break;
+            }
+            case 8: {
+              result_date_str += "August";
+              break;
+            }
+            case 9: {
+              result_date_str += "September";
+              break;
+            }
+            case 10: {
+              result_date_str += "October";
+              break;
+            }
+            case 11: {
+              result_date_str += "November";
+              break;
+            }
+            case 12: {
+              result_date_str += "December";
+              break;
+            }
+            default: {
+              return "";
+            }
+          }
+          break;
+        }
+        case 'm': {
+          char tmp[3];
+          sprintf(tmp, "%d", month);
+          if (0 <= month && month <= 9) {
+            result_date_str += "0";
+          }
+          result_date_str += tmp;
+          break;
+        }
+        case 'D': {
+          char tmp[3];
+          sprintf(tmp, "%d", day);
+          if (10 <= day && day <= 20) {
+            result_date_str += tmp;
+            result_date_str += "th";
+          } else {
+            switch (day % 10) {
+              case 1: {
+                result_date_str += tmp;
+                result_date_str += "st";
+                break;
+              }
+              case 2: {
+                result_date_str += tmp;
+                result_date_str += "nd";
+                break;
+              }
+              case 3: {
+                result_date_str += tmp;
+                result_date_str += "rd";
+                break;
+              }
+              default: {
+                result_date_str += tmp;
+                result_date_str += "th";
+                break;
+              }
+            }
+          }
+          break;
+        }
+        case 'd': {
+          char tmp[3];
+          sprintf(tmp, "%d", day);
+          if (0 <= day && day <= 9) {
+            result_date_str += "0";
+          }
+          result_date_str += tmp;
+          break;
+        }
+        default: {
+          result_date_str += format[i];
+          break;
+        }
+      }
+    } else if (format[i] != '%') {
+      result_date_str += format[i];
+    }
+  }
+  // std::cout << result_date_str << std::endl;
+
+  return std::move(result_date_str);
 }
 
 }  // namespace common

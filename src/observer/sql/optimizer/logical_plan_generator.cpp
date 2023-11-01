@@ -172,7 +172,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
       LOG_WARN("failed to create join logical plan. rc=%s", strrc(rc));
       return rc;
     }
-  } else {
+  } else if (tables.size() > 0) {
     for (Table *table : tables) {
       std::vector<Field> fields;
       for (const Field &field : query_fields) {
@@ -191,6 +191,8 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
         table_oper = unique_ptr<LogicalOperator>(join_oper);
       }
     }
+  } else {
+    // TODO(chen): add a dummy scan
   }
 
   // 生成predicate operator
