@@ -145,7 +145,8 @@ union YYSTYPE
   std::vector<Value> *                        value_list;
   std::vector<ComparisonExpr *> *             condition_list;
   std::vector<RelAttrSqlNode> *               rel_attr_list;
-  std::vector<std::string> *                  relation_list;
+  RelationSqlNode *                           single_table;
+  std::vector<RelationSqlNode> *              relation_list;
   JoinSqlNode *                               join_relation;
   GeneralRelationSqlNode *                    general_relation_sql_node;
   char *                                      string;
@@ -154,7 +155,7 @@ union YYSTYPE
   bool                                        bools;
   std::vector<std::unique_ptr<Expression>> *  func_args;
 
-#line 158 "yacc_sql.hpp"
+#line 159 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

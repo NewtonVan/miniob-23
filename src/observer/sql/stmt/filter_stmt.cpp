@@ -382,6 +382,7 @@ RC FilterStmt::rewrite_attr_expr_to_field_expr(
       }
 
       std::unique_ptr<Expression> field_expr(new FieldExpr(table, field));
+      field_expr->set_name(expr->name());
       expr.swap(field_expr);
       LOG_DEBUG("rel attr expr rewrited to FieldExpr");
     } break;

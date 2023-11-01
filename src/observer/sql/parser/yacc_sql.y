@@ -133,7 +133,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<Value> *                        value_list;
   std::vector<ComparisonExpr *> *             condition_list;
   std::vector<RelAttrSqlNode> *               rel_attr_list;
-  std::vector<std::string> *                  relation_list;
+  RelationSqlNode *                           single_table;
+  std::vector<RelationSqlNode> *              relation_list;
   JoinSqlNode *                               join_relation;
   GeneralRelationSqlNode *                    general_relation_sql_node;
   char *                                      string;
@@ -170,6 +171,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <condition_list>      condition_list
 %type <condition_list>      join_condition
 %type <expression_list>     select_attr
+%type <single_table>        single_table
 %type <relation_list>       rel_list
 %type <expression>          expression
 %type <func_args>           length_args
@@ -527,7 +529,7 @@ update_stmt:      /*  update 语句的语法解析树*/
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where
+    SELECT select_attr FROM single_table rel_list where
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -538,7 +540,7 @@ select_stmt:        /*  select 语句的语法解析树*/
         $$->selection.relations.swap(*$5);
         delete $5;
       }
-      $$->selection.relations.push_back($4);
+      $$->selection.relations.push_back(std::move(*$4));
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
 
       if ($6 != nullptr) {
@@ -564,7 +566,7 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       free($7);
     }
-    | SELECT select_attr FROM ID rel_list where ORDER BY order_item order_item_list
+    | SELECT select_attr FROM single_table rel_list where ORDER BY order_item order_item_list
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -575,7 +577,7 @@ select_stmt:        /*  select 语句的语法解析树*/
         $$->selection.relations.swap(*$5);
         delete $5;
       }
-      $$->selection.relations.push_back($4);
+      $$->selection.relations.push_back(std::move(*$4));
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
 
       std::vector<OrderBy> *order_by_attrs = $10;
@@ -694,7 +696,7 @@ expression:
     }
     | rel_attr {
       $$ = new RelAttrExprSqlNode($1);
-      $$->set_name($1->attribute_name);
+      $$->set_name($1->name());
     }
     | rel_attr ID {
       $$ = new RelAttrExprSqlNode($1, $2);
@@ -742,7 +744,7 @@ length_args:
     | rel_attr {
       $$ = new std::vector<std::unique_ptr<Expression>>;
       RelAttrExprSqlNode *attr_expr = new RelAttrExprSqlNode($1);
-      attr_expr->set_name($1->attribute_name);
+      attr_expr->set_name($1->name());
       std::unique_ptr<Expression> target(attr_expr);
       $$->emplace_back(std::move(target));
     }
@@ -811,15 +813,34 @@ rel_list:
     {
       $$ = nullptr;
     }
-    | COMMA ID rel_list {
+    | COMMA single_table rel_list {
       if ($3 != nullptr) {
         $$ = $3;
       } else {
-        $$ = new std::vector<std::string>;
+        $$ = new std::vector<RelationSqlNode>;
       }
 
-      $$->push_back($2);
+      $$->push_back(std::move(*$2));
+    }
+    ;
+ 
+single_table:
+    ID
+    {
+      $$ = new RelationSqlNode($1);
+      free($1);
+    }
+    | ID ID
+    {
+      $$ = new RelationSqlNode($1, $2);
+      free($1);
       free($2);
+    }
+    | ID AS ID
+    {
+      $$ = new RelationSqlNode($1, $3);
+      free($1);
+      free($3);
     }
     ;
 general_rel:

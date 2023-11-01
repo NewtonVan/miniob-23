@@ -14,6 +14,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <string>
+#include <unordered_map>
 #include <vector>
 #include <memory>
 
@@ -44,8 +46,9 @@ public:
 
 public:
   static RC create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt);
+  // TODO(chen): handle alias issue
   static RC collectJoinTables(Db *db, GeneralRelationSqlNode *rel, std::vector<Table *> &tables,
-      std::unordered_map<std::string, Table *> &table_map);
+      std::unordered_map<std::string, Table *> &table_map, std::unordered_map<std::string, std::string> &alias_map);
   static RC collectQueryFields(
       const std::vector<Expression *> &select_expressions, std::vector<RelAttrSqlNode> &query_attr, bool &field_only);
   static RC collectQueryFieldsInExpression(
