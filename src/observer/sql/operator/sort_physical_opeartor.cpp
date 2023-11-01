@@ -142,9 +142,32 @@ RC SortPhysicalOperator::fetch_table()
     order[i] = units[i]->sort_type();
   }
 
-  const int thread_num = 6;
-  parallel_sort(pair_sort_table, thread_num, order);
-  merge_sort(pair_sort_table, thread_num, order);
+//  const int thread_num = 6;
+//  parallel_sort(pair_sort_table, thread_num, order);
+//  merge_sort(pair_sort_table, thread_num, order);
+  auto cmp = [&order](const CmpPair &a, const CmpPair &b) {
+    auto &cells_a = a.first;
+    auto &cells_b = b.first;
+    assert(cells_a.size() == cells_b.size());
+    for (size_t i = 0; i < cells_a.size(); ++i) {
+      auto &cell_a = cells_a[i];
+      auto &cell_b = cells_b[i];
+      if (cell_a.attr_type() == NULLS && cell_b.attr_type() == NULLS) {
+        continue;
+      }
+      if (cell_a.attr_type() == NULLS) {
+        return !order[i];
+      }
+      if (cell_b.attr_type() == NULLS) {
+        return order[i];
+      }
+      if (cell_a != cell_b) {
+        return order[i] ? cell_a > cell_b : cell_a < cell_b ;
+      }
+    }
+    return false;  // completely same
+  };
+  sort(pair_sort_table.begin(), pair_sort_table.end(), cmp);
 
   // fill ordered_idx_
   for (size_t i = 0; i < pair_sort_table.size(); ++i) {
