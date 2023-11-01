@@ -99,6 +99,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     default_table = tables[0];
   }
 
+  
+
   bool is_agg = !select_sql.agg_funcs.empty();
   if(is_agg && !select_sql.attributes.empty()) {
     return RC::BAD_AGG;

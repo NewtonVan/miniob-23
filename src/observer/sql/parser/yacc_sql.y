@@ -667,22 +667,59 @@ order_item_list:
 
 
 agg_func_call_list:
-        /* empty */
-        {
-          $$ = nullptr;
-        }
-        | COMMA agg_func_call agg_func_call_list {
-          if ($3 != nullptr) {
-            $$ = $3;
-          } else {
-            $$ = new std::vector<AggregationFuncSqlNode>;
-          }
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | COMMA agg_func_call agg_func_call_list {
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<AggregationFuncSqlNode>;
+      }
 
-          $$->push_back(*$2);
+      $$->push_back(*$2);
 
-          delete $2;
-        }
+      delete $2;
+    }
+    ;
 
+
+
+// agg_list:
+//   {
+//     $$=nullptr;
+//   }
+//   | COMMA agg agg_list 
+//   {
+//     if ($3 != nullptr) {
+//       $$ = $3;
+//     } else {
+//       $$ = new std::vector<Agg>;
+//     }
+
+//     $$->push_back(*$2);
+
+//     delete $2;
+//   }
+
+
+// agg:
+//   ID 
+//   {
+//     $$ = new Agg;
+//     $$->is_func = false;
+//     $$->attr.relation_name = "";
+//     $$->attr.attribute_name = $1;
+//     free($1);
+//   }
+//   | agg_func_call
+//   {
+//     $$->is_func = true;
+//     $$->agg_call = *$1;
+//     delete $1;
+//   }
+//   ;
 
 agg_func_call:
     agg_func LBRACE RBRACE

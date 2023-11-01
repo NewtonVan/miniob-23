@@ -58,5 +58,5 @@ protected:
   int attr_offset_;
   int attr_len_;
   bool visible_;
-  int nullable_;
+  bool nullable_;
 };

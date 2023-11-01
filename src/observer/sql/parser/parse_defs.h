@@ -146,6 +146,9 @@ enum AggType
 };
 
 
+
+// avg(num)
+
 struct AggregationFuncSqlNode
 {
   AggFuncType    func;
@@ -155,6 +158,14 @@ struct AggregationFuncSqlNode
 struct AggField {
   std::string name;
 };
+
+
+// struct Agg {
+//   bool is_func = true;
+//   // is_func 
+//   AggregationFuncSqlNode agg_call;
+//   RelAttrSqlNode attr;
+// };
 
 
 

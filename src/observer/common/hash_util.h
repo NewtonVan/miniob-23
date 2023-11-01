@@ -91,7 +91,7 @@ class HashUtil {
         return static_cast<hash_t>(hasher(raw));
       }
       default: {
-        LOG_PANIC("Unsupported type.");
+        LOG_PANIC("Unsupported type%d.", val->attr_type());
         return 0;
       }
     }

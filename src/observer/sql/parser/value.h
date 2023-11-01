@@ -87,21 +87,23 @@ public:
   void set_value(const Value &value);
 
   bool is_null() const {
-    switch (attr_type_) {
-    case CHARS:
-      return get_string().empty();
-    case INTS:
-      return get_int() == 0;
-    case DATES:
-      return get_date() == 0;
-    case FLOATS:
-      return fabs(get_float()) <= EPSILON;
-    case BOOLEANS:
-      return get_boolean();
-    default:
-      LOG_WARN("unknown value type");
-      return 0;
-    }
+    // switch (attr_type_) {
+    // case CHARS:
+    //   return get_string().empty();
+    // case INTS:
+    //   return get_int() == 0;
+    // case DATES:
+    //   return get_date() == 0;
+    // case FLOATS:
+    //   return fabs(get_float()) <= EPSILON;
+    // case BOOLEANS:
+    //   return get_boolean();
+    // default:
+    //   LOG_WARN("unknown value type");
+    //   return 0;
+    // }
+    return attr_type() == AttrType::NULLS;
+    
   }
 
   static Value get_null(AttrType attr) {
@@ -116,10 +118,12 @@ public:
       return Value(static_cast<float>(EPSILON));
     case BOOLEANS:
       return Value(false);
-    default:
-      LOG_PANIC("unreachable");
+    default: 
+      LOG_WARN("get null value on %d or %d", UNDEFINED, TEXTS);
+      Value val;
+      val.set_type(AttrType::NULLS);
+      return val;
     }
-    return Value(0);
   }
 
   std::string to_string() const;
@@ -191,5 +195,6 @@ private:
     bool bool_value_;
   } num_value_;
   std::string str_value_;
+  // 50^4 * 4 * 65538 (big order-by)
   char text_value_[65538]; // 新增的用于存储text类型值的成员变量
 };

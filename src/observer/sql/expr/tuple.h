@@ -551,21 +551,30 @@ class SimpleHashTable
     for(int i =0; i < agg_types_.size(); i++) {
       switch (agg_types_[i]) {
       case COUNT_STAR:
+        agg_value.aggregates.push_back(Value::get_null(AttrType::INTS));
+        agg_value.not_null_count_.push_back(0);
+        break;
       case COUNT_AGG:
+        agg_value.aggregates.push_back(Value::get_null(AttrType::INTS));
+        agg_value.not_null_count_.push_back(0);
+        break;
       case SUM_AGG:
+        agg_value.aggregates.push_back(Value::get_null(AttrType::INTS));
+        agg_value.not_null_count_.push_back(0);
+        break;
       case MIN_AGG:
       case MAX_AGG:
       case AVG_AGG:
       // deal with float conversion in CombineAggregateValues
-        agg_value.aggregates.push_back(Value::get_null(INTS));
+        Value val;
+        val.set_type(AttrType::NULLS);
+        agg_value.aggregates.push_back(val);
         agg_value.not_null_count_.push_back(0);
         break;
       }
     }
     return agg_value;
   }
-
-
 
   void CombineAggregateValues(AggregationValue *result, const AggregationValue &input) {
     for (uint32_t i = 0; i < agg_types_.size(); i++) {
@@ -579,11 +588,7 @@ class SimpleHashTable
           break;
         case AggType::COUNT_AGG:
           if (!input.aggregates[i].is_null()) {
-            if (agg_val.is_null()) {
-              agg_val = Value(static_cast<int>(1));
-            } else {
-              agg_val.set_int(agg_val.get_int() + 1);
-            }
+            agg_val.set_int(agg_val.get_int() + 1);
           }
           break;
         case AggType::SUM_AGG:

@@ -72,14 +72,15 @@ private:
       if(strcmp(spec.field_name() , "*") == 0) {
         vals.push_back(Value(1));
         counts.push_back(1);
-      }
-      Value val;
-      tuple->find_cell(spec, val);
-      vals.push_back(val);
-      if(!val.is_null()) {
-        counts.push_back(1);
       } else {
-        counts.push_back(0);
+        Value val;
+        tuple->find_cell(spec, val);
+        vals.push_back(val);
+        if(!val.is_null()) {
+          counts.push_back(1);
+        } else {
+          counts.push_back(0);
+        }
       }
     }
     return {vals, counts};
