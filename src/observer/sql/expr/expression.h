@@ -44,6 +44,7 @@ enum class ExprType
   CONJUNCTION,  ///< 多个表达式使用同一种关系(AND或OR)来联结
   ARITHMETIC,   ///< 算术运算
   REL_ATTR,     ///< attr的封装，需要转化为field使用
+  FUNCTION,     ///< function表达式
 };
 
 /**
@@ -338,4 +339,39 @@ private:
   Type                        arithmetic_type_;
   std::unique_ptr<Expression> left_;
   std::unique_ptr<Expression> right_;
+};
+
+/**
+ * @brief 算术表达式
+ * @ingroup Expression
+ */
+class FuncExpr : public Expression
+{
+public:
+  enum class FuncType
+  {
+    LENGTH,
+    ROUND,
+    DATE_FORMAT,
+  };
+
+public:
+  explicit FuncExpr(FuncType type, std::vector<std::unique_ptr<Expression>> &args);
+  virtual ~FuncExpr() = default;
+
+  ExprType type() const override { return ExprType::FUNCTION; }
+
+  AttrType value_type() const override;
+
+  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC try_get_value(Value &value) const override;
+
+  FuncType func_type() const { return func_type_; }
+
+  std::vector<std::unique_ptr<Expression>> &args() { return args_; }
+  RC                                        eval_func(std::vector<Value> &args, Value &value) const;
+
+private:
+  FuncType                                 func_type_;
+  std::vector<std::unique_ptr<Expression>> args_;
 };

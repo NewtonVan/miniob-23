@@ -77,12 +77,17 @@ void ProjectPhysicalOperator::init_specs()
       FieldExpr *field_expr = static_cast<FieldExpr *>(expr.get());
       // TODO(chen): add alias
       TupleCellSpec *spec =
-          new TupleCellSpec(field_expr->table_name(), field_expr->field_name(), field_expr->field_name());
+          new TupleCellSpec(field_expr->table_name(), field_expr->field_name(), field_expr->name().c_str());
       tuple_.add_cell_spec(spec);
     } else if (expr->type() == ExprType::ARITHMETIC) {
       ArithmeticExpr *arithmetic = static_cast<ArithmeticExpr *>(expr.get());
       TupleCellSpec  *spec       = new TupleCellSpec("", "", arithmetic->name().c_str());
       tuple_.add_cell_spec(spec);
+    } else if (expr->type() == ExprType::FUNCTION) {
+      FuncExpr      *func = static_cast<FuncExpr *>(expr.get());
+      TupleCellSpec *spec = new TupleCellSpec("", "", func->name().c_str());
+      tuple_.add_cell_spec(spec);
     }
+    // TODO(chen):
   }
 }

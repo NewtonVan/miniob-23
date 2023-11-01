@@ -508,7 +508,7 @@ RC RecordFileHandler::get_record(RecordPageHandler &page_handler, const RID *rid
     return RC::INVALID_ARGUMENT;
   }
   // FIXME
-  if(disk_buffer_pool_ == nullptr || page_handler.get_page_num() != rid->page_num) {
+  if (disk_buffer_pool_ == nullptr || page_handler.get_page_num() != rid->page_num) {
     RC ret = page_handler.init(*disk_buffer_pool_, rid->page_num, readonly);
     if (OB_FAIL(ret)) {
       LOG_ERROR("Failed to init record page handler.page number=%d", rid->page_num);

@@ -50,6 +50,7 @@ enum class PhysicalOperatorType
   UPDATE,
   SORT,
   AGG,
+  DUMMY,
 };
 
 /**

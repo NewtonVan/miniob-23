@@ -1,8 +1,8 @@
-/* A Bison parser, made by GNU Bison 3.5.1.  */
+/* A Bison parser, made by GNU Bison 3.8.2.  */
 
 /* Bison interface for Yacc-like parsers in C
 
-   Copyright (C) 1984, 1989-1990, 2000-2015, 2018-2020 Free Software Foundation,
+   Copyright (C) 1984, 1989-1990, 2000-2015, 2018-2021 Free Software Foundation,
    Inc.
 
    This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 /* As a special exception, you may create a larger work that contains
    part or all of the Bison parser skeleton and distribute that work
@@ -31,8 +31,9 @@
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
-/* Undocumented macros, especially those whose name start with YY_,
-   are private implementation details.  Do not rely on them.  */
+/* DO NOT RELY ON FEATURES THAT ARE NOT DOCUMENTED in the manual,
+   especially those whose name start with YY_ or yy_.  They are
+   private implementation details that can be changed or removed.  */
 
 #ifndef YY_YY_YACC_SQL_HPP_INCLUDED
 # define YY_YY_YACC_SQL_HPP_INCLUDED
@@ -44,117 +45,127 @@
 extern int yydebug;
 #endif
 
-/* Token type.  */
+/* Token kinds.  */
 #ifndef YYTOKENTYPE
 # define YYTOKENTYPE
   enum yytokentype
   {
-    SEMICOLON = 258,
-    AS = 259,
-    CREATE = 260,
-    DROP = 261,
-    TABLE = 262,
-    TABLES = 263,
-    INDEX = 264,
-    CALC = 265,
-    INNER = 266,
-    JOIN = 267,
-    SELECT = 268,
-    DESC = 269,
-    SHOW = 270,
-    SYNC = 271,
-    INSERT = 272,
-    DELETE = 273,
-    UPDATE = 274,
-    LBRACE = 275,
-    RBRACE = 276,
-    COMMA = 277,
-    TRX_BEGIN = 278,
-    TRX_COMMIT = 279,
-    TRX_ROLLBACK = 280,
-    INT_T = 281,
-    DATE_T = 282,
-    MIN = 283,
-    MAX = 284,
-    AVG = 285,
-    COUNT = 286,
-    SUM = 287,
-    STRING_T = 288,
-    FLOAT_T = 289,
-    TEXT_T = 290,
-    HELP = 291,
-    EXIT = 292,
-    DOT = 293,
-    INTO = 294,
-    VALUES = 295,
-    FROM = 296,
-    WHERE = 297,
-    AND = 298,
-    SET = 299,
-    ON = 300,
-    LOAD = 301,
-    DATA = 302,
-    INFILE = 303,
-    EXPLAIN = 304,
-    LIKE = 305,
-    NOT_LIKE = 306,
-    IS = 307,
-    NOT = 308,
-    NULLABLE = 309,
-    NULL_T = 310,
-    UNIQUE = 311,
-    ORDER = 312,
-    BY = 313,
-    ASC = 314,
-    EQ = 315,
-    LT = 316,
-    GT = 317,
-    LE = 318,
-    GE = 319,
-    NE = 320,
-    NUMBER = 321,
-    FLOAT = 322,
-    ID = 323,
-    SSS = 324,
-    UMINUS = 325
+    YYEMPTY = -2,
+    YYEOF = 0,                     /* "end of file"  */
+    YYerror = 256,                 /* error  */
+    YYUNDEF = 257,                 /* "invalid token"  */
+    SEMICOLON = 258,               /* SEMICOLON  */
+    AS = 259,                      /* AS  */
+    CREATE = 260,                  /* CREATE  */
+    DROP = 261,                    /* DROP  */
+    TABLE = 262,                   /* TABLE  */
+    TABLES = 263,                  /* TABLES  */
+    INDEX = 264,                   /* INDEX  */
+    CALC = 265,                    /* CALC  */
+    LENGTH = 266,                  /* LENGTH  */
+    ROUND = 267,                   /* ROUND  */
+    DATE_FORMAT = 268,             /* DATE_FORMAT  */
+    INNER = 269,                   /* INNER  */
+    JOIN = 270,                    /* JOIN  */
+    SELECT = 271,                  /* SELECT  */
+    DESC = 272,                    /* DESC  */
+    SHOW = 273,                    /* SHOW  */
+    SYNC = 274,                    /* SYNC  */
+    INSERT = 275,                  /* INSERT  */
+    DELETE = 276,                  /* DELETE  */
+    UPDATE = 277,                  /* UPDATE  */
+    LBRACE = 278,                  /* LBRACE  */
+    RBRACE = 279,                  /* RBRACE  */
+    COMMA = 280,                   /* COMMA  */
+    TRX_BEGIN = 281,               /* TRX_BEGIN  */
+    TRX_COMMIT = 282,              /* TRX_COMMIT  */
+    TRX_ROLLBACK = 283,            /* TRX_ROLLBACK  */
+    INT_T = 284,                   /* INT_T  */
+    DATE_T = 285,                  /* DATE_T  */
+    MIN = 286,                     /* MIN  */
+    MAX = 287,                     /* MAX  */
+    AVG = 288,                     /* AVG  */
+    COUNT = 289,                   /* COUNT  */
+    SUM = 290,                     /* SUM  */
+    STRING_T = 291,                /* STRING_T  */
+    FLOAT_T = 292,                 /* FLOAT_T  */
+    TEXT_T = 293,                  /* TEXT_T  */
+    HELP = 294,                    /* HELP  */
+    EXIT = 295,                    /* EXIT  */
+    DOT = 296,                     /* DOT  */
+    INTO = 297,                    /* INTO  */
+    VALUES = 298,                  /* VALUES  */
+    FROM = 299,                    /* FROM  */
+    WHERE = 300,                   /* WHERE  */
+    AND = 301,                     /* AND  */
+    SET = 302,                     /* SET  */
+    ON = 303,                      /* ON  */
+    LOAD = 304,                    /* LOAD  */
+    DATA = 305,                    /* DATA  */
+    INFILE = 306,                  /* INFILE  */
+    EXPLAIN = 307,                 /* EXPLAIN  */
+    LIKE = 308,                    /* LIKE  */
+    NOT_LIKE = 309,                /* NOT_LIKE  */
+    IS = 310,                      /* IS  */
+    NOT = 311,                     /* NOT  */
+    NULLABLE = 312,                /* NULLABLE  */
+    NULL_T = 313,                  /* NULL_T  */
+    UNIQUE = 314,                  /* UNIQUE  */
+    ORDER = 315,                   /* ORDER  */
+    BY = 316,                      /* BY  */
+    ASC = 317,                     /* ASC  */
+    EQ = 318,                      /* EQ  */
+    LT = 319,                      /* LT  */
+    GT = 320,                      /* GT  */
+    LE = 321,                      /* LE  */
+    GE = 322,                      /* GE  */
+    NE = 323,                      /* NE  */
+    NUMBER = 324,                  /* NUMBER  */
+    FLOAT = 325,                   /* FLOAT  */
+    ID = 326,                      /* ID  */
+    SSS = 327,                     /* SSS  */
+    UMINUS = 328                   /* UMINUS  */
   };
+  typedef enum yytokentype yytoken_kind_t;
 #endif
 
 /* Value type.  */
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 122 "yacc_sql.y"
+#line 125 "yacc_sql.y"
 
-  ParsedSqlNode *                   sql_node;
-  ComparisonExpr *                   condition;
-  Value *                           value;
-  enum CompOp                       comp;
-  RelAttrSqlNode *                  rel_attr;
-  std::vector<std::string> *        attr_names;
-  OrderBy *                         order_item;
-  std::vector<OrderBy> *            order_item_list;
-  std::vector<AttrInfoSqlNode> *    attr_infos;
-  AttrInfoSqlNode *                 attr_info;
-  Expression *                      expression;
-  std::vector<Expression *> *       expression_list;
-  std::vector<Value> *              value_list;
-  std::vector<ComparisonExpr *> *    condition_list;
-  std::vector<RelAttrSqlNode> *     rel_attr_list;
-  std::vector<std::string> *        relation_list;
+  ParsedSqlNode *                             sql_node;
+  ComparisonExpr *                            condition;
+  Value *                                     value;
+  enum CompOp                                 comp;
+  RelAttrSqlNode *                            rel_attr;
+  std::vector<std::string> *                  attr_names;
+  OrderBy *                                   order_item;
+  std::vector<OrderBy> *                      order_item_list;
+  std::vector<AttrInfoSqlNode> *              attr_infos;
+  AttrInfoSqlNode *                           attr_info;
+  Expression *                                expression;
+  std::vector<Expression *> *                 expression_list;
+  std::vector<Value> *                        value_list;
+  std::vector<ComparisonExpr *> *             condition_list;
+  std::vector<RelAttrSqlNode> *               rel_attr_list;
+  RelationSqlNode *                           single_table;
+  std::vector<RelationSqlNode> *              relation_list;
+  JoinSqlNode *                               join_relation;
+  GeneralRelationSqlNode *                    general_relation_sql_node;
+  char *                                      string;
+  int                                         number;
+  float                                       floats;
+  bool                                        bools;
+  std::vector<std::unique_ptr<Expression>> *  func_args;
   std::vector<std::string> *        field_list;
   AggField*                         field;
-  JoinSqlNode *                     join_relation;
-  GeneralRelationSqlNode *          general_relation_sql_node;
-  char *                            string;
-  int                               number;
-  float                             floats;
   AggregationFuncSqlNode *          agg_func_call;
   enum AggFuncType                  agg_func;
   std::vector<AggregationFuncSqlNode> * agg_func_call_list;
-  bool                              bools;
 
-#line 158 "yacc_sql.hpp"
+#line 169 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -178,6 +189,8 @@ struct YYLTYPE
 
 
 
+
 int yyparse (const char * sql_string, ParsedSqlResult * sql_result, void * scanner);
+
 
 #endif /* !YY_YY_YACC_SQL_HPP_INCLUDED  */

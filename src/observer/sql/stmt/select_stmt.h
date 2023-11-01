@@ -14,6 +14,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <string>
+#include <unordered_map>
 #include <vector>
 #include <memory>
 
@@ -44,8 +46,9 @@ public:
 
 public:
   static RC create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt);
+  // TODO(chen): handle alias issue
   static RC collectJoinTables(Db *db, GeneralRelationSqlNode *rel, std::vector<Table *> &tables,
-      std::unordered_map<std::string, Table *> &table_map);
+      std::unordered_map<std::string, Table *> &table_map, std::unordered_map<std::string, std::string> &alias_map);
   static RC collectQueryFields(
       const std::vector<Expression *> &select_expressions, std::vector<RelAttrSqlNode> &query_attr, bool &field_only);
   static RC collectQueryFieldsInExpression(
@@ -56,57 +59,44 @@ public:
       const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field);
 
 public:
-  struct agg_field {
+  struct agg_field
+  {
     AggFuncType func_;
-    Field field_;
+    Field       field_;
     // whether initial field is star
     bool field_is_star = false;
-    agg_field(AggFuncType func, const Field& field):func_(func), field_(field) {};
-    static std::string name(AggFuncType func) {
+    agg_field(AggFuncType func, const Field &field) : func_(func), field_(field){};
+    static std::string name(AggFuncType func)
+    {
       switch (func) {
-        case AggFuncType::COUNT_FUNC:
-          return {"COUNT"};
-          break;
-        case AggFuncType::SUM_FUNC:
-          return {"SUM"};
-          break;
-        case AggFuncType::MAX_FUNC:
-          return {"MAX"};
-          break;
-        case AggFuncType::MIN_FUNC:
-          return {"MIN"};
-          break;
-        case AggFuncType::AVG_FUNC:
-          return {"AVG"};
-          break;
+        case AggFuncType::COUNT_FUNC: return {"COUNT"}; break;
+        case AggFuncType::SUM_FUNC: return {"SUM"}; break;
+        case AggFuncType::MAX_FUNC: return {"MAX"}; break;
+        case AggFuncType::MIN_FUNC: return {"MIN"}; break;
+        case AggFuncType::AVG_FUNC: return {"AVG"}; break;
       }
-    }
+    };
   };
-  bool is_agg() {
-    return is_agg_;
-  }
-  const std::vector<agg_field>& all_agg_fields() const
-  {
-    return agg_fields_;
-  }
+  bool                          is_agg() { return is_agg_; }
+  const std::vector<agg_field> &all_agg_fields() const { return agg_fields_; }
 
-  const std::vector<Table *> &tables() const { return tables_; }
-  const std::vector<Field>   &query_fields() const { return query_fields_; }
-  FilterStmt                 *filter_stmt() const { return filter_stmt_; }
-  JoinStmt                   *join_stmt() const { return join_stmt_; }
-  OrderByStmt                *orderby_stmt() const { return  orderby_stmt_; }
+  const std::vector<Table *>               &tables() const { return tables_; }
+  const std::vector<Field>                 &query_fields() const { return query_fields_; }
+  FilterStmt                               *filter_stmt() const { return filter_stmt_; }
+  JoinStmt                                 *join_stmt() const { return join_stmt_; }
+  OrderByStmt                              *orderby_stmt() const { return orderby_stmt_; }
   std::vector<std::unique_ptr<Expression>> &project_exprs() { return project_exprs_; }
   bool                                      use_project_exprs() const { return use_project_exprs_; }
 
 private:
-  std::vector<Field>   query_fields_;
-  std::vector<Table *> tables_;
+  std::vector<Field>                       query_fields_;
+  std::vector<Table *>                     tables_;
   std::vector<std::unique_ptr<Expression>> project_exprs_;
-  FilterStmt          *filter_stmt_ = nullptr;
-  JoinStmt            *join_stmt_   = nullptr;
-  OrderByStmt *orderby_stmt_ = nullptr;
+  FilterStmt                              *filter_stmt_       = nullptr;
+  JoinStmt                                *join_stmt_         = nullptr;
+  OrderByStmt                             *orderby_stmt_      = nullptr;
   bool                                     use_project_exprs_ = false;
   // whether select has agg func
-  bool is_agg_;
+  bool                   is_agg_;
   std::vector<agg_field> agg_fields_;
 };
