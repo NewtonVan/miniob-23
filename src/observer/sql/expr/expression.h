@@ -23,6 +23,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 
 class Tuple;
+class SelectStmt;
 
 /**
  * @defgroup Expression
@@ -45,8 +46,10 @@ enum class ExprType
   ARITHMETIC,   ///< 算术运算
   REL_ATTR,     ///< attr的封装，需要转化为field使用
   FUNCTION,     ///< function表达式
+  SUBQUERYTYPE,
 };
 
+typedef enum { SUB_IN, SUB_NOT_IN, SUB_EXISTS, SUB_NOT_EXISTS, SUB_NORMAL, SUB_TYPE_NUM } SubQueryType;
 /**
  * @brief 表达式的抽象描述
  * @ingroup Expression
@@ -374,4 +377,31 @@ public:
 private:
   FuncType                                 func_type_;
   std::vector<std::unique_ptr<Expression>> args_;
+};
+
+class SubQueryExpression : public Expression {
+public:
+  SubQueryExpression() = default;
+  virtual ~SubQueryExpression() = default;
+
+  ExprType type() const override
+  {
+    return ExprType::SUBQUERYTYPE;
+  }
+
+  AttrType value_type() const override;
+
+  RC get_value(const Tuple &tuple, Value &value) const override;
+
+  RC try_get_value(Value &value) const override;
+
+  SubQueryType sub_query_type()
+  {
+    return type_;
+  }
+
+private:
+  SubQueryType type_;
+  SelectStmt *sub_stmt_;
+//  Operator *sub_top_oper_;
 };

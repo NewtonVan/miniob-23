@@ -120,6 +120,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         LE
         GE
         NE
+        IN
+        EXISTS
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -152,6 +154,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   AggregationFuncSqlNode *          agg_func_call;
   enum AggFuncType                  agg_func;
   std::vector<AggregationFuncSqlNode> * agg_func_call_list;
+  std::vector<Expression *> *       sub_query;
 }
 
 %token <number> NUMBER
@@ -645,6 +648,28 @@ select_stmt:        /*  select 语句的语法解析树*/
     }
     ;
 
+sub_query:
+    LBRACE SELECT select_attr FROM single_table rel_list where RBRACE
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($3 != nullptr) {
+        $$->selection.select_expressions.swap(*$3);
+        delete $3;
+      }
+      if ($6 != nullptr) {
+        $$->selection.relations.swap(*$6);
+        delete $6;
+      }
+      $$->selection.relations.push_back(std::move(*$5));
+      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
+
+      if ($6 != nullptr) {
+        $$->selection.conditions.swap(*$7);
+        delete $7;
+      }
+      free($5);
+    }
+
 order_item:
 	rel_attr order {
         $$ = new OrderBy;
@@ -856,6 +881,14 @@ expression:
       $$ = $1;
       $$->set_name($3);
     }
+    | sub_query {
+      $$ = $1;
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | sub_query AS ID {
+      $$ = $1;
+      $$->set_name($3);
+    }
     ;
 
 func_expr:
@@ -1051,6 +1084,22 @@ condition:
       std::unique_ptr<Expression> left($1);
       std::unique_ptr<Expression> right($3);
       $$ = new ComparisonExpr($2, std::move(left), std::move(right));
+    }
+    | expression IN expression
+    {
+
+    }
+    | expression NOI IN expression
+    {
+
+    }
+    | EXISTS expression
+    {
+
+    }
+    | NOT EXISTS expression
+    {
+
     }
     ;
 
