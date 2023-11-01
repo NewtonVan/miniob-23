@@ -61,6 +61,19 @@ public:
     this->set_data(data, length);
   }
 
+//  ~Value() {
+//    if (text_value_) {
+//      delete[] text_value_;
+//    }
+//  }
+
+  void clearTextValue() {
+    if (text_value_) {
+      delete[] text_value_;
+      text_value_ = nullptr; // 将指针设置为 nullptr，以避免悬挂指针
+    }
+  }
+
   explicit Value(int val);
   explicit Value(int64_t val);
   explicit Value(float val);
@@ -193,5 +206,5 @@ private:
     bool bool_value_;
   } num_value_;
   std::string str_value_;
-  char text_value_[MAX_TEXT_SIZE]; // 新增的用于存储text类型值的成员变量
+  char* text_value_ = nullptr; // 新增的用于存储text类型值的成员变量
 };

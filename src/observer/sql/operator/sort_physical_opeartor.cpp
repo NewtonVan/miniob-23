@@ -13,13 +13,14 @@ RC SortPhysicalOperator::open(Trx *trx)
     rc = RC::INTERNAL;
     LOG_WARN("SortOperater child open failed!");
   }
-  tuples_.reserve(81920);
   return rc;
 }
 
 RC SortPhysicalOperator::fetch_table()
 {
   RC rc = RC::SUCCESS;
+  tuples_.reserve(81920);
+
   int index = 0;
   typedef std::pair<std::vector<Value>, int> CmpPair;
   std::vector<CmpPair> pair_sort_table;
@@ -29,6 +30,8 @@ RC SortPhysicalOperator::fetch_table()
   // 获得order by的排序单元
   const auto &units = orderby_stmt_->orderby_units();
 
+  std::vector<Value> values;
+  values.reserve(256);
   while (RC::SUCCESS == (rc = children_[0]->next())) {
     pair_value.clear();
     // 遍历排序单元，获得对应属性的值
@@ -43,16 +46,14 @@ RC SortPhysicalOperator::fetch_table()
 
     Tuple *current_tuple = children_[0]->current_tuple();
 
-    std::vector<Value> values;
     for (int i = 0; i < current_tuple->cell_num(); i++) {
-      Value value;
-      current_tuple->cell_at(i, value);
-      values.push_back(std::move(value));
+      values.emplace_back();
+      current_tuple->cell_at(i, values.back());
     }
 
     auto tuple = SortTuple();
     tuple.set_tuple(values, &specs_);
-    tuples_.push_back(std::move(tuple));
+    tuples_.emplace_back(std::move(tuple));
   }
 
   // 获取到每个排序单元的排序顺序

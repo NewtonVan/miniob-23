@@ -394,6 +394,10 @@ private:
 
 class SortTuple : public Tuple {
 public:
+  SortTuple() = default;
+//  SortTuple(const SortTuple&) = delete;
+  SortTuple(SortTuple&&) = default; // 默认生成移动构造函数
+
   void set_tuple(std::vector<Value>& values, std::vector<TupleCellSpec>* specs) {
     values_ = std::move(values); // 使用移动语义避免不必要的拷贝
     specs_ = specs;    // 使用移动语义避免不必要的拷贝

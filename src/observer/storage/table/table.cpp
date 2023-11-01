@@ -370,6 +370,11 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
       }
     }
     memcpy(record_data + field->offset(), value.data(), copy_len);
+
+    if (field->type() == TEXTS) {
+      Value *mutableValues = const_cast<Value *>(&value);
+      mutableValues->clearTextValue();
+    }
   }
 
   // 将null_mask数据存储起来，注意这里是
