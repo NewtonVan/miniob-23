@@ -15,7 +15,16 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/expression.h"
 #include "common/log/log.h"
 #include "common/rc.h"
+#include "common/math/float_tools.h"
+#include "common/time/datetime.h"
 #include "sql/expr/tuple.h"
+#include "sql/parser/value.h"
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 using namespace std;
 
@@ -96,14 +105,13 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
   RC rc = RC::SUCCESS;
 
   // 左右其中一个为空，且比较符号不是IS_LEFT_NULL和IS_LEFT_NULL，则永远返回false，因为null和任何值比较都返回false
-  if(left.attr_type() != right.attr_type()
-      && (left.attr_type() == NULLS || right.attr_type() == NULLS)
-      && comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NULL) {
+  if (left.attr_type() != right.attr_type() && (left.attr_type() == NULLS || right.attr_type() == NULLS) &&
+      comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NULL) {
     result = false;
     return rc;
   }
 
-  if(left.attr_type() == NULLS && right.attr_type() == NULLS && comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NULL) {
+  if (left.attr_type() == NULLS && right.attr_type() == NULLS && comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NULL) {
     result = false;
     return rc;
   }
@@ -373,4 +381,110 @@ RC ArithmeticExpr::try_get_value(Value &value) const
   }
 
   return calc_value(left_value, right_value, value);
+}
+
+FuncExpr::FuncExpr(FuncExpr::FuncType type, std::vector<std::unique_ptr<Expression>> &args)
+    : func_type_(type), args_(std::move(args))
+{}
+
+AttrType FuncExpr::value_type() const
+{
+  AttrType type = AttrType::UNDEFINED;
+  switch (func_type_) {
+    case FuncType::LENGTH: {
+      type = AttrType::INTS;
+      LOG_DEBUG("length func, type: %d", type);
+    } break;
+    case FuncType::ROUND: {
+      type = AttrType::FLOATS;
+      LOG_DEBUG("round func, type: %d", type);
+    } break;
+    case FuncType::DATE_FORMAT: {
+      type = AttrType::CHARS;
+      LOG_DEBUG("date_format func, type: %d", type);
+    } break;
+  }
+
+  return type;
+}
+
+RC FuncExpr::get_value(const Tuple &tuple, Value &value) const
+{
+  RC rc = RC::SUCCESS;
+
+  std::vector<Value> args_values;
+  for (int i = 0; i < args_.size(); ++i) {
+    Value v;
+    rc = args_[i]->get_value(tuple, v);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of %d expression. rc=%s", i, strrc(rc));
+      return rc;
+    }
+    args_values.emplace_back(std::move(v));
+  }
+
+  return eval_func(args_values, value);
+}
+
+RC FuncExpr::eval_func(std::vector<Value> &args, Value &value) const
+{
+  RC rc = RC::SUCCESS;
+
+  switch (func_type_) {
+    case FuncType::LENGTH: {
+      std::string str = args[0].get_string();
+      value.set_int(str.length());
+    } break;
+    case FuncType::ROUND: {
+      float num     = args[0].get_float();
+      int   bits    = args.size() == 2 ? args[1].get_int() : 0;
+      float rnd_num = common::roundToNDecimalPlaces(num, bits);
+      LOG_DEBUG("%f round to %f", num, rnd_num);
+      value.set_float(rnd_num);
+    } break;
+    case FuncType::DATE_FORMAT: {
+      int64_t date = 0;
+      if (args[0].attr_type() == AttrType::CHARS) {
+        if (!serialize_date(&date, args[0].get_string().c_str())) {
+          LOG_WARN("fail to serialize %s", args[0].get_string().c_str());
+        }
+      } else if (args[0].attr_type() == AttrType::DATES || args[0].attr_type() == AttrType::INTS) {
+        date = args[0].get_date();
+      } else {
+        LOG_WARN("unknown format: %d", args[0].attr_type());
+        return RC::INVALID_ARGUMENT;
+      }
+      const std::string format = args[1].get_string();
+      std::string       formatted_date(common::DateTime::format_date(deserialize_date_ts(date), format));
+      if (formatted_date.empty()) {
+        LOG_WARN("invalid date/format, date: %d, format: %s", date, format.c_str());
+        return RC::INTERNAL;
+      }
+      value.set_string(formatted_date.c_str(), formatted_date.length());
+      return RC::SUCCESS;
+    } break;
+    default: {
+      rc = RC::INTERNAL;
+      LOG_WARN("unsupported func type. %d", func_type_);
+    } break;
+  }
+
+  return rc;
+}
+
+RC FuncExpr::try_get_value(Value &value) const
+{
+  RC                 rc = RC::SUCCESS;
+  std::vector<Value> args_values;
+  for (int i = 0; i < args_.size(); ++i) {
+    Value v;
+    rc = args_[i]->try_get_value(v);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to try get value of %d expression. rc=%s", i, strrc(rc));
+      return rc;
+    }
+    args_values.emplace_back(std::move(v));
+  }
+
+  return eval_func(args_values, value);
 }

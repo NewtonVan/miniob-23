@@ -142,7 +142,7 @@ RC SortPhysicalOperator::fetch_table()
     order[i] = units[i]->sort_type();
   }
 
-  const int thread_num = 2;
+  const int thread_num = 3;
   parallel_sort(pair_sort_table, thread_num, order);
   merge_sort(pair_sort_table, thread_num, order);
 
