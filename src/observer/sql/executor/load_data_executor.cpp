@@ -110,8 +110,8 @@ RC insert_record_from_file(Table *table,
         if (!valid) {
           rc = RC::INVALID_ARGUMENT;
         } else {
-            record_values[i].set_date(date);
             record_values[i].set_type(DATES);
+            record_values[i].set_date(date);
         }
       } break;
       default: {

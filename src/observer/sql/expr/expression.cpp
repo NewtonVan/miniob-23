@@ -599,21 +599,21 @@ RC FuncExpr::try_get_value(Value &value) const
 
 RC SubQueryExpression::open_sub_query() const
 {
-  assert(nullptr != sub_top_oper_);
-  return sub_top_oper_->open(GCTX.trx_kit_->create_trx(db_->clog_manager()));
+  assert(nullptr != sub_physical_op_oper_);
+  return sub_physical_op_oper_->open(GCTX.trx_kit_->create_trx(db_->clog_manager()));
 }
 
 RC SubQueryExpression::close_sub_query() const
 {
-  assert(nullptr != sub_top_oper_);
-  return sub_top_oper_->close();
+  assert(nullptr != sub_physical_op_oper_);
+  return sub_physical_op_oper_->close();
 }
 
 RC SubQueryExpression::get_value(const Tuple &tuple, Value &value) const
 {
-  assert(nullptr != sub_top_oper_);
-  sub_top_oper_->set_parent_tuple(&tuple);  // set parent tuple
-  RC rc = sub_top_oper_->next();
+  assert(nullptr != sub_physical_op_oper_);
+  sub_physical_op_oper_->set_parent_tuple(&tuple);  // set parent tuple
+  RC rc = sub_physical_op_oper_->next();
   // TODO: hyq note
   if (RC::RECORD_EOF == rc) {
     value.set_null();
@@ -621,7 +621,7 @@ RC SubQueryExpression::get_value(const Tuple &tuple, Value &value) const
   if (RC::SUCCESS != rc) {
     return rc;
   }
-  Tuple *child_tuple = sub_top_oper_->current_tuple();
+  Tuple *child_tuple = sub_physical_op_oper_->current_tuple();
   if (nullptr == child_tuple) {
     LOG_WARN("failed to get current record. rc=%s", strrc(rc));
     return RC::INTERNAL;
@@ -634,10 +634,10 @@ RC SubQueryExpression::create_expression(const std::unordered_map<std::string, T
     const std::vector<Table *> &tables, CompOp comp, Db *db) {
   Stmt *stmt = nullptr;
   RC rc = SelectStmt::create(db, *select_sql_node_, stmt);
+  this->set_sub_query_stmt((SelectStmt *)stmt);
   if (RC::SUCCESS != rc) {
     LOG_ERROR("SubQueryExpression Create SelectStmt Failed. RC = %d:%s", rc, strrc(rc));
     return rc;
   }
-
   db_ = db;
 }

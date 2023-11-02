@@ -67,6 +67,9 @@ public:
   const FilterObj &left() const { return left_; }
   const FilterObj &right() const { return right_; }
 
+  const FilterUnit* left_unit() const { return left_unit_; }
+  const FilterUnit* right_unit() const { return right_unit_; }
+
   FilterObj &left() { return left_; }
 
   FilterObj &right() { return right_; }

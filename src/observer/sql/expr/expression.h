@@ -27,6 +27,7 @@ class Tuple;
 class SelectStmt;
 class Stmt;
 class ProjectPhysicalOperator;
+class ProjectLogicalOperator
 
 /**
  * @defgroup Expression
@@ -397,16 +398,36 @@ public:
 
   RC try_get_value(Value &value) const { return RC::UNIMPLENMENT; }
 
-
-  void set_sub_query_top_oper(ProjectPhysicalOperator *oper)
+  void set_sub_query_stmt(SelectStmt *sub_stmt)
   {
-    sub_top_oper_ = oper;
+    sub_stmt_ = sub_stmt;
   }
 
-  ProjectPhysicalOperator *get_sub_query_top_oper() const
+  SelectStmt *get_sub_query_stmt() const
   {
-    return sub_top_oper_;
+    return sub_stmt_;
   }
+
+  void set_sub_query_physical_top_oper(ProjectPhysicalOperator *oper)
+  {
+    sub_physical_op_oper_ = oper;
+  }
+
+  ProjectPhysicalOperator *get_sub_query_physical_top_oper() const
+  {
+    return sub_physical_op_oper_;
+  }
+
+  void set_sub_query_logical_top_oper(ProjectLogicalOperator *oper)
+  {
+    sub_logical_top_oper_ = oper;
+  }
+
+  ProjectLogicalOperator *get_sub_query_logical_top_oper() const
+  {
+    return sub_logical_top_oper_;
+  }
+
 
   RC open_sub_query() const;
   RC close_sub_query() const;
@@ -416,6 +437,8 @@ public:
 
 private:
   const SelectSqlNode *select_sql_node_;
-  ProjectPhysicalOperator *sub_top_oper_ = nullptr;
+  SelectStmt *sub_stmt_ = nullptr;
+  ProjectPhysicalOperator *sub_physical_op_oper_ = nullptr;
+  ProjectLogicalOperator  *sub_logical_top_oper_ = nullptr;
   Db *db_ = nullptr;
 };

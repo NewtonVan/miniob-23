@@ -157,7 +157,7 @@ RC LogicalPlanGenerator::create_plan(JoinStmt *join_stmt, std::unique_ptr<Logica
   return RC::SUCCESS;
 }
 
-RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<LogicalOperator> &logical_operator)
+RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<LogicalOperator> &logical_operator, std::unique_ptr<LogicalOperator> &sub_logical_operator)
 {
   unique_ptr<LogicalOperator> table_oper(nullptr);
 
@@ -278,10 +278,10 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     }
   }
 
-
-
+  sub_logical_operator = predicate_oper;
 
   logical_operator.swap(project_oper);
+
   return RC::SUCCESS;
 }
 
@@ -289,6 +289,7 @@ RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<Logical
 {
   std::vector<unique_ptr<Expression>> cmp_exprs;
   const std::vector<FilterUnit *>    &filter_units = filter_stmt->filter_units();
+  // TODO： 为子查询添加算子
   for (const FilterUnit *filter_unit : filter_units) {
     const FilterObj &filter_obj_left  = filter_unit->left();
     const FilterObj &filter_obj_right = filter_unit->right();
@@ -325,7 +326,45 @@ RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<Logical
   }
 
   logical_operator = std::move(predicate_oper);
+
+  // 创建subquery的执行计划
+  RC rc = RC::SUCCESS;
+  for (auto unit : filter_stmt->filter_units()) {
+    if (RC::SUCCESS != (rc = create_plan_for_subquery(unit, logical_operator))) {
+      return rc;
+    }
+  }
   return RC::SUCCESS;
+}
+
+RC LogicalPlanGenerator::create_plan_for_subquery(const FilterUnit *filter, std::unique_ptr<LogicalOperator> &logical_operator) {
+  RC rc = RC::SUCCESS;
+  // process sub query
+  auto process_sub_query_expr = [&](Expression *expr) {
+    if (ExprType::SUBQUERYTYPE == expr->type()) {
+      auto sub_query_expr = (SubQueryExpression *)expr;
+      const SelectStmt *sub_select = sub_query_expr->get_sub_query_stmt();
+      ProjectLogicalOperator *sub_logical_operator = nullptr;
+      if (RC::SUCCESS != (rc = create_plan(sub_select, logical_operator, sub_logical_operator))) {
+        return rc;
+      }
+      assert(nullptr != sub_logical_operator);
+      sub_query_expr->set_sub_query_logical_top_oper(sub_logical_operator);
+    }
+    return RC::SUCCESS;
+  };
+
+//  if (CompOp::AND_OP == filter->comp() || CompOp::OR_OP == filter->comp()) {
+//    if (RC::SUCCESS != (rc = create_plan_for_subquery(filter->left_unit(), logical_operator))) {
+//      return rc;
+//    }
+//    return create_plan_for_subquery(filter->right_unit(), logical_operator);
+//  }
+
+  if (RC::SUCCESS != (rc = process_sub_query_expr(filter->left().expr))) {
+    return rc;
+  }
+  return process_sub_query_expr(filter->right().expr);
 }
 
 RC LogicalPlanGenerator::create_plan(InsertStmt *insert_stmt, unique_ptr<LogicalOperator> &logical_operator)
