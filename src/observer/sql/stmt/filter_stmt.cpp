@@ -271,6 +271,12 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_expr(condition->left().get());
     filter_unit->set_left(filter_obj);
+  } else if(condition->left()->type() == ExprType::SUBQUERYTYPE) {
+    SubQueryExpression *sub_query_expr = static_cast<SubQueryExpression *>(condition->left().get());
+    sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, comp, db);
+    FilterObj filter_obj;
+    filter_obj.init_expr(condition->left().get());
+    filter_unit->set_left(filter_obj);
   } else {
     LOG_WARN("unsupported left expr, %d", condition->left()->type());
     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
@@ -313,6 +319,12 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     for (std::unique_ptr<Expression> &argv : func->args()) {
       rewrite_attr_expr_to_field_expr(db, default_table, tables, argv);
     }
+    FilterObj filter_obj;
+    filter_obj.init_expr(condition->right().get());
+    filter_unit->set_right(filter_obj);
+  } else if(condition->right()->type() == ExprType::SUBQUERYTYPE) {
+    SubQueryExpression *sub_query_expr = static_cast<SubQueryExpression *>(condition->right().get());
+    sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, comp, db);
     FilterObj filter_obj;
     filter_obj.init_expr(condition->right().get());
     filter_unit->set_right(filter_obj);

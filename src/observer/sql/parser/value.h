@@ -82,6 +82,10 @@ public:
   Value(const Value &other)            = default;
   Value &operator=(const Value &other) = default;
 
+  void set_null()
+  {
+    this->attr_type_ = AttrType::NULLS;
+  }
   void set_type(AttrType type) { this->attr_type_ = type; }
   void set_data(char *data, int length);
   void set_data(const char *data, int length) { this->set_data(const_cast<char *>(data), length); }

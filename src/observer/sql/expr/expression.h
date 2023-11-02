@@ -21,9 +21,12 @@ See the Mulan PSL v2 for more details. */
 #include "storage/field/field.h"
 #include "sql/parser/value.h"
 #include "common/log/log.h"
+#include "storage/db/db.h"
 
 class Tuple;
 class SelectStmt;
+class Stmt;
+class ProjectPhysicalOperator;
 
 /**
  * @defgroup Expression
@@ -49,7 +52,6 @@ enum class ExprType
   SUBQUERYTYPE,
 };
 
-typedef enum { SUB_IN, SUB_NOT_IN, SUB_EXISTS, SUB_NOT_EXISTS, SUB_NORMAL, SUB_TYPE_NUM } SubQueryType;
 /**
  * @brief 表达式的抽象描述
  * @ingroup Expression
@@ -381,27 +383,39 @@ private:
 
 class SubQueryExpression : public Expression {
 public:
-  SubQueryExpression() = default;
-  virtual ~SubQueryExpression() = default;
+  SubQueryExpression(SelectSqlNode *select_sql_node) : select_sql_node_(select_sql_node){};
+  ~SubQueryExpression() override = default;
 
   ExprType type() const override
   {
     return ExprType::SUBQUERYTYPE;
   }
 
-  AttrType value_type() const override;
+  AttrType value_type() const override { return AttrType::UNDEFINED; }
 
   RC get_value(const Tuple &tuple, Value &value) const override;
 
-  RC try_get_value(Value &value) const override;
+  RC try_get_value(Value &value) const { return RC::UNIMPLENMENT; }
 
-  SubQueryType sub_query_type()
+
+  void set_sub_query_top_oper(ProjectPhysicalOperator *oper)
   {
-    return type_;
+    sub_top_oper_ = oper;
   }
 
+  ProjectPhysicalOperator *get_sub_query_top_oper() const
+  {
+    return sub_top_oper_;
+  }
+
+  RC open_sub_query() const;
+  RC close_sub_query() const;
+
+  RC create_expression(const std::unordered_map<std::string, Table *> &table_map,
+      const std::vector<Table *> &tables, CompOp comp = NO_OP, Db *db = nullptr);
+
 private:
-  SubQueryType type_;
-  SelectStmt *sub_stmt_;
-//  Operator *sub_top_oper_;
+  const SelectSqlNode *select_sql_node_;
+  ProjectPhysicalOperator *sub_top_oper_ = nullptr;
+  Db *db_ = nullptr;
 };

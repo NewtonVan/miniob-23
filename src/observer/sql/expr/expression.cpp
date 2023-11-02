@@ -19,6 +19,10 @@ See the Mulan PSL v2 for more details. */
 #include "common/time/datetime.h"
 #include "sql/expr/tuple.h"
 #include "sql/parser/value.h"
+#include "sql/stmt/select_stmt.h"
+#include "sql/operator/project_physical_operator.h"
+#include "storage/trx/trx.h"
+#include "common/global_context.h"
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -184,6 +188,28 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
 {
   Value left_value;
   Value right_value;
+
+  if(comp_ == EXISTS_OP || comp_ == NOT_EXISTS) {
+    assert(ExprType::SUBQUERYTYPE == right_->type());
+    auto sub_query_expr = (const SubQueryExpression *)(right_.get());
+    sub_query_expr->open_sub_query();
+    RC tmp_rc = sub_query_expr->get_value(tuple, right_value);
+    sub_query_expr->close_sub_query();
+    bool res = CompOp::EXISTS_OP == comp_ ? (RC::SUCCESS == tmp_rc) : (RC::RECORD_EOF == tmp_rc);
+    value.set_boolean(res);
+    return RC::SUCCESS;
+  }
+
+  if(comp_ == IN_OP || comp_ == NOT_IN) {
+    RC rc = left_->get_value(tuple, left_cell);
+    if (RC::SUCCESS != rc) {
+      return rc;
+    }
+    if (left_cell.is_null()) {
+      res = false;  // null don't in/not in any list
+      return RC::SUCCESS;
+    }
+  }
 
   RC rc = left_->get_value(tuple, left_value);
 
@@ -487,4 +513,50 @@ RC FuncExpr::try_get_value(Value &value) const
   }
 
   return eval_func(args_values, value);
+}
+
+
+
+RC SubQueryExpression::open_sub_query() const
+{
+  assert(nullptr != sub_top_oper_);
+  return sub_top_oper_->open(GCTX.trx_kit_->create_trx(db_->clog_manager()));
+}
+
+RC SubQueryExpression::close_sub_query() const
+{
+  assert(nullptr != sub_top_oper_);
+  return sub_top_oper_->close();
+}
+
+RC SubQueryExpression::get_value(const Tuple &tuple, Value &value) const
+{
+  assert(nullptr != sub_top_oper_);
+  sub_top_oper_->set_parent_tuple(&tuple);  // set parent tuple
+  RC rc = sub_top_oper_->next();
+  if (RC::RECORD_EOF == rc) {
+    value.set_null();
+  }
+  if (RC::SUCCESS != rc) {
+    return rc;
+  }
+  Tuple *child_tuple = sub_top_oper_->current_tuple();
+  if (nullptr == child_tuple) {
+    LOG_WARN("failed to get current record. rc=%s", strrc(rc));
+    return RC::INTERNAL;
+  }
+  rc = child_tuple->cell_at(0, value);  // only need the first cell
+  return rc;
+}
+
+RC SubQueryExpression::create_expression(const std::unordered_map<std::string, Table *> &table_map,
+    const std::vector<Table *> &tables, CompOp comp, Db *db) {
+  Stmt *stmt = nullptr;
+  RC rc = SelectStmt::create(db, *select_sql_node_, stmt);
+  if (RC::SUCCESS != rc) {
+    LOG_ERROR("SubQueryExpression Create SelectStmt Failed. RC = %d:%s", rc, strrc(rc));
+    return rc;
+  }
+
+  db_ = db;
 }

@@ -115,11 +115,13 @@ extern int yydebug;
     LE = 321,
     GE = 322,
     NE = 323,
-    NUMBER = 324,
-    FLOAT = 325,
-    ID = 326,
-    SSS = 327,
-    UMINUS = 328
+    IN = 324,
+    EXISTS = 325,
+    NUMBER = 326,
+    FLOAT = 327,
+    ID = 328,
+    SSS = 329,
+    UMINUS = 330
   };
 #endif
 
@@ -127,7 +129,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 125 "yacc_sql.y"
+#line 127 "yacc_sql.y"
 
   ParsedSqlNode *                             sql_node;
   ComparisonExpr *                            condition;
@@ -159,7 +161,7 @@ union YYSTYPE
   enum AggFuncType                  agg_func;
   std::vector<AggregationFuncSqlNode> * agg_func_call_list;
 
-#line 163 "yacc_sql.hpp"
+#line 165 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

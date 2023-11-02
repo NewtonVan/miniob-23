@@ -154,7 +154,6 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   AggregationFuncSqlNode *          agg_func_call;
   enum AggFuncType                  agg_func;
   std::vector<AggregationFuncSqlNode> * agg_func_call_list;
-  std::vector<Expression *> *       sub_query;
 }
 
 %token <number> NUMBER
@@ -196,6 +195,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <func_args>           round_args
 %type <func_args>           date_format_args
 %type <expression>          func_expr
+%type <expression>          sub_query_expr
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
@@ -648,25 +648,27 @@ select_stmt:        /*  select 语句的语法解析树*/
     }
     ;
 
-sub_query:
+sub_query_expr:
     LBRACE SELECT select_attr FROM single_table rel_list where RBRACE
     {
-      $$ = new ParsedSqlNode(SCF_SELECT);
+      SelectSqlNode* select_sql_node = new SelectSqlNode();
       if ($3 != nullptr) {
-        $$->selection.select_expressions.swap(*$3);
+        select_sql_node->select_expressions.swap(*$3);
         delete $3;
       }
       if ($6 != nullptr) {
-        $$->selection.relations.swap(*$6);
+        select_sql_node->relations.swap(*$6);
         delete $6;
       }
-      $$->selection.relations.push_back(std::move(*$5));
-      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
+      select_sql_node->relations.push_back(std::move(*$5));
+      std::reverse(select_sql_node->relations.begin(), select_sql_node->relations.end());
 
       if ($6 != nullptr) {
-        $$->selection.conditions.swap(*$7);
+        select_sql_node->conditions.swap(*$7);
         delete $7;
       }
+
+      $$ = new SubQueryExpression(select_sql_node);
       free($5);
     }
 
@@ -881,11 +883,11 @@ expression:
       $$ = $1;
       $$->set_name($3);
     }
-    | sub_query {
+    | sub_query_expr {
       $$ = $1;
       $$->set_name(token_name(sql_string, &@$));
     }
-    | sub_query AS ID {
+    | sub_query_expr AS ID {
       $$ = $1;
       $$->set_name($3);
     }
@@ -1085,21 +1087,10 @@ condition:
       std::unique_ptr<Expression> right($3);
       $$ = new ComparisonExpr($2, std::move(left), std::move(right));
     }
-    | expression IN expression
+    | comp_op expression
     {
-
-    }
-    | expression NOI IN expression
-    {
-
-    }
-    | EXISTS expression
-    {
-
-    }
-    | NOT EXISTS expression
-    {
-
+      std::unique_ptr<Expression> right($2);
+      $$ = new ComparisonExpr($1, nullptr, std::move(right));
     }
     ;
 
@@ -1112,6 +1103,10 @@ comp_op:
     | NE { $$ = NOT_EQUAL; }
     | LIKE { $$ = LIKES; }
     | NOT_LIKE { $$ = NOT_LIKES; }
+    | IN { $$ = IN_OP; }
+    | NOT IN { $$ = NOT_IN; }
+    | EXISTS { $$ = EXISTS_OP; }
+    | NOT EXISTS { $$ = NOT_EXISTS; }
     ;
 
 load_data_stmt:
