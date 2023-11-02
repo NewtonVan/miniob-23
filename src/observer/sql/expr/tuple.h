@@ -149,6 +149,7 @@ public:
       return RC::INVALID_ARGUMENT;
     }
 
+    cell.set_type((*values_)[index].attr_type());
     cell.set_data((*values_)[index].data(), (*values_)[index].length());
     return RC::SUCCESS;
   }
@@ -165,12 +166,11 @@ public:
           return cell_at(i, cell);
         }
       }
-      return RC::NOTFOUND;
     }
 
     for (int i = 0; i < speces_.size(); ++i) {
       if (0 == strcmp(spec.table_name(), speces_[i]->table_name()) &&
-          0 == strcmp(spec.field_name(), spec.field_name())) {
+          0 == strcmp(spec.field_name(), speces_[i]->field_name())) {
         return cell_at(i, cell);
       }
     }
@@ -259,7 +259,9 @@ public:
     std::vector<TupleCellSpec *> speces(speces_size);
 
     for (int i = 0; i < speces_size; ++i) {
-      speces[i] = new TupleCellSpec(table_->name(), speces_[i]->field_name(), speces_[i]->field_alias());
+      bool null_alias = nullptr == speces_[i]->field_alias() || strlen(speces_[i]->field_alias()) == 0;
+      speces[i] =
+          new TupleCellSpec(table_->name(), speces_[i]->field_name(), null_alias ? nullptr : speces_[i]->field_alias());
     }
 
     return speces;

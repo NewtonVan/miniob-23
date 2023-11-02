@@ -244,30 +244,34 @@ RC StageLoopJoinPhysicalOperator::inner_next()
     if (rc == RC::SUCCESS) {
       left_tuple_ = left_->current_tuple();
       joined_tuple_.set_left(left_tuple_);
-      right_next();
+      rc = right_next();
+      if (rc == RC::RECORD_EOF) {
+        LOG_INFO("right table meet eof");
+      }
     } else if (rc == RC::RECORD_EOF) {
       LOG_INFO("left table meet eof");
     } else {
       LOG_ERROR("left table meet err: %s", strrc(rc));
     }
+
     return rc;
   }
 
-  ++right_table_iter_;
+  rc = right_next();
+  if (rc == RC::RECORD_EOF) {
+    LOG_INFO("right table meet eof");
+  }
+
   return rc;
 }
 
 RC StageLoopJoinPhysicalOperator::fetch_right_table()
 {
-  RC     rc         = RC::SUCCESS;
-  Tuple *cur_tuple  = nullptr;
-  bool   set_schema = false;
+  RC     rc        = RC::SUCCESS;
+  Tuple *cur_tuple = nullptr;
+  right_tuple_     = new CacheTuple(right_->current_tuple()->get_row_schema());
   while (RC::SUCCESS == (rc = right_->next())) {
-    cur_tuple = right_->current_tuple();
-    if (!set_schema) {
-      set_schema   = true;
-      right_tuple_ = new CacheTuple(cur_tuple->get_row_schema());
-    }
+    cur_tuple                   = right_->current_tuple();
     int const          cell_num = cur_tuple->cell_num();
     std::vector<Value> data(cur_tuple->cell_num());
     for (int i = 0; i < cell_num; ++i) {
@@ -295,6 +299,7 @@ RC StageLoopJoinPhysicalOperator::close()
   RC rc = left_->close();
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to close left oper. rc=%s", strrc(rc));
+    return rc;
   }
 
   return rc;
@@ -304,14 +309,16 @@ Tuple *StageLoopJoinPhysicalOperator::current_tuple() { return &joined_tuple_; }
 
 RC StageLoopJoinPhysicalOperator::right_next()
 {
+  if (right_tuple_cache_.empty()) {
+    return RC::RECORD_EOF;
+  }
   if (right_table_iter_ == right_tuple_cache_.end()) {
     right_table_iter_ = right_tuple_cache_.begin();
-  } else {
-    ++right_table_iter_;
   }
 
   right_tuple_->set_record(&(*right_table_iter_));
   joined_tuple_.set_right(right_tuple_);
+  ++right_table_iter_;
 
   return RC::SUCCESS;
 }
