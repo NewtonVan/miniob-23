@@ -189,6 +189,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   Value left_value;
   Value right_value;
 
+  // 当是比较符号是EXISTS或NOT_EXISTS字段时，只需要返回是否存在
   if(comp_ == EXISTS_OP || comp_ == NOT_EXISTS) {
     assert(ExprType::SUBQUERYTYPE == right_->type());
     auto sub_query_expr = (const SubQueryExpression *)(right_.get());
@@ -200,18 +201,97 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     return RC::SUCCESS;
   }
 
+  // 当是IN 或 NOT IN时，需要获取子查询的所有tuple的value，然后查看left_value是否存在
   if(comp_ == IN_OP || comp_ == NOT_IN) {
-    RC rc = left_->get_value(tuple, left_cell);
+    RC rc = left_->get_value(tuple, left_value);
     if (RC::SUCCESS != rc) {
       return rc;
     }
-    if (left_cell.is_null()) {
-      res = false;  // null don't in/not in any list
+    if (left_value.is_null()) {
+     // 目前默认 null 不在任何value list中
+      value.set_boolean(false);
       return RC::SUCCESS;
+    }
+    std::vector<Value> right_cells;
+    right_cells.emplace_back(Value());
+    RC tmp_rc = RC::SUCCESS;
+    if (ExprType::SUBQUERYTYPE == right_->type()) {
+      auto sub_query_expr = (const SubQueryExpression *)(right_.get());
+      sub_query_expr->open_sub_query();
+      while (RC::SUCCESS == (tmp_rc = sub_query_expr->get_value(tuple, right_cells.back()))) {
+        right_cells.emplace_back(Value());
+      }
+      sub_query_expr->close_sub_query();
+      if (RC::RECORD_EOF != tmp_rc) {
+        LOG_ERROR("[NOT] IN Get SubQuery Value Failed. RC = %d:%s", tmp_rc, strrc(tmp_rc));
+        return tmp_rc;
+      }
+      // 因为在SubQueryExpression中record_eof时，value为空，所以需要弹出
+      right_cells.pop_back();
+    }
+
+    auto has_null = [](const std::vector<Value> &values) {
+      for (auto &value : values) {
+        if (value.is_null()) {
+          return true;
+        }
+      }
+      return false;
+    };
+    bool res = CompOp::IN_OP == comp_ ? left_value.in_cells(right_cells)
+                                : (has_null(right_cells) ? false : left_value.not_in_cells(right_cells));
+    value.set_boolean(res);
+    return RC::SUCCESS;
+  }
+
+  auto get_cell_for_sub_query = [](const SubQueryExpression *expr, const Tuple &tuple, Value &cell) {
+    expr->open_sub_query();
+    RC rc = expr->get_value(tuple, cell);
+    if (RC::RECORD_EOF == rc) {
+      // e.g. a = select a  -> a = null
+      cell.set_null();
+    } else if (RC::SUCCESS == rc) {
+      Value tmp_cell;
+      if (RC::SUCCESS == (rc = expr->get_value(tuple, tmp_cell))) {
+        // e.g. a = select a  -> a = (1, 2, 3)
+        // std::cout << "Should not have rows more than 1" << std::endl;
+        expr->close_sub_query();
+        return RC::INTERNAL;
+      }
+    } else {
+      expr->close_sub_query();
+      return rc;
+    }
+    expr->close_sub_query();
+    return RC::SUCCESS;
+  };
+
+  RC rc = RC::SUCCESS;
+  if (ExprType::SUBQUERYTYPE == left_->type()) {
+    if (RC::SUCCESS != (rc = get_cell_for_sub_query((const SubQueryExpression *)(left_.get()), tuple, left_value))) {
+      LOG_ERROR("Predicate get left cell for sub_query failed. RC = %d:%s", rc, strrc(rc));
+      return rc;
+    }
+  } else {
+    if (RC::SUCCESS != (rc = left_->get_value(tuple, left_value))) {
+      LOG_ERROR("Predicate get left cell failed. RC = %d:%s", rc, strrc(rc));
+      return rc;
     }
   }
 
-  RC rc = left_->get_value(tuple, left_value);
+  if (ExprType::SUBQUERYTYPE == right_->type()) {
+    if (RC::SUCCESS != (rc = get_cell_for_sub_query((const SubQueryExpression *)(right_.get()), tuple, right_value))) {
+      LOG_ERROR("Predicate get right cell for sub_query failed. RC = %d:%s", rc, strrc(rc));
+      return rc;
+    }
+  } else {
+    if (RC::SUCCESS != (rc = right_->get_value(tuple, right_value))) {
+      LOG_ERROR("Predicate get right cell failed. RC = %d:%s", rc, strrc(rc));
+      return rc;
+    }
+  }
+
+  rc = left_->get_value(tuple, left_value);
 
   if (rc == RC::INTERNAL_DIV_ZERO) {
     value.set_boolean(false);
@@ -534,6 +614,7 @@ RC SubQueryExpression::get_value(const Tuple &tuple, Value &value) const
   assert(nullptr != sub_top_oper_);
   sub_top_oper_->set_parent_tuple(&tuple);  // set parent tuple
   RC rc = sub_top_oper_->next();
+  // TODO: hyq note
   if (RC::RECORD_EOF == rc) {
     value.set_null();
   }

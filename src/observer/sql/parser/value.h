@@ -109,6 +109,8 @@ public:
       return fabs(get_float()) <= EPSILON;
     case BOOLEANS:
       return get_boolean();
+    case NULLS:
+      return true;
     default:
       LOG_WARN("unknown value type");
       return 0;
@@ -153,6 +155,39 @@ public:
   bool operator>(const Value &other) const { return 0 < compare(other); }
 
   bool operator>=(const Value &other) const { return 0 <= compare(other); }
+
+  // consider null: null is euqal to null
+  bool equal_to(const Value &other) const
+  {
+    if (is_null()) {
+    return other.is_null();
+    }
+    if (other.is_null()) {
+    return false;
+    }
+    return 0 == compare(other);
+  }
+
+  bool in_cells(const std::vector<Value> &cells) const
+  {
+    for (auto &cell : cells) {
+      if (equal_to(cell)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // return false if is_null and null in cells
+  bool not_in_cells(const std::vector<Value> &cells) const
+  {
+    for (auto &cell : cells) {
+    if (equal_to(cell)) {
+      return false;
+    }
+    }
+    return true;
+  }
 
 public:
   /**
