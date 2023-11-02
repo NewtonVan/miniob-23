@@ -242,9 +242,9 @@ RC Table::insert_record(Record &record)
 }
 RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<int> &offsets, std::vector<int> &lens)
 {
-  if (!insert_valid_for_unique_indexes(record.data())) {
-    return RC::RECORD_DUPLICATE_KEY;
-  }
+  // if (!insert_valid_for_unique_indexes(record.data())) {
+  //   return RC::RECORD_DUPLICATE_KEY;
+  // }
 
   RC     rc = RC::SUCCESS;
   Record origin_record(record);
