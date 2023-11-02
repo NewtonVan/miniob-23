@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by Meiyi & Wangyunlai on 2021/5/13.
 //
 
+#include <cstdlib>
 #include <limits.h>
 #include <string.h>
 #include <algorithm>
@@ -244,17 +245,17 @@ RC Table::insert_record(Record &record)
 
 RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<int> &offsets, std::vector<int> &lens)
 {
-  // char *new_record = new char(record.len());
-  // std::strcpy(new_record, record.data());
-  // for (int i = 0; i < values.size(); i++) {
-  //   std::memcpy(new_record + offsets[i], values[i].data(), lens[i]);
-  // }
+  char *new_record = (char *)malloc(record.len());
+  std::strcpy(new_record, record.data());
+  for (int i = 0; i < values.size(); i++) {
+    std::memcpy(new_record + offsets[i], values[i].data(), lens[i]);
+  }
 
-  // if (!update_valid_for_unique_indexes(new_record)) {
-  //   delete[] new_record;
-  //   return RC::RECORD_DUPLICATE_KEY;
-  // }
-  // delete[] new_record;
+  if (!update_valid_for_unique_indexes(new_record)) {
+    free(new_record);
+    return RC::RECORD_DUPLICATE_KEY;
+  }
+  free(new_record);
 
   RC     rc = RC::SUCCESS;
   Record origin_record(record);
@@ -605,17 +606,22 @@ bool hasCommonStringInRows(const std::vector<std::vector<std::string>> &rids)
 
   std::unordered_set<std::string> commonStrings(rids[0].begin(), rids[0].end());
 
-  for (size_t i = 1; i < rids.size(); ++i) {
-    std::unordered_set<std::string> currentRowStrings(rids[i].begin(), rids[i].end());
-
-    for (const std::string &str : commonStrings) {
+  for (auto &str : commonStrings) {
+    bool common = true;
+    for (size_t i = 1; i < rids.size(); ++i) {
+      std::unordered_set<std::string> currentRowStrings(rids[i].begin(), rids[i].end());
       if (currentRowStrings.find(str) == currentRowStrings.end()) {
-        return false;
+        common = false;
+        break;
       }
+    }
+
+    if (common) {
+      return true;
     }
   }
 
-  return true;
+  return false;
 }
 
 bool Table::update_valid_for_unique_indexes(const char *record)
