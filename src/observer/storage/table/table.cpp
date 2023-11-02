@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include <limits.h>
 #include <string.h>
 #include <algorithm>
+#include <cstring>
 
 #include "common/defs.h"
 #include "storage/table/table.h"
@@ -214,7 +215,7 @@ RC Table::open(const char *meta_file, const char *base_dir)
 
 RC Table::insert_record(Record &record)
 {
-  if (!insert_valid_for_unique_indexes(record.data())) {
+  if (!insert_valid_for_unique_indexes(record)) {
     return RC::RECORD_DUPLICATE_KEY;
   }
 
@@ -240,11 +241,20 @@ RC Table::insert_record(Record &record)
   }
   return rc;
 }
+
 RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<int> &offsets, std::vector<int> &lens)
 {
-  if (!insert_valid_for_unique_indexes(record.data())) {
+  char* new_record = new char(record.len());
+  std::strcpy(new_record, record.data());
+  for(int i = 0; i < values.size(); i++) {
+    std::memcpy(new_record + offsets[i], values[i].data(), lens[i]);
+  }
+
+  if (!update_valid_for_unique_indexes(new_record)) {
+    delete[] new_record;
     return RC::RECORD_DUPLICATE_KEY;
   }
+  delete[] new_record;
 
   RC     rc = RC::SUCCESS;
   Record origin_record(record);
@@ -471,8 +481,8 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
       return rc;
     }
     if (unique) {
-      RID g_rid;
-      if (index->get_entry(record.data(), &g_rid) == RC::SUCCESS) {
+      std::list<RID> g_rids;
+      if (index->get_entry(record.data(), g_rids) == RC::SUCCESS) {
         return RC::RECORD_DUPLICATE_KEY;
       }
     }
@@ -556,14 +566,14 @@ RC Table::insert_entry_of_indexes(const char *record, const RID &rid)
   return rc;
 }
 
-bool Table::insert_valid_for_unique_indexes(const char *record)
+bool Table::insert_valid_for_unique_indexes(Record &record)
 {
   if (mutil_) {
     int num = 0;
     for (Index *index : indexes_) {
       if (index->index_meta().unique()) {
-        RID g_rid;
-        if (index->get_entry(record, &g_rid) == RC::SUCCESS) {
+        std::list<RID> g_rids;
+        if (index->get_entry(record.data(), g_rids) == RC::SUCCESS) {
           num++;
         }
       }
@@ -576,8 +586,64 @@ bool Table::insert_valid_for_unique_indexes(const char *record)
   } else {
     for (Index *index : indexes_) {
       if (index->index_meta().unique()) {
-        RID g_rid;
-        if (index->get_entry(record, &g_rid) == RC::SUCCESS) {
+        std::list<RID> g_rids;
+        if (index->get_entry(record.data(), g_rids) == RC::SUCCESS) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+bool hasCommonStringInRows(const std::vector<std::vector<std::string>>& rids) {
+  if (rids.empty()) {
+    return false;
+  }
+
+  std::unordered_set<std::string> commonStrings(rids[0].begin(), rids[0].end());
+
+  for (size_t i = 1; i < rids.size(); ++i) {
+    std::unordered_set<std::string> currentRowStrings(rids[i].begin(), rids[i].end());
+
+    for (const std::string& str : commonStrings) {
+      if (currentRowStrings.find(str) == currentRowStrings.end()) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+bool Table::update_valid_for_unique_indexes(const char *record)
+{
+  if (mutil_) {
+    std::vector<std::vector<std::string>> rids;
+    for (Index *index : indexes_) {
+      if (index->index_meta().unique()) {
+        std::list<RID> g_rids;
+        if (index->get_entry(record, g_rids) == RC::SUCCESS) {
+          std::vector<std::string> tmp;
+          for (const RID& rid : g_rids) {
+            tmp.push_back(rid.to_string());
+          }
+            rids.push_back(tmp);
+        }
+      }
+    }
+    if(rids.size() == indexes_.size()) {
+      if(!hasCommonStringInRows(rids)) {
+        return true;
+      }
+      return false;
+    }
+  } else {
+    for (Index *index : indexes_) {
+      if (index->index_meta().unique()) {
+        std::list<RID> g_rids;
+        if (index->get_entry(record, g_rids) == RC::SUCCESS) {
           return false;
         }
       }

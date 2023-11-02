@@ -97,8 +97,12 @@ public:
 
 private:
   RC   insert_entry_of_indexes(const char *record, const RID &rid);
-  bool insert_valid_for_unique_indexes(const char *record);
+
   RC   delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists);
+
+  bool insert_valid_for_unique_indexes(Record &record);
+
+  bool update_valid_for_unique_indexes(const char *record);
 
 private:
   RC init_record_handler(const char *base_dir);
