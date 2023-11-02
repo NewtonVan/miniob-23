@@ -31,10 +31,10 @@ private:
 private:
   Table* table_ = nullptr;
   OrderByStmt *orderby_stmt_ = nullptr;
-  std::vector<TupleCellSpec*> specs_;
+  std::vector<TupleCellSpec> specs_;
 
   bool is_first_ = true;
-  std::vector<SortTuple*> tuples_;
+  std::vector<SortTuple> tuples_;
   std::vector<int> ordered_idx_;
   int it_;
 };

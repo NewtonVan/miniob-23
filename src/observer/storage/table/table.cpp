@@ -242,6 +242,10 @@ RC Table::insert_record(Record &record)
 }
 RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<int> &offsets, std::vector<int> &lens)
 {
+  if (!insert_valid_for_unique_indexes(record.data())) {
+    return RC::RECORD_DUPLICATE_KEY;
+  }
+
   RC     rc = RC::SUCCESS;
   Record origin_record(record);
   rc = record_handler_->update_record(record, values, offsets, lens);
@@ -364,6 +368,11 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
       }
     }
     memcpy(record_data + field->offset(), value.data(), copy_len);
+
+    if (field->type() == TEXTS) {
+      Value *mutableValues = const_cast<Value *>(&value);
+      mutableValues->clearTextValue();
+    }
   }
 
   // 将null_mask数据存储起来，注意这里是
