@@ -72,24 +72,7 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
     case StmtType::SELECT: {
       SelectStmt *select_stmt     = static_cast<SelectStmt *>(stmt);
       bool        with_table_name = select_stmt->tables().size() > 1;
-
-      //WIP(lyq) construct agg schema
-      if(select_stmt->is_agg()) {
-        // use alias
-        for(const auto& agg_field : select_stmt->all_agg_fields()) {
-          string alias;
-          alias += SelectStmt::agg_field::name(agg_field.func_);
-          alias += "(";
-          if(agg_field.field_is_star) {
-            alias += "*";
-          } else {
-            alias += agg_field.field_.field_name();
-          }
-          alias += ")";
-          std::transform(alias.begin(), alias.end(), alias.begin(), ::toupper);
-          schema.append_cell(alias.c_str());
-        }
-      } else if (select_stmt->use_project_exprs()) {
+      if (select_stmt->use_project_exprs()) {
         ProjectPhysicalOperator *proj_oper = static_cast<ProjectPhysicalOperator *>(physical_operator.get());
         for (const std::unique_ptr<Expression> &expr : proj_oper->expressions()) {
           if (expr->type() == ExprType::FIELD) {

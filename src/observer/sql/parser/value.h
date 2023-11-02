@@ -79,21 +79,6 @@ public:
   void set_value(const Value &value);
 
   bool is_null() const {
-    // switch (attr_type_) {
-    // case CHARS:
-    //   return get_string().empty();
-    // case INTS:
-    //   return get_int() == 0;
-    // case DATES:
-    //   return get_date() == 0;
-    // case FLOATS:
-    //   return fabs(get_float()) <= EPSILON;
-    // case BOOLEANS:
-    //   return get_boolean();
-    // default:
-    //   LOG_WARN("unknown value type");
-    //   return 0;
-    // }
     return attr_type() == AttrType::NULLS;
     
   }

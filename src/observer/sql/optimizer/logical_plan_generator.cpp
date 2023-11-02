@@ -30,6 +30,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/agg_func_logical_operator.h"
 
 #include "sql/operator/update_logical_operator.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/stmt/join_stmt.h"
 #include "sql/stmt/single_table_stmt.h"
 #include "sql/stmt/stmt.h"
@@ -163,7 +164,10 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
   const std::vector<Table *> &tables     = select_stmt->tables();
   const std::vector<Field>   &query_fields = select_stmt->query_fields();
-  const std::vector<SelectStmt::agg_field> all_agg_fields = select_stmt->all_agg_fields();
+  const std::vector<AggType>& all_agg_types = select_stmt->agg_types();
+  const std::vector<Field>& all_agg_fields = select_stmt->all_agg_fields();
+  const std::vector<Field>& all_group_by_fields = select_stmt->non_agg_field();
+  const std::vector<std::string> all_agg_expr_name = select_stmt->all_agg_expr_name();
 
   if (select_stmt->join_stmt() != nullptr) {
     RC rc = RC::SUCCESS;
@@ -215,34 +219,31 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
 
   // WIP(lyq) agg logicalOperator comes in
+
+  std::unique_ptr<LogicalOperator> agg_oper;
   if(select_stmt->is_agg()) {
-    unique_ptr<LogicalOperator> agg_oper(new AggLogicalOperator(all_agg_fields));
-    if(predicate_oper) {
-      if(table_oper) {
-        predicate_oper->add_child(std::move(table_oper));
-      }
-      agg_oper->add_child(std::move(predicate_oper));
-    } else {
-      if(table_oper) {
-        agg_oper->add_child(std::move(table_oper));
-      }
-    }
-
-    logical_operator.swap(agg_oper);
-
-    return RC::SUCCESS;
+    AggLogicalOperator* agg_oper_ptr = new AggLogicalOperator(all_agg_types, all_agg_fields, all_group_by_fields, all_agg_expr_name);
+    unique_ptr<LogicalOperator> agg_opers (agg_oper_ptr);
+    agg_oper.swap(agg_opers);
   }
 
 
   unique_ptr<LogicalOperator> project_oper;
   if (select_stmt->use_project_exprs()) {
-    unique_ptr<LogicalOperator> proj_exprs(
-        new ProjectLogicalOperator(query_fields, std::move(select_stmt->project_exprs())));
+    // agg select must use project exprs
+    // query_field is useless, if projectOper use expression to query underlyging tuple
+    ProjectLogicalOperator* project_oper_ptr = new ProjectLogicalOperator(query_fields, std::move(select_stmt->project_exprs()));
+    project_oper_ptr->toggle_use_project_exprs();
+    
+    unique_ptr<LogicalOperator> proj_exprs(project_oper_ptr);
     project_oper.swap(proj_exprs);
+    
+
   } else {
     unique_ptr<LogicalOperator> proj_fields(new ProjectLogicalOperator(query_fields));
     project_oper.swap(proj_fields);
   }
+
   if (predicate_oper) {
     if (table_oper) {
       if (select_stmt->join_stmt() != nullptr || select_stmt->tables().size() > 1) {
@@ -262,6 +263,11 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
         sort_oper->add_child(std::move(predicate_oper));
         predicate_oper = std::move(sort_oper);
       }
+
+      if(agg_oper) {
+        agg_oper->add_child(std::move(predicate_oper));
+        predicate_oper = std::move(agg_oper);
+      }
     }
 
     project_oper->add_child(std::move(predicate_oper));
@@ -274,12 +280,14 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
         table_oper = std::move(sort_oper);
       }
 
+      if(agg_oper) {
+        agg_oper->add_child(std::move(table_oper));
+        table_oper = std::move(agg_oper);
+      }
+
       project_oper->add_child(std::move(table_oper));
     }
   }
-
-
-
 
   logical_operator.swap(project_oper);
   return RC::SUCCESS;

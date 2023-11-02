@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include "common/log/log.h"
 #include "sql/expr/tuple.h"
 #include "sql/expr/tuple_cell.h"
 #include "sql/operator/physical_operator.h"
@@ -30,7 +31,7 @@ See the Mulan PSL v2 for more details. */
 class AggPhysicalOperator : public PhysicalOperator
 {
 public:
-  AggPhysicalOperator(std::vector<AggType>& agg_types, std::vector<TupleCellSpec> specs): sht_(agg_types), agg_types_(agg_types), specs_(specs) {};
+  AggPhysicalOperator(std::vector<AggType>& agg_types, std::vector<TupleCellSpec>& specs, std::vector<TupleCellSpec>& group_by_spec ): sht_(agg_types), agg_types_(agg_types), specs_(specs), group_by_specs_(group_by_spec) {};
 
   virtual ~AggPhysicalOperator() = default;
 
@@ -42,6 +43,12 @@ public:
     return PhysicalOperatorType::AGG;
   }
 
+
+  std::vector<std::unique_ptr<Expression>>& expressions() {
+    return exprs_;
+  }
+  
+
   RC open(Trx *trx) override; // open child 
   RC next() override; // construct a AggregationValue, insert into sht_
   RC close() override;
@@ -51,15 +58,19 @@ public:
 private:
    /** @return The tuple as an AggregateKey */
   auto MakeAggregateKey(const Tuple *tuple) -> AggregationKey {
-    // std::vector<Value> keys;
-    // for (const auto &expr : plan_->GetGroupBys()) {
-    //   keys.emplace_back(expr->Evaluate(tuple, child_executor_->GetOutputSchema()));
-    // }
-    
-    // todo(lyq, no groub by, use fix AggregationKey)
     std::vector<Value> vals;
-    vals.push_back(Value(static_cast<int>(1)));
-    
+    if(group_by_specs_.empty()) {
+      vals.push_back(Value(static_cast<int>(1)));
+    } else {
+      for(const auto& spec : group_by_specs_) {
+        Value val;
+        auto rc = tuple->find_cell(spec, val);
+        if(rc != RC::SUCCESS) {
+          LOG_ERROR("group by cell does not exist");
+        }
+        vals.push_back(val);
+      }
+    }
     return {vals};
   }
 
@@ -88,8 +99,10 @@ private:
 
 
   SimpleHashTable sht_;
+  std::vector<std::unique_ptr<Expression>> exprs_;
   std::vector<AggType> agg_types_;
   std::vector<TupleCellSpec> specs_;
+  std::vector<TupleCellSpec> group_by_specs_;
   std::unique_ptr<SimpleHashTable::Iterator>iter_;
   AggTuple tuple_;
 
