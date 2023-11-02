@@ -350,7 +350,7 @@ RC PhysicalPlanGenerator::create_plan(UpdateLogicalOperator &update_oper, unique
     }
   }
   oper = unique_ptr<PhysicalOperator>(
-      new UpdatePhysicalOperator(update_oper.table(), update_oper.value(), update_oper.field_name()));
+      new UpdatePhysicalOperator(update_oper.table(), update_oper.values(), update_oper.field_names()));
 
   if (child_physical_oper) {
     oper->add_child(std::move(child_physical_oper));
@@ -417,7 +417,7 @@ RC PhysicalPlanGenerator::create_plan(JoinLogicalOperator &join_oper, unique_ptr
   ASSERT(expressions.size() == 1, "predicate logical operator's children should be 1");
 
   unique_ptr<Expression>       join_condition = expressions.empty() ? nullptr : std::move(expressions.front());
-  unique_ptr<PhysicalOperator> join_physical_oper(new NestedLoopJoinPhysicalOperator(std::move(join_condition)));
+  unique_ptr<PhysicalOperator> join_physical_oper(new StageLoopJoinPhysicalOperator(std::move(join_condition)));
   for (auto &child_oper : child_opers) {
     unique_ptr<PhysicalOperator> child_physical_oper;
     rc = create(*child_oper, child_physical_oper);

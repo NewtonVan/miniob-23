@@ -19,14 +19,15 @@ See the Mulan PSL v2 for more details. */
 #include "storage/field/field_meta.h"
 #include "storage/table/table_meta.h"
 #include <string>
+#include <vector>
 
-UpdateStmt::UpdateStmt(
-    Table *table, Value *values, int value_amount, FilterStmt *filter_stmt, const std::string &attribute_name)
+UpdateStmt::UpdateStmt(Table *table, std::vector<Value> &values, int value_amount, FilterStmt *filter_stmt,
+    std::vector<std::string> &attribute_name)
     : table_(table),
       values_(values),
       value_amount_(value_amount),
       filter_stmt_(filter_stmt),
-      attribute_name_(attribute_name)
+      attribute_names_(attribute_name)
 {}
 
 UpdateStmt::~UpdateStmt()
@@ -52,40 +53,49 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
 
-  // check whether field match
-  const TableMeta &table_meta = table->table_meta();
-  const FieldMeta *field_meta = table_meta.field(update.attribute_name.c_str());
-  if (nullptr == field_meta) {
-    LOG_WARN("no such field. table_name=%s, field=%s", table_name, update.attribute_name.c_str());
-    return RC::SCHEMA_FIELD_NOT_EXIST;
-  }
-
-  const AttrType field_type = field_meta->type();
-  const AttrType value_type = update.value.attr_type();
-  Value* mutableValue = const_cast<Value *>(&update.value);
-  if (field_type != value_type) {
-    if(field_type == AttrType::DATES && value_type == AttrType::CHARS) {
-      int64_t date;
-      bool valid = serialize_date(&date, mutableValue->data());
-      if (!valid) {
-        return RC::INVALID_ARGUMENT;
-      } else {
-        mutableValue->set_type(AttrType::DATES);
-        mutableValue->set_date(date);
-      }
-    } else if(field_type == AttrType::TEXTS && value_type == AttrType::CHARS) {
-      mutableValue->set_text(mutableValue->data());
-      if(strlen(mutableValue->get_text()) > 65535) {
-        return RC::INVALID_ARGUMENT;
-      }
-    }else {
-      // TODO try to convert the value type to field type
-      LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
-            table_name, field_meta->name(), field_type, value_type);
-      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+  const int                update_fields_cnt = update.update_units.size();
+  std::vector<std::string> attributes;
+  std::vector<Value>       values;
+  for (int i = 0; i < update_fields_cnt; ++i) {
+    // check whether field match
+    const TableMeta &table_meta = table->table_meta();
+    const FieldMeta *field_meta = table_meta.field(update.update_units[i].attribute_name.c_str());
+    if (nullptr == field_meta) {
+      LOG_WARN("no such field. table_name=%s, field=%s", table_name, update.update_units[i].attribute_name.c_str());
+      return RC::SCHEMA_FIELD_NOT_EXIST;
     }
-  }
 
+    // convert data type if needed
+    const AttrType field_type   = field_meta->type();
+    const AttrType value_type   = update.update_units[i].value.attr_type();
+    Value         *mutableValue = const_cast<Value *>(&update.update_units[i].value);
+    if (field_type != value_type) {
+      if (field_type == AttrType::DATES && value_type == AttrType::CHARS) {
+        int64_t date;
+        bool    valid = serialize_date(&date, mutableValue->data());
+        if (!valid) {
+          return RC::INVALID_ARGUMENT;
+        } else {
+          mutableValue->set_type(AttrType::DATES);
+          mutableValue->set_date(date);
+        }
+      } else if (field_type == AttrType::TEXTS && value_type == AttrType::CHARS) {
+        mutableValue->set_text(mutableValue->data());
+        if (strlen(mutableValue->get_text()) > 65535) {
+          return RC::INVALID_ARGUMENT;
+        }
+      } else {
+        // TODO try to convert the value type to field type
+        LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+            table_name, field_meta->name(), field_type, value_type);
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
+    }
+
+    // collect values
+    attributes.push_back(update.update_units[i].attribute_name);
+    values.push_back(*mutableValue);
+  }
   // build filter_stmt
   std::unordered_map<std::string, Table *> table_map;
   table_map.insert(std::pair<std::string, Table *>(std::string(table_name), table));
@@ -98,7 +108,6 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     return rc;
   }
 
-  Value value = update.value;
-  stmt        = new UpdateStmt(table, &value, 1, filter_stmt, update.attribute_name);
+  stmt = new UpdateStmt(table, values, update_fields_cnt, filter_stmt, attributes);
   return RC::SUCCESS;
 }

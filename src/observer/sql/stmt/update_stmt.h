@@ -15,8 +15,11 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include "common/rc.h"
+#include "sql/parser/value.h"
 #include "sql/stmt/filter_stmt.h"
 #include "sql/stmt/stmt.h"
+#include <string>
+#include <vector>
 
 class Table;
 
@@ -27,7 +30,8 @@ class Table;
 class UpdateStmt : public Stmt
 {
 public:
-  UpdateStmt(Table *table, Value *values, int value_amount, FilterStmt *filter_stmt, const std::string &attribute_name);
+  UpdateStmt(Table *table, std::vector<Value> &values, int value_amount, FilterStmt *filter_stmt,
+      std::vector<std::string> &attribute_name);
   ~UpdateStmt() override;
 
   StmtType type() const override { return StmtType::UPDATE; }
@@ -36,16 +40,16 @@ public:
   static RC create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt);
 
 public:
-  Table             *table() const { return table_; }
-  Value             *values() const { return values_; }
-  int                value_amount() const { return value_amount_; }
-  FilterStmt        *filter_stmt() const { return filter_stmt_; }
-  const std::string &attribute_name() const { return attribute_name_; }
+  Table                          *table() const { return table_; }
+  std::vector<Value>              values() const { return values_; }
+  int                             value_amount() const { return value_amount_; }
+  FilterStmt                     *filter_stmt() const { return filter_stmt_; }
+  const std::vector<std::string> &attribute_names() const { return attribute_names_; }
 
 private:
-  Table      *table_        = nullptr;
-  Value      *values_       = nullptr;
-  int         value_amount_ = 0;
-  FilterStmt *filter_stmt_  = nullptr;
-  std::string attribute_name_;
+  Table                   *table_ = nullptr;
+  std::vector<Value>       values_;
+  int                      value_amount_ = 0;
+  FilterStmt              *filter_stmt_  = nullptr;
+  std::vector<std::string> attribute_names_;
 };

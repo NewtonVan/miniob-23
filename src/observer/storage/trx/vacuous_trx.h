@@ -42,7 +42,8 @@ public:
   virtual ~VacuousTrx() = default;
 
   RC insert_record(Table *table, Record &record) override;
-  RC update_record(Table *table, Record &record, Value &value, int offset, int len) override;
+  RC update_record(Table *table, Record &record, std::vector<Value> &values, std::vector<int> offset,
+      std::vector<int> lens) override;
   RC delete_record(Table *table, Record &record) override;
   RC visit_record(Table *table, Record &record, bool readonly) override;
   RC start_if_need() override;

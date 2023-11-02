@@ -242,10 +242,14 @@ void Value::set_float(float val)
 
 void Value::set_text(const char *s)
 {
-  attr_type_ = TEXTS;
-  strncpy(text_value_, s, 65537);
-  text_value_[65537] = '\0';  // 确保字符数组以 null 终止
-  length_            = 65538;
+    attr_type_ = TEXTS;
+    if (!text_value_) {
+    // 分配内存，根据需要分配 MAX_TEXT_SIZE 大小的内存
+      text_value_ = new char[MAX_TEXT_SIZE];
+    }
+    strncpy(text_value_, s, MAX_TEXT_SIZE-1);
+    text_value_[MAX_TEXT_SIZE-1] = '\0'; // 确保字符数组以 null 终止
+    length_ = MAX_TEXT_SIZE;
 }
 
 void Value::set_boolean(bool val)
@@ -303,7 +307,11 @@ const char *Value::data() const
       return str_value_.c_str();
     } break;
     case TEXTS: {
-      return text_value_;
+      if (text_value_) {
+        return text_value_;
+      } else {
+        return nullptr;
+      }
     } break;
     default: {
       return (const char *)&num_value_;

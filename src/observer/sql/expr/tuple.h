@@ -78,6 +78,7 @@ enum TupleType {
   JOIN,
   SORT,
   AGG,
+  CACHE,
 };
 
 /**
@@ -134,6 +135,69 @@ public:
     return str;
   }
   virtual TupleType type() const = 0; 
+  virtual std::vector<TupleCellSpec *> get_row_schema() const { return std::vector<TupleCellSpec *>(); }
+};
+
+class CacheTuple : public Tuple
+{
+public:
+  CacheTuple(const std::vector<TupleCellSpec *> &speces) : speces_(speces) {}
+  virtual ~CacheTuple()
+  {
+    // for (TupleCellSpec *spec : speces_) {
+    //   delete spec;
+    // }
+    // speces_.clear();
+  }
+
+  void set_record(std::vector<Value> *values) { this->values_ = values; }
+
+  void set_schema(std::vector<TupleCellSpec *> &speces) { speces_ = speces; }
+
+  int cell_num() const override { return speces_.size(); }
+
+  RC cell_at(int index, Value &cell) const override
+  {
+    if (index < 0 || index >= static_cast<int>(speces_.size())) {
+      LOG_WARN("invalid argument. index=%d", index);
+      return RC::INVALID_ARGUMENT;
+    }
+
+    cell.set_type((*values_)[index].attr_type());
+    cell.set_data((*values_)[index].data(), (*values_)[index].length());
+    return RC::SUCCESS;
+  }
+
+  RC find_cell(const TupleCellSpec &spec, Value &cell) const override
+  {
+    if (speces_.empty()) {
+      LOG_WARN("invalid argument. empty schema");
+      return RC::INTERNAL;
+    }
+    if (spec.alias() != nullptr) {
+      for (size_t i = 0; i < speces_.size(); ++i) {
+        if (speces_[i]->alias() != nullptr && 0 == strcmp(spec.alias(), speces_[i]->alias())) {
+          return cell_at(i, cell);
+        }
+      }
+    }
+
+    for (int i = 0; i < speces_.size(); ++i) {
+      if (0 == strcmp(spec.table_name(), speces_[i]->table_name()) &&
+          0 == strcmp(spec.field_name(), speces_[i]->field_name())) {
+        return cell_at(i, cell);
+      }
+    }
+    return RC::NOTFOUND;
+  }
+
+  std::vector<TupleCellSpec *> get_row_schema() const override { return speces_; }
+
+  TupleType type() const override { return TupleType::CACHE; }
+
+private:
+  std::vector<Value>          *values_;
+  std::vector<TupleCellSpec *> speces_;
 };
 
 /**
@@ -173,11 +237,10 @@ public:
       return RC::INVALID_ARGUMENT;
     }
 
-    FieldExpr       *field_expr = speces_[index];
-    const FieldMeta *field_meta = field_expr->field().meta();
-    int null_mask_field_offset = table_->table_meta().null_mask_field()->offset();
-    int null_mask =
-        *(int *)(this->record_->data() + null_mask_field_offset) & 0x00FFFFFFFF;
+    FieldExpr       *field_expr             = speces_[index];
+    const FieldMeta *field_meta             = field_expr->field().meta();
+    int              null_mask_field_offset = table_->table_meta().null_mask_field()->offset();
+    int              null_mask              = *(int *)(this->record_->data() + null_mask_field_offset) & 0x00FFFFFFFF;
     // 判断这个字段是否为空
     if (null_mask >> index & 1) {
       cell.set_type(NULLS);
@@ -207,6 +270,20 @@ public:
   }
   TupleType type() const override {
     return TupleType::ROW;
+  }
+
+  std::vector<TupleCellSpec *> get_row_schema() const override
+  {
+    const int                    speces_size = speces_.size();
+    std::vector<TupleCellSpec *> speces(speces_size);
+
+    for (int i = 0; i < speces_size; ++i) {
+      bool null_alias = nullptr == speces_[i]->field_alias() || strlen(speces_[i]->field_alias()) == 0;
+      speces[i] =
+          new TupleCellSpec(table_->name(), speces_[i]->field_name(), null_alias ? nullptr : speces_[i]->field_alias());
+    }
+
+    return speces;
   }
 
 #if 0
@@ -392,7 +469,7 @@ public:
   RC cell_at(int index, Value &value) const override
   {
     const int left_cell_num = left_->cell_num();
-    if (index > 0 && index < left_cell_num) { // >= 0 ?
+    if (index > 0 && index < left_cell_num) {  // >= 0 ?
       return left_->cell_at(index, value);
     }
 
@@ -416,28 +493,46 @@ public:
   TupleType type() const override {
     return TupleType::JOIN;
   }
+  std::vector<TupleCellSpec *> get_row_schema() const override
+  {
+    std::vector<TupleCellSpec *> speces;
+    if (left_ != nullptr) {
+      std::vector<TupleCellSpec *> left_schema(left_->get_row_schema());
+      speces.insert(speces.end(), left_schema.begin(), left_schema.end());
+    }
+    if (right_ != nullptr) {
+      std::vector<TupleCellSpec *> right_schema(right_->get_row_schema());
+      speces.insert(speces.end(), right_schema.begin(), right_schema.end());
+    }
+
+    return speces;
+  }
+
 private:
   Tuple *left_  = nullptr;
   Tuple *right_ = nullptr;
 };
 
-
-class SortTuple : public Tuple {
+class SortTuple : public Tuple
+{
 public:
-  void set_tuple(std::vector<Value>& values, std::vector<TupleCellSpec *> specs) {
-    values_ = values;
-    specs_ = specs;
+  SortTuple() = default;
+  //  SortTuple(const SortTuple&) = delete;
+  SortTuple(SortTuple &&) = default;  // 默认生成移动构造函数
+
+  void set_tuple(std::vector<Value> &values, std::vector<TupleCellSpec> *specs)
+  {
+    values_ = std::move(values);  // 使用移动语义避免不必要的拷贝
+    specs_  = specs;              // 使用移动语义避免不必要的拷贝
   }
+
   virtual ~SortTuple() = default;
 
-  int cell_num() const override
-  {
-    return values_.size();
-  }
+  int cell_num() const override { return values_.size(); }
 
   RC cell_at(int index, Value &value) const override
   {
-    const int left_cell_num =cell_num();
+    const int left_cell_num = cell_num();
     if (index > 0 && index < cell_num()) {
       value = values_[index];
       return RC::SUCCESS;
@@ -447,10 +542,10 @@ public:
 
   RC find_cell(const TupleCellSpec &spec, Value &value) const override
   {
-    for (size_t i = 0; i < specs_.size(); ++i) {
-      if (0 == strcmp(spec.table_name(), specs_[i]->table_name())
-          && 0 == strcmp(spec.field_name() , specs_[i]->field_name())
-          && 0 == strcmp(spec.alias() , specs_[i]->alias()) ) {
+    for (size_t i = 0; i < specs_->size(); ++i) {
+      if (0 == strcmp(spec.table_name(), specs_->at(i).table_name()) &&
+          0 == strcmp(spec.field_name(), specs_->at(i).field_name()) &&
+          0 == strcmp(spec.alias(), specs_->at(i).alias())) {
         return cell_at(i, value);
       }
     }
@@ -461,25 +556,23 @@ public:
   }
 
 private:
-  std::vector<TupleCellSpec *>  specs_;
-  std::vector<Value> values_;
+  std::vector<TupleCellSpec> *specs_;
+  std::vector<Value>          values_;
 };
 
-
-
-
-
-  /** AggregateKey represents a key in an aggregation operation */
-struct AggregationKey {
+/** AggregateKey represents a key in an aggregation operation */
+struct AggregationKey
+{
   /** The group-by values */
   std::vector<Value> group_bys_;
 
   /**
-  * Compares two aggregate keys for equality.
-  * @param other the other aggregate key to be compared with
-  * @return `true` if both aggregate keys have equivalent group-by expressions, `false` otherwise
-  */
-  auto operator==(const AggregationKey &other) const -> bool {
+   * Compares two aggregate keys for equality.
+   * @param other the other aggregate key to be compared with
+   * @return `true` if both aggregate keys have equivalent group-by expressions, `false` otherwise
+   */
+  auto operator==(const AggregationKey &other) const -> bool
+  {
     for (uint32_t i = 0; i < other.group_bys_.size(); i++) {
       if (group_bys_[i].compare(other.group_bys_[i]) != 0) {
         return false;
@@ -489,14 +582,14 @@ struct AggregationKey {
   }
 };
 
-
-
 namespace std {
 
 /** Implements std::hash on AggregateKey */
 template <>
-struct hash<AggregationKey> {
-  auto operator()(const AggregationKey &agg_key) const -> std::size_t {
+struct hash<AggregationKey>
+{
+  auto operator()(const AggregationKey &agg_key) const -> std::size_t
+  {
     size_t curr_hash = 0;
     for (const auto &key : agg_key.group_bys_) {
       if (!key.is_null()) {
@@ -509,15 +602,11 @@ struct hash<AggregationKey> {
 
 }  // namespace std
 
-
-
-struct AggregationValue {
-  std::vector<Value> aggregates;
+struct AggregationValue
+{
+  std::vector<Value>  aggregates;
   std::vector<size_t> not_null_count_;
 };
-
-
-
 
 class AggTuple : public Tuple {
   public:
@@ -536,7 +625,7 @@ class AggTuple : public Tuple {
   {
     // const int left_cell_num =cell_num();
     if (index >= 0 && index < cell_num()) {
-      value =  tuple_[index];
+      value = tuple_[index];
       return RC::SUCCESS;
     }
 
@@ -593,27 +682,19 @@ class AggTuple : public Tuple {
     std::vector<TupleCellSpec> groub_by_specs_;
 };
 
-
-
-
-
-
-
 // agg hash table
 class SimpleHashTable
 {
-  public:
-    SimpleHashTable(std::vector<AggType>& agg_types): agg_types_(agg_types) {};
-    ~ SimpleHashTable() = default;
+public:
+  SimpleHashTable(std::vector<AggType> &agg_types) : agg_types_(agg_types){};
+  ~SimpleHashTable() = default;
 
-    int size() const  {
-      return agg_types_.size();
-    }
+  int size() const { return agg_types_.size(); }
 
-
-  AggregationValue gen_base_aggregates() {
+  AggregationValue gen_base_aggregates()
+  {
     AggregationValue agg_value;
-    for(int i =0; i < agg_types_.size(); i++) {
+    for (int i = 0; i < agg_types_.size(); i++) {
       switch (agg_types_[i]) {
       case COUNT_STAR:
         agg_value.aggregates.push_back(Value::get_null(AttrType::INTS));
@@ -644,34 +725,27 @@ class SimpleHashTable
   void CombineAggregateValues(AggregationValue *result, const AggregationValue &input) {
     for (uint32_t i = 0; i < agg_types_.size(); i++) {
       Value &agg_val = result->aggregates[i];
-      if(!input.aggregates[i].is_null()) {
+      if (!input.aggregates[i].is_null()) {
         result->not_null_count_[i]++;
       }
       switch (agg_types_[i]) {
-        case AggType::COUNT_STAR:
-          agg_val.set_int(agg_val.get_int() + 1);
-          break;
+        case AggType::COUNT_STAR: agg_val.set_int(agg_val.get_int() + 1); break;
         case AggType::COUNT_AGG:
           if (!input.aggregates[i].is_null()) {
             agg_val.set_int(agg_val.get_int() + 1);
           }
           break;
         case AggType::SUM_AGG:
-        case AggType::AVG_AGG: // calc avg when agg executor down
+        case AggType::AVG_AGG:  // calc avg when agg executor down
           if (!input.aggregates[i].is_null()) {
             if (agg_val.is_null()) {
               agg_val = input.aggregates[i];
             } else {
               ASSERT(agg_val.attr_type() == input.aggregates[i].attr_type(), "sum agg on different type");
               switch (agg_val.attr_type()) {
-              case AttrType::INTS:
-                agg_val.set_int(agg_val.get_int() + input.aggregates[i].get_int());
-                break;
-              case AttrType::FLOATS:
-                agg_val.set_float(agg_val.get_float() + input.aggregates[i].get_float());
-                break;
-              default:
-                LOG_ERROR("sum on type%d and type%d", agg_val.attr_type(), input.aggregates[i].attr_type());
+                case AttrType::INTS: agg_val.set_int(agg_val.get_int() + input.aggregates[i].get_int()); break;
+                case AttrType::FLOATS: agg_val.set_float(agg_val.get_float() + input.aggregates[i].get_float()); break;
+                default: LOG_ERROR("sum on type%d and type%d", agg_val.attr_type(), input.aggregates[i].attr_type());
               }
             }
           }
@@ -683,29 +757,28 @@ class SimpleHashTable
             } else {
               ASSERT(agg_val.attr_type() == input.aggregates[i].attr_type(), "sum agg on different type");
               switch (agg_val.attr_type()) {
-              case AttrType::INTS:
-                if(agg_val.get_int() < input.aggregates[i].get_int()) {
-                  agg_val = input.aggregates[i];
-                }
-                break;
-              case AttrType::FLOATS:
-                if(agg_val.get_float() < input.aggregates[i].get_float()) {
-                  agg_val = input.aggregates[i];
-                }
-                break;
-              case AttrType::DATES:
-                if(agg_val.get_date() < input.aggregates[i].get_float()) {
-                  agg_val = input.aggregates[i];
-                }
-                break;
-              case AttrType::CHARS: // fix agg min/max on char is legal
-                if(agg_val.get_string() < input.aggregates[i].get_string()) {
-                  agg_val = input.aggregates[i];
-                }
-                break;
+                case AttrType::INTS:
+                  if (agg_val.get_int() < input.aggregates[i].get_int()) {
+                    agg_val = input.aggregates[i];
+                  }
+                  break;
+                case AttrType::FLOATS:
+                  if (agg_val.get_float() < input.aggregates[i].get_float()) {
+                    agg_val = input.aggregates[i];
+                  }
+                  break;
+                case AttrType::DATES:
+                  if (agg_val.get_date() < input.aggregates[i].get_float()) {
+                    agg_val = input.aggregates[i];
+                  }
+                  break;
+                case AttrType::CHARS:  // fix agg min/max on char is legal
+                  if (agg_val.get_string() < input.aggregates[i].get_string()) {
+                    agg_val = input.aggregates[i];
+                  }
+                  break;
 
-              default:
-                LOG_ERROR("agg max on type%d", agg_val.attr_type());
+                default: LOG_ERROR("agg max on type%d", agg_val.attr_type());
               }
             }
           }
@@ -717,29 +790,28 @@ class SimpleHashTable
             } else {
               ASSERT(agg_val.attr_type() == input.aggregates[i].attr_type(), "sum agg on different type");
               switch (agg_val.attr_type()) {
-              case AttrType::INTS:
-                if(agg_val.get_int() > input.aggregates[i].get_int()) {
-                  agg_val = input.aggregates[i];
-                }
-                break;
-              case AttrType::FLOATS:
-                if(agg_val.get_float() > input.aggregates[i].get_float()) {
-                  agg_val = input.aggregates[i];
-                }
-                break;
-              case AttrType::DATES:
-                if(agg_val.get_date() > input.aggregates[i].get_date()) {
-                  agg_val = input.aggregates[i];
-                }
-                break;
+                case AttrType::INTS:
+                  if (agg_val.get_int() > input.aggregates[i].get_int()) {
+                    agg_val = input.aggregates[i];
+                  }
+                  break;
+                case AttrType::FLOATS:
+                  if (agg_val.get_float() > input.aggregates[i].get_float()) {
+                    agg_val = input.aggregates[i];
+                  }
+                  break;
+                case AttrType::DATES:
+                  if (agg_val.get_date() > input.aggregates[i].get_date()) {
+                    agg_val = input.aggregates[i];
+                  }
+                  break;
 
-              case AttrType::CHARS: // fix agg min/max on char is legal
-                if(agg_val.get_string() > input.aggregates[i].get_string()) {
-                  agg_val = input.aggregates[i];
-                }
-                break;
-              default:
-                LOG_ERROR("agg min on type%d", agg_val.attr_type());
+                case AttrType::CHARS:  // fix agg min/max on char is legal
+                  if (agg_val.get_string() > input.aggregates[i].get_string()) {
+                    agg_val = input.aggregates[i];
+                  }
+                  break;
+                default: LOG_ERROR("agg min on type%d", agg_val.attr_type());
               }
             }
           }
@@ -753,7 +825,8 @@ class SimpleHashTable
    * @param agg_key the key to be inserted
    * @param agg_val the value to be inserted
    */
-  void InsertCombine(const AggregationKey &agg_key, const AggregationValue &agg_val) {
+  void InsertCombine(const AggregationKey &agg_key, const AggregationValue &agg_val)
+  {
     if (ht_.count(agg_key) == 0) {
       ht_.insert({agg_key, gen_base_aggregates()});
     }
@@ -765,11 +838,10 @@ class SimpleHashTable
    */
   void Clear() { ht_.clear(); }
 
-
-
   /** An iterator over the aggregation hash table */
-  class Iterator {
-   public:
+  class Iterator
+  {
+  public:
     /** Creates an iterator for the aggregate map. */
     explicit Iterator(std::unordered_map<AggregationKey, AggregationValue>::iterator iter) : iter_{iter} {}
 
@@ -779,10 +851,11 @@ class SimpleHashTable
     /** @return The value of the iterator */
     auto Val() const -> const AggregationValue & { return iter_->second; }
 
-    auto Val() -> AggregationValue& {return iter_->second; }
+    auto Val() -> AggregationValue & { return iter_->second; }
 
     /** @return The iterator before it is incremented */
-    auto operator++() -> Iterator & {
+    auto operator++() -> Iterator &
+    {
       ++iter_;
       return *this;
     }
@@ -793,28 +866,24 @@ class SimpleHashTable
     /** @return `true` if both iterators are different */
     auto operator!=(const Iterator &other) -> bool { return this->iter_ != other.iter_; }
 
-   private:
+  private:
     /** Aggregates map */
     std::unordered_map<AggregationKey, AggregationValue>::iterator iter_;
   };
 
-    /** @return Iterator to the start of the hash table */
+  /** @return Iterator to the start of the hash table */
   auto Begin() -> Iterator { return Iterator{ht_.begin()}; }
 
   /** @return Iterator to the end of the hash table */
   auto End() -> Iterator { return Iterator{ht_.end()}; }
 
+private:
+  //
+  // funcs[i] exec on cell_specs[i]
+  std::vector<AggType> agg_types_;
 
-  private:
-    //
-    // funcs[i] exec on cell_specs[i]
-    std::vector<AggType> agg_types_;
-
-    // todo(lyq)
-    // without group_by, we only need one AggregationValue
-    // we suppose the key for it is fix number "1"
-    std::unordered_map<AggregationKey, AggregationValue> ht_;
-
+  // todo(lyq)
+  // without group_by, we only need one AggregationValue
+  // we suppose the key for it is fix number "1"
+  std::unordered_map<AggregationKey, AggregationValue> ht_;
 };
-
-

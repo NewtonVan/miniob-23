@@ -150,6 +150,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<std::string> *        field_list;
   AggField*                         field;
   enum AggFuncType                  agg_func;
+  std::vector<AggregationFuncSqlNode> * agg_func_call_list;
+  UpdateUnit *                                update_unit;
+  std::vector<UpdateUnit> *                   update_unit_list;
 }
 
 %token <number> NUMBER
@@ -214,6 +217,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <sql_node>            command_wrapper
 // commands should be a list but I use a single command instead
 %type <sql_node>            commands
+%type <update_unit>         update_unit
+%type <update_unit_list>    update_list
 
 %left '+' '-'
 %left '*' '/'
@@ -431,7 +436,7 @@ attr_def:
     ;
 
 nullable:
-    { $$ = false; }
+    { $$ = true; }
     | NULL_T { $$ = true; }
     | NOT NULL_T { $$ = false; }
     ;
@@ -526,20 +531,44 @@ delete_stmt:    /*  delete 语句的语法解析树*/
     }
     ;
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value where 
+    UPDATE ID SET update_list where 
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.attribute_name = $4;
-      $$->update.value = *$6;
-      if ($7 != nullptr) {
-        $$->update.conditions.swap(*$7);
-        delete $7;
+      $$->update.update_units.swap(*$4);
+      if ($5 != nullptr) {
+        $$->update.conditions.swap(*$5);
+        delete $5;
       }
       free($2);
-      free($4);
     }
     ;
+
+update_list:
+    update_unit
+    {
+      $$ = new std::vector<UpdateUnit>;
+      $$->emplace_back(std::move(*$1));
+    }
+    | update_list COMMA update_unit
+    {
+      if ($1 == nullptr) {
+        $$ = new std::vector<UpdateUnit>;
+      } else {
+        $$ = $1;
+      }
+
+      $$->emplace_back(std::move(*$3));
+    }
+    ;
+
+update_unit:
+    ID EQ value
+    {
+      $$ = new UpdateUnit($1, $3);
+    }
+    ;
+
 select_stmt:        /*  select 语句的语法解析树*/
     SELECT select_attr FROM single_table rel_list where
     {

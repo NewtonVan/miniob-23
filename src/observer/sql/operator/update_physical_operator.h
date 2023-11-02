@@ -1,8 +1,10 @@
 #pragma once
 
+#include <string>
 #include <vector>
 #include "sql/operator/physical_operator.h"
 #include "sql/parser/parse.h"
+#include "sql/parser/value.h"
 
 class InsertStmt;
 
@@ -13,7 +15,7 @@ class InsertStmt;
 class UpdatePhysicalOperator : public PhysicalOperator
 {
 public:
-  UpdatePhysicalOperator(Table *table, Value &value, const std::string field_name);
+  UpdatePhysicalOperator(Table *table, std::vector<Value> &values, std::vector<std::string> &field_names);
 
   virtual ~UpdatePhysicalOperator() = default;
 
@@ -26,8 +28,8 @@ public:
   Tuple *current_tuple() override { return nullptr; }
 
 private:
-  Table      *table_ = nullptr;
-  Value       value_;
-  std::string field_name_;
-  Trx        *trx_ = nullptr;
+  Table                   *table_ = nullptr;
+  std::vector<Value>       values_;
+  std::vector<std::string> field_names_;
+  Trx                     *trx_ = nullptr;
 };

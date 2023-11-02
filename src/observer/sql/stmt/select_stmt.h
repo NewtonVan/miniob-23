@@ -75,7 +75,8 @@ public:
         case AggFuncType::MIN_FUNC: return {"MIN"}; break;
         case AggFuncType::AVG_FUNC: return {"AVG"}; break;
       }
-    };
+      return "unknown func type";
+    }
   };
   bool                          is_agg() { return is_agg_; }
   const std::vector<std::string> all_agg_expr_name() const { return all_agg_expr_name_; }

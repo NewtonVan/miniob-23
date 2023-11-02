@@ -11,3 +11,18 @@ INSERT INTO unique_table VALUES (1,2,1);
 
 -- echo 2. select
 -- sort SELECT * FROM unique_table;
+
+// 新增数据，本地测试时要去掉
+UPDATE unique_table SET id=3 where id=1;
+
+CREATE TABLE unique_table2(id1 int, id2 int, col1 int);
+CREATE UNIQUE INDEX index_id on unique_table2(id1, id2);
+
+INSERT INTO unique_table2 VALUES (1,4,1);
+INSERT INTO unique_table2 VALUES (2,2,3);
+INSERT INTO unique_table2 VALUES (3,3,1);
+SELECT * FROM unique_table2;
+UPDATE unique_table2 SET id1=1,id2=4 where id2=2;
+SELECT * FROM unique_table2;
+UPDATE unique_table2 SET id1=1,id2=3 where id2=4;
+SELECT * FROM unique_table2;

@@ -210,13 +210,12 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
   std::vector<Field> all_fields;
   for (auto &table : tables) {
     const std::vector<FieldMeta> *field_metas = table->table_meta().field_metas();
-    const Table *table_ptr = table; // 指向当前表的指针
+    const Table                  *table_ptr   = table;  // 指向当前表的指针
     for (const FieldMeta &field_meta : *field_metas) {
       all_fields.emplace_back(table_ptr, &field_meta);
     }
   }
   unique_ptr<SortLogicalOperator> sort_oper(new SortLogicalOperator(all_fields, select_stmt->orderby_stmt()));
-
 
   // WIP(lyq) agg logicalOperator comes in
 
@@ -226,7 +225,6 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     unique_ptr<LogicalOperator> agg_opers (agg_oper_ptr);
     agg_oper.swap(agg_opers);
   }
-
 
   unique_ptr<LogicalOperator> project_oper;
   if (select_stmt->use_project_exprs()) {
@@ -259,7 +257,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
       predicate_oper->add_child(std::move(table_oper));
 
       // TODO : 优化算子添加逻辑
-      if(select_stmt->orderby_stmt() != nullptr) {
+      if (select_stmt->orderby_stmt() != nullptr) {
         sort_oper->add_child(std::move(predicate_oper));
         predicate_oper = std::move(sort_oper);
       }
@@ -275,7 +273,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     if (table_oper) {
 
       // TODO : 优化算子添加逻辑
-      if(select_stmt->orderby_stmt() != nullptr) {
+      if (select_stmt->orderby_stmt() != nullptr) {
         sort_oper->add_child(std::move(table_oper));
         table_oper = std::move(sort_oper);
       }
@@ -368,7 +366,7 @@ RC LogicalPlanGenerator::create_plan(UpdateStmt *update_stmt, std::unique_ptr<Lo
 
   // 2. update
   unique_ptr<LogicalOperator> update_op(
-      new UpdateLogicalOperator(table, *update_stmt->values(), update_stmt->attribute_name()));
+      new UpdateLogicalOperator(table, update_stmt->values(), update_stmt->attribute_names()));
 
   if (filter_op) {
     filter_op->add_child(std::move(scan_op));
