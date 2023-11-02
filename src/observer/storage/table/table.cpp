@@ -244,17 +244,17 @@ RC Table::insert_record(Record &record)
 
 RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<int> &offsets, std::vector<int> &lens)
 {
-  char *new_record = new char(record.len());
-  std::strcpy(new_record, record.data());
-  for (int i = 0; i < values.size(); i++) {
-    std::memcpy(new_record + offsets[i], values[i].data(), lens[i]);
-  }
+  // char *new_record = new char(record.len());
+  // std::strcpy(new_record, record.data());
+  // for (int i = 0; i < values.size(); i++) {
+  //   std::memcpy(new_record + offsets[i], values[i].data(), lens[i]);
+  // }
 
-  if (!update_valid_for_unique_indexes(new_record)) {
-    delete[] new_record;
-    return RC::RECORD_DUPLICATE_KEY;
-  }
-  delete[] new_record;
+  // if (!update_valid_for_unique_indexes(new_record)) {
+  //   delete[] new_record;
+  //   return RC::RECORD_DUPLICATE_KEY;
+  // }
+  // delete[] new_record;
 
   RC     rc = RC::SUCCESS;
   Record origin_record(record);
