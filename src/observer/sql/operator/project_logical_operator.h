@@ -41,6 +41,7 @@ public:
   const std::vector<std::unique_ptr<Expression>> &expressions() const { return expressions_; }
   const std::vector<Field>                       &fields() const { return fields_; }
   bool                                            use_project_exprs() const { return use_project_exprs_; }
+  void                                            toggle_use_project_exprs() { use_project_exprs_ = true; }
 
 private:
   //! 投影映射的字段名称

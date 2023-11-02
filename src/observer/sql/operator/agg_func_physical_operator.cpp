@@ -49,9 +49,14 @@ RC AggPhysicalOperator::next() {
 
     // handle avg in sht_;
     for(size_t i = 0; i < agg_types_.size(); i++) {
+      // fix avg on null field
         if(agg_types_[i] == AggType::AVG_AGG) {
             for(auto iter = sht_.Begin(); iter.operator!=(sht_.End()); ++iter) {
                 Value& val = iter.Val().aggregates[i];
+                if(val.is_null()) {
+                  continue;
+                }
+
                 size_t count = iter.Val().not_null_count_[i];
                 switch (val.attr_type()) {
                 case INTS:
@@ -84,16 +89,20 @@ RC AggPhysicalOperator::next() {
   }
 
   std::vector<Value> values;
-    // todo(lyq) no group by
+
   // make output schema values
-//   for (auto &val : iter_->Key().group_bys_) {
-//     values.push_back(val);
-//   }
   for (auto &val : iter_->Val().aggregates) {
     values.push_back(val);
   }
 
-  tuple_.set_tuple(values , specs_);
+  // close group by for now
+  if(!group_by_specs_.empty()) {
+    for (auto &val : iter_->Key().group_bys_) {
+      values.push_back(val);
+    }
+  }
+
+  tuple_.set_tuple(values , specs_, group_by_specs_);
   iter_->operator++();
 
   return RC::SUCCESS;
