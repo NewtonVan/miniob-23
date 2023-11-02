@@ -242,6 +242,10 @@ RC Table::insert_record(Record &record)
 }
 RC Table::update_record(Record &record, Value &value, int offset, int len)
 {
+  if (!insert_valid_for_unique_indexes(record.data())) {
+    return RC::RECORD_DUPLICATE_KEY;
+  }
+
   RC     rc = RC::SUCCESS;
   Record origin_record(record);
   rc = record_handler_->update_record(record, value, offset, len);
