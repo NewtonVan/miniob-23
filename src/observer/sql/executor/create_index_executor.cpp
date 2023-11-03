@@ -18,34 +18,39 @@ See the Mulan PSL v2 for more details. */
 #include "event/session_event.h"
 #include "session/session.h"
 #include "common/log/log.h"
+#include "storage/field/field_meta.h"
 #include "storage/table/table.h"
+#include <vector>
 
 RC CreateIndexExecutor::execute(SQLStageEvent *sql_event)
 {
-  Stmt *stmt = sql_event->stmt();
+  Stmt    *stmt    = sql_event->stmt();
   Session *session = sql_event->session_event()->session();
-  ASSERT(stmt->type() == StmtType::CREATE_INDEX, 
-         "create index executor can not run this command: %d", static_cast<int>(stmt->type()));
+  ASSERT(stmt->type() == StmtType::CREATE_INDEX,
+      "create index executor can not run this command: %d",
+      static_cast<int>(stmt->type()));
 
   CreateIndexStmt *create_index_stmt = static_cast<CreateIndexStmt *>(stmt);
-  
-  Trx *trx = session->current_trx();
-  Table *table = create_index_stmt->table();
-  auto rc = RC::SUCCESS;
-  int mutil = create_index_stmt->field_metas().size();
-  std::vector<FieldMeta> filed_metas;
-  for(int i = 0; i < create_index_stmt->field_metas().size(); i++) {
-    auto tmp = create_index_stmt->field_metas()[i];
+
+  Trx                   *trx   = session->current_trx();
+  Table                 *table = create_index_stmt->table();
+  auto                   rc    = RC::SUCCESS;
+  int                    mutil = create_index_stmt->field_metas().size();
+  std::vector<FieldMeta> field_metas;
+  for (int i = 0; i < create_index_stmt->field_metas().size(); i++) {
+    auto      tmp = create_index_stmt->field_metas()[i];
     FieldMeta file_meta(tmp->name(), tmp->type(), tmp->offset(), tmp->len(), tmp->visible(), tmp->nullable());
-    filed_metas.emplace_back(file_meta);
+    field_metas.emplace_back(file_meta);
   }
-  for(int i = 0; i < filed_metas.size(); i++) {
-    const auto file_meta = filed_metas[i];
-    const auto index_name = create_index_stmt->index_name() + "_" + file_meta.name();
-    rc = table->create_index(trx, &file_meta, index_name.c_str(), create_index_stmt->unique(), mutil);
-    if(rc != RC::SUCCESS) {
-      return rc;
-    }
+  std::vector<std::string> index_names(field_metas.size());
+  std::vector<FieldMeta *> fields(field_metas.size());
+  for (int i = 0; i < field_metas.size(); i++) {
+    fields[i]      = &field_metas[i];
+    index_names[i] = create_index_stmt->index_name() + "_" + field_metas[i].name();
+  }
+  rc = table->create_index(trx, fields, index_names, create_index_stmt->unique());
+  if (rc != RC::SUCCESS) {
+    return rc;
   }
   return rc;
 }

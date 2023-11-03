@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include <stddef.h>
+#include <string>
 #include <vector>
 #include <limits>
 #include <sstream>
@@ -43,6 +44,13 @@ struct RID
   {
     std::stringstream ss;
     ss << "PageNum:" << page_num << ", SlotNum:" << slot_num;
+    return ss.str();
+  }
+
+  const std::string to_id() const
+  {
+    std::stringstream ss;
+    ss << page_num << "-" << slot_num;
     return ss.str();
   }
 
@@ -158,6 +166,6 @@ private:
   RID rid_;
 
   char *data_  = nullptr;
-  int   len_   = 0;       /// 如果不是record自己来管理内存，这个字段可能是无效的
-  bool  owner_ = false;   /// 表示当前是否由record来管理内存
+  int   len_   = 0;      /// 如果不是record自己来管理内存，这个字段可能是无效的
+  bool  owner_ = false;  /// 表示当前是否由record来管理内存
 };

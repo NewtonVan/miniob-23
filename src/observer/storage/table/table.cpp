@@ -17,8 +17,10 @@ See the Mulan PSL v2 for more details. */
 #include <string.h>
 #include <algorithm>
 #include <cstring>
+#include <vector>
 
 #include "common/defs.h"
+#include "common/rc.h"
 #include "storage/table/table.h"
 #include "storage/table/table_meta.h"
 #include "common/log/log.h"
@@ -428,7 +430,7 @@ RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly
   return rc;
 }
 
-RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name, bool unique, bool multi)
+RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name, bool unique, Index *&out_index)
 {
   if (common::is_blank(index_name) || nullptr == field_meta) {
     LOG_INFO("Invalid input arguments, table name is %s, index_name is blank or attribute_name is blank", name());
@@ -439,11 +441,6 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
   //      table_meta_.find_index_by_field((field_meta->name())) || !multi) {
   //      return RC::SCHEMA_INDEX_NAME_REPEAT;
   //  }
-
-  if (multi) {
-    mutil_ = true;
-    //    return RC::SUCCESS;
-  }
 
   IndexMeta new_index_meta;
   RC        rc = new_index_meta.init(index_name, *field_meta, unique);
@@ -498,6 +495,7 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
   LOG_INFO("inserted all records into new index. table=%s, index=%s", name(), index_name);
 
   indexes_.push_back(index);
+  out_index = index;
 
   /// 接下来将这个索引放到表的元数据中
   TableMeta new_table_meta(table_meta_);
@@ -539,6 +537,28 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
   return rc;
 }
 
+RC Table::create_index(
+    Trx *trx, std::vector<FieldMeta *> field_metas, std::vector<std::string> index_names, bool unique)
+{
+  RC                   rc       = RC::SUCCESS;
+  const int            idx_size = field_metas.size();
+  std::vector<Index *> index_group(idx_size);
+  for (int i = 0; i < idx_size; ++i) {
+    Index *new_index = nullptr;
+    rc               = create_index(trx, field_metas[i], index_names[i].c_str(), unique, new_index);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("fail to create index: %s", strrc(rc));
+      return rc;
+    }
+    index_group[i] = new_index;
+  }
+
+  TableIndex idx(index_group, unique);
+  table_indexes_.push_back(std::move(idx));
+
+  return rc;
+}
+
 RC Table::delete_record(const Record &record)
 {
   RC rc = RC::SUCCESS;
@@ -569,29 +589,9 @@ RC Table::insert_entry_of_indexes(const char *record, const RID &rid)
 
 bool Table::insert_valid_for_unique_indexes(Record &record)
 {
-  if (mutil_) {
-    int num = 0;
-    for (Index *index : indexes_) {
-      if (index->index_meta().unique()) {
-        std::list<RID> g_rids;
-        if (index->get_entry(record.data(), g_rids) == RC::SUCCESS) {
-          num++;
-        }
-      }
-    }
-    if (num == indexes_.size()) {
+  for (TableIndex &idx : table_indexes_) {
+    if (idx.is_conflict(record)) {
       return false;
-    } else {
-      return true;
-    }
-  } else {
-    for (Index *index : indexes_) {
-      if (index->index_meta().unique()) {
-        std::list<RID> g_rids;
-        if (index->get_entry(record.data(), g_rids) == RC::SUCCESS) {
-          return false;
-        }
-      }
     }
   }
 
@@ -626,34 +626,9 @@ bool hasCommonStringInRows(const std::vector<std::vector<std::string>> &rids)
 
 bool Table::update_valid_for_unique_indexes(const char *record)
 {
-  if (mutil_) {
-    std::vector<std::vector<std::string>> rids;
-    for (Index *index : indexes_) {
-      if (index->index_meta().unique()) {
-        std::list<RID> g_rids;
-        if (index->get_entry(record, g_rids) == RC::SUCCESS) {
-          std::vector<std::string> tmp;
-          for (const RID &rid : g_rids) {
-            tmp.push_back(rid.to_string());
-          }
-          rids.push_back(tmp);
-        }
-      }
-    }
-    if (rids.size() == indexes_.size()) {
-      if (!hasCommonStringInRows(rids)) {
-        return true;
-      }
+  for (TableIndex &idx : table_indexes_) {
+    if (idx.is_conflict(record)) {
       return false;
-    }
-  } else {
-    for (Index *index : indexes_) {
-      if (index->index_meta().unique()) {
-        std::list<RID> g_rids;
-        if (index->get_entry(record, g_rids) == RC::SUCCESS) {
-          return false;
-        }
-      }
     }
   }
 
