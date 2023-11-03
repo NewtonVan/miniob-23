@@ -43,8 +43,6 @@ RC UpdatePhysicalOperator::next()
 
   PhysicalOperator *child        = children_[0].get();
   const int         value_amount = values_.size();
-  std::vector<int>  offsets(value_amount);
-  std::vector<int>  lens(value_amount);
   while (RC::SUCCESS == (rc = child->next())) {
     Tuple *tuple = child->current_tuple();
     if (nullptr == tuple) {
@@ -55,13 +53,13 @@ RC UpdatePhysicalOperator::next()
     RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
     Record   &record    = row_tuple->record();
 
+    std::vector<const FieldMeta *> field_metas(value_amount);
     for (int i = 0; i < value_amount; ++i) {
       const FieldMeta *field = table_->table_meta().field(field_names_[i].c_str());
-      offsets[i]             = field->offset();
-      lens[i]                = field->len();
+      field_metas[i]         = field;
     }
 
-    rc = trx_->update_record(table_, record, values_, offsets, lens);
+    rc = trx_->update_record(table_, record, values_, field_metas);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to update record: %s", strrc(rc));
       return rc;

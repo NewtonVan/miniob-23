@@ -215,7 +215,7 @@ RC RecordPageHandler::insert_record(const char *data, RID *rid)
 }
 
 RC RecordPageHandler::update_record(
-    Record &record, std::vector<Value> &values, std::vector<int> &offsets, std::vector<int> &lens)
+    Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas)
 {
   ASSERT(readonly_ == false, "cannot update record into page while the page is readonly");
 
@@ -238,13 +238,11 @@ RC RecordPageHandler::update_record(
   for (int i = 0; i < update_amount; ++i) {
     // TODO(chen): store & update bitmap in record
     // get specific field
-    char       *change_loc = (char *)((uint64_t)(src_data) + offsets[i]);
+    char       *change_loc = (char *)((uint64_t)(src_data) + field_metas[i]->offset());
     const char *data       = values[i].data();
-    if (lens[i] == -1) {
-      lens[i] = values[i].length();
-    }
+    size_t      copy_len   = field_metas[i]->len() == -1 ? field_metas[i]->len() : values[i].length();
     // TODO(chen): adapt variable length
-    memcpy(change_loc, data, lens[i]);
+    memcpy(change_loc, data, copy_len);
   }
 
   frame_->mark_dirty();
@@ -452,7 +450,7 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
 }
 
 RC RecordFileHandler::update_record(
-    Record &record, std::vector<Value> &values, std::vector<int> &offsets, std::vector<int> &lens)
+    Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas)
 {
   RC rc = RC::SUCCESS;
 
@@ -463,7 +461,7 @@ RC RecordFileHandler::update_record(
     return rc;
   }
 
-  rc = page_handler.update_record(record, values, offsets, lens);
+  rc = page_handler.update_record(record, values, field_metas);
 
   return rc;
 }

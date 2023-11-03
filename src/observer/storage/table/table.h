@@ -16,6 +16,8 @@ See the Mulan PSL v2 for more details. */
 
 #include <functional>
 #include <vector>
+#include "sql/parser/value.h"
+#include "storage/field/field_meta.h"
 #include "storage/index/index.h"
 #include "storage/table/table_meta.h"
 
@@ -75,12 +77,14 @@ public:
    * @param record[in/out] 传入的数据包含具体的数据，插入成功会通过此字段返回RID
    */
   RC insert_record(Record &record);
-  RC update_record(Record &record, std::vector<Value> &values, std::vector<int> &offset, std::vector<int> &lens);
+  RC update_record(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas);
   RC delete_record(const Record &record);
   RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
   RC get_record(const RID &rid, Record &record);
 
   RC recover_insert_record(Record &record);
+
+  RC change_record_value(char *&record, int idx, const Value &value) const;
 
   // TODO refactor
   /**

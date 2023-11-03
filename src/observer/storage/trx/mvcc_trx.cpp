@@ -154,7 +154,7 @@ RC MvccTrx::insert_record(Table *table, Record &record)
 }
 
 RC MvccTrx::update_record(
-    Table *table, Record &record, std::vector<Value> &values, std::vector<int> offsets, std::vector<int> lens)
+    Table *table, Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> field_metas)
 {
   Field begin_field;
   Field end_field;
@@ -173,7 +173,7 @@ RC MvccTrx::update_record(
   }
 
   RC rc = RC::SUCCESS;
-  rc    = table->update_record(record, values, offsets, lens);
+  rc    = table->update_record(record, values, field_metas);
 
   end_field.set_int(record, -trx_id_);
 

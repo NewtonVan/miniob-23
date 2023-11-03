@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by Meiyi & Wangyunlai on 2021/5/13.
 //
 
+#include <cstddef>
 #include <cstdlib>
 #include <limits.h>
 #include <string.h>
@@ -20,7 +21,10 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "common/defs.h"
+#include "common/lang/bitmap.h"
 #include "common/rc.h"
+#include "sql/parser/value.h"
+#include "storage/field/field_meta.h"
 #include "storage/table/table.h"
 #include "storage/table/table_meta.h"
 #include "common/log/log.h"
@@ -245,23 +249,37 @@ RC Table::insert_record(Record &record)
   return rc;
 }
 
-RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<int> &offsets, std::vector<int> &lens)
+RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas)
 {
-  char *new_record = (char *)malloc(record.len());
-  std::strcpy(new_record, record.data());
+  std::vector<int> value_idx(field_metas.size());
+  const int        sys_field_num = table_meta_.sys_field_num();
+  const int        field_num     = table_meta_.field_num();
+  const int        update_amount = field_metas.size();
+
+  for (int i = 0; i < update_amount; ++i) {
+    for (int j = sys_field_num; j < field_num; ++j) {
+      if (strcmp(table_meta_.field(j)->name(), field_metas[i]->name()) != 0) {
+        continue;
+      }
+      value_idx[i] = j;
+    }
+  }
+
+  char *new_record = new char[table_meta_.record_size()];
+  std::memcpy(new_record, record.data(), table_meta_.record_size());
   for (int i = 0; i < values.size(); i++) {
-    std::memcpy(new_record + offsets[i], values[i].data(), lens[i]);
+    change_record_value(new_record, value_idx[i], values[i]);
   }
 
   if (!update_valid_for_unique_indexes(new_record)) {
-    free(new_record);
+    delete[] new_record;
     return RC::RECORD_DUPLICATE_KEY;
   }
-  free(new_record);
+  delete[] new_record;
 
   RC     rc = RC::SUCCESS;
   Record origin_record(record);
-  rc = record_handler_->update_record(record, values, offsets, lens);
+  rc = record_handler_->update_record(record, values, field_metas);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Update record failed. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
     return rc;
@@ -299,6 +317,44 @@ RC Table::get_record(const RID &rid, Record &record)
 
   record.set_data_owner(record_data, record_size);
   return rc;
+}
+
+RC Table::change_record_value(char *&record, int idx, const Value &value) const
+{
+  const FieldMeta *null_field = table_meta_.null_mask_field();
+  common::Bitmap   bitmap(record + null_field->offset(), null_field->len());
+
+  const FieldMeta *field = table_meta_.field(idx);
+  // check null
+  if (value.attr_type() == AttrType::NULLS) {
+    if (!field->nullable()) {
+      LOG_ERROR("Invalid value type. Cannot be null. table name =%s, field name=%s, type=%d, but given=%d",
+          table_meta_.name(),
+          field->name(),
+          field->type(),
+          value.attr_type());
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+    bitmap.set_bit(idx);
+    memset(record + field->offset(), 0, field->len());
+
+    return RC::SUCCESS;
+  }
+  bitmap.clear_bit(idx);
+
+  // TODO(chen):  type cast?
+
+  // copy data
+  size_t copy_len = field->len();
+  if (field->type() == AttrType::CHARS) {
+    const size_t data_len = strlen(value.data());
+    if (copy_len > data_len) {
+      copy_len = data_len + 1;
+    }
+  }
+  memcpy(record + field->offset(), value.data(), copy_len);
+
+  return RC::SUCCESS;
 }
 
 RC Table::recover_insert_record(Record &record)
