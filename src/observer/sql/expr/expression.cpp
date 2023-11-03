@@ -20,7 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/tuple.h"
 #include "sql/parser/value.h"
 #include "sql/stmt/select_stmt.h"
-#include "sql/operator/project_physical_operator.h"
+#include "sql/optimizer/physical_plan_generator.h"
 #include "storage/trx/trx.h"
 #include "common/global_context.h"
 #include <cstdint>
@@ -595,7 +595,16 @@ RC FuncExpr::try_get_value(Value &value) const
   return eval_func(args_values, value);
 }
 
-
+RC SubQueryExpression::gen_plan()
+{
+  RC rc = RC::SUCCESS;
+  std::unique_ptr<PhysicalOperator> tmp;
+  rc = PhysicalPlanGenerator::create(*sub_logical_top_oper_, tmp);
+  sub_physical_op_oper_ = tmp.get();
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to create physical operator. rc=%s", strrc(rc));
+  }
+}
 
 RC SubQueryExpression::open_sub_query() const
 {

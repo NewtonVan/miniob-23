@@ -29,6 +29,7 @@ class Stmt;
 class ProjectPhysicalOperator;
 class ProjectLogicalOperator;
 class LogicalOperator;
+class PhysicalOperator;
 
 /**
  * @defgroup Expression
@@ -409,22 +410,23 @@ public:
     return sub_stmt_;
   }
 
-  void set_sub_query_physical_top_oper(ProjectPhysicalOperator *oper)
-  {
-    sub_physical_op_oper_ = oper;
-  }
+//  void set_sub_query_physical_top_oper(PhysicalOperator *oper)
+//  {
+//    sub_physical_op_oper_ = oper;
+//  }
 
-  ProjectPhysicalOperator *get_sub_query_physical_top_oper() const
-  {
-    return sub_physical_op_oper_;
-  }
+//  PhysicalOperator *get_sub_query_physical_top_oper() const
+//  {
+//    return sub_physical_op_oper_.get();
+//  }
 
   void set_sub_query_logical_top_oper(LogicalOperator *oper)
   {
-    sub_logical_top_oper_ = reinterpret_cast<ProjectLogicalOperator*>(oper);
+    sub_logical_top_oper_ = oper;
+    gen_plan();
   }
 
-  ProjectLogicalOperator *get_sub_query_logical_top_oper() const
+  LogicalOperator *get_sub_query_logical_top_oper() const
   {
     return sub_logical_top_oper_;
   }
@@ -432,6 +434,7 @@ public:
 
   RC open_sub_query() const;
   RC close_sub_query() const;
+  RC gen_plan();
 
   RC create_expression(const std::unordered_map<std::string, Table *> &table_map,
       const std::vector<Table *> &tables, CompOp comp = NO_OP, Db *db = nullptr);
@@ -439,7 +442,7 @@ public:
 private:
   const SelectSqlNode *select_sql_node_;
   SelectStmt *sub_stmt_ = nullptr;
-  ProjectPhysicalOperator *sub_physical_op_oper_ = nullptr;
-  ProjectLogicalOperator  *sub_logical_top_oper_ = nullptr;
+  PhysicalOperator * sub_physical_op_oper_ = nullptr;
+  LogicalOperator  *sub_logical_top_oper_ = nullptr;
   Db *db_ = nullptr;
 };
