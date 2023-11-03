@@ -604,6 +604,7 @@ RC SubQueryExpression::gen_plan()
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to create physical operator. rc=%s", strrc(rc));
   }
+  return rc;
 }
 
 RC SubQueryExpression::open_sub_query() const
@@ -637,9 +638,6 @@ RC SubQueryExpression::get_value(const Tuple &tuple, Value &value) const
     return RC::INTERNAL;
   }
 
-  if(child_tuple->cell_num() > 1) {
-    return RC::INTERNAL;
-  }
 //  select_sql_node_->select_expressions[0]->get_value(child_tuple,)
   rc = child_tuple->cell_at(0, value);  // only need the first cell
   return rc;
@@ -649,9 +647,9 @@ RC SubQueryExpression::create_expression(const std::unordered_map<std::string, T
     const std::vector<Table *> &tables, CompOp comp, Db *db) {
   Stmt *stmt = nullptr;
   RC rc = SelectStmt::create(db, *select_sql_node_, stmt);
-  auto select_stmt = (SelectStmt *)stmt;
-  if(select_stmt->query_fields().size() > 1) {
-    return RC::INTERNAL;
+  auto select_stmt = (SelectStmt*)(stmt);
+  if(select_stmt->use_project_exprs() && select_stmt->project_exprs().size() > 1 || select_stmt->query_fields().size() > 1) {
+    return RC::SUB_QUERY_MULTI_FIELDS;
   }
   this->set_sub_query_stmt((SelectStmt *)stmt);
   if (RC::SUCCESS != rc) {
@@ -659,4 +657,5 @@ RC SubQueryExpression::create_expression(const std::unordered_map<std::string, T
     return rc;
   }
   db_ = db;
+  return rc;
 }

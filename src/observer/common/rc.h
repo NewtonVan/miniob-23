@@ -75,7 +75,8 @@ See the Mulan PSL v2 for more details. */
   DEFINE_RC(VARIABLE_NOT_EXISTS)         \
   DEFINE_RC(VARIABLE_NOT_VALID)          \
   DEFINE_RC(LOGBUF_FULL)                 \
-  DEFINE_RC(BAD_AGG)
+  DEFINE_RC(BAD_AGG)                     \
+  DEFINE_RC(SUB_QUERY_MULTI_FIELDS)
 
 enum class RC
 {

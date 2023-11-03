@@ -273,9 +273,12 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_unit->set_left(filter_obj);
   } else if(condition->left()->type() == ExprType::SUBQUERYTYPE) {
     SubQueryExpression *sub_query_expr = static_cast<SubQueryExpression *>(condition->left().get());
-    RC rc2 = sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, comp, db);
-    if(rc2 != RC::SUCCESS) {
-      return rc2;
+    if(sub_query_expr->get_select_sql_node()->select_expressions.size() > 1) {
+      return RC::SUB_QUERY_MULTI_FIELDS;
+    }
+    RC rc = sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, comp, db);
+    if(rc != RC::SUCCESS) {
+      return rc;
     }
     FilterObj filter_obj;
     filter_obj.init_expr(condition->left().get());
@@ -327,9 +330,12 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_unit->set_right(filter_obj);
   } else if(condition->right()->type() == ExprType::SUBQUERYTYPE) {
     SubQueryExpression *sub_query_expr = static_cast<SubQueryExpression *>(condition->right().get());
-    RC rc2 = sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, comp, db);
-    if(rc2 != RC::SUCCESS) {
-      return rc2;
+    if(sub_query_expr->get_select_sql_node()->select_expressions.size() > 1) {
+      return RC::SUB_QUERY_MULTI_FIELDS;
+    }
+    RC rc = sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, comp, db);
+    if(rc != RC::SUCCESS) {
+      return rc;
     }
     FilterObj filter_obj;
     filter_obj.init_expr(condition->right().get());

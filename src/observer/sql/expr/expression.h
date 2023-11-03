@@ -431,6 +431,10 @@ public:
     return sub_logical_top_oper_;
   }
 
+  const SelectSqlNode * get_select_sql_node() {
+    return select_sql_node_;
+  }
+
 
   RC open_sub_query() const;
   RC close_sub_query() const;

@@ -2354,7 +2354,7 @@ yyreduce:
       select_sql_node->relations.push_back(std::move(*(yyvsp[-3].single_table)));
       std::reverse(select_sql_node->relations.begin(), select_sql_node->relations.end());
 
-      if ((yyvsp[-2].relation_list) != nullptr) {
+      if ((yyvsp[-1].condition_list) != nullptr) {
         select_sql_node->conditions.swap(*(yyvsp[-1].condition_list));
         delete (yyvsp[-1].condition_list);
       }

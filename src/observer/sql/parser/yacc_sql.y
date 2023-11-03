@@ -663,7 +663,7 @@ sub_query_expr:
       select_sql_node->relations.push_back(std::move(*$5));
       std::reverse(select_sql_node->relations.begin(), select_sql_node->relations.end());
 
-      if ($6 != nullptr) {
+      if ($7 != nullptr) {
         select_sql_node->conditions.swap(*$7);
         delete $7;
       }
