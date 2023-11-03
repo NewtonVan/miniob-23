@@ -157,7 +157,7 @@ RC LogicalPlanGenerator::create_plan(JoinStmt *join_stmt, std::unique_ptr<Logica
   return RC::SUCCESS;
 }
 
-RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<LogicalOperator> &logical_operator, std::unique_ptr<LogicalOperator> &sub_logical_operator)
+RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
   unique_ptr<LogicalOperator> table_oper(nullptr);
 
@@ -278,7 +278,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     }
   }
 
-  sub_logical_operator = predicate_oper;
+//  sub_logical_operator = predicate_oper;
 
   logical_operator.swap(project_oper);
 
@@ -341,15 +341,15 @@ RC LogicalPlanGenerator::create_plan_for_subquery(const FilterUnit *filter, std:
   RC rc = RC::SUCCESS;
   // process sub query
   auto process_sub_query_expr = [&](Expression *expr) {
-    if (ExprType::SUBQUERYTYPE == expr->type()) {
+    if (expr != nullptr && ExprType::SUBQUERYTYPE == expr->type()) {
       auto sub_query_expr = (SubQueryExpression *)expr;
-      const SelectStmt *sub_select = sub_query_expr->get_sub_query_stmt();
-      ProjectLogicalOperator *sub_logical_operator = nullptr;
-      if (RC::SUCCESS != (rc = create_plan(sub_select, logical_operator, sub_logical_operator))) {
+      SelectStmt *sub_select = sub_query_expr->get_sub_query_stmt();
+      std::unique_ptr<LogicalOperator> sub_logical_operator = nullptr;
+      if (RC::SUCCESS != (rc = create_plan(sub_select, sub_logical_operator))) {
         return rc;
       }
       assert(nullptr != sub_logical_operator);
-      sub_query_expr->set_sub_query_logical_top_oper(sub_logical_operator);
+      sub_query_expr->set_sub_query_logical_top_oper(sub_logical_operator.get());
     }
     return RC::SUCCESS;
   };
@@ -364,6 +364,7 @@ RC LogicalPlanGenerator::create_plan_for_subquery(const FilterUnit *filter, std:
   if (RC::SUCCESS != (rc = process_sub_query_expr(filter->left().expr))) {
     return rc;
   }
+
   return process_sub_query_expr(filter->right().expr);
 }
 

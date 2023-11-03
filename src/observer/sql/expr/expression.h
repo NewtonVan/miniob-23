@@ -27,7 +27,8 @@ class Tuple;
 class SelectStmt;
 class Stmt;
 class ProjectPhysicalOperator;
-class ProjectLogicalOperator
+class ProjectLogicalOperator;
+class LogicalOperator;
 
 /**
  * @defgroup Expression
@@ -418,9 +419,9 @@ public:
     return sub_physical_op_oper_;
   }
 
-  void set_sub_query_logical_top_oper(ProjectLogicalOperator *oper)
+  void set_sub_query_logical_top_oper(LogicalOperator *oper)
   {
-    sub_logical_top_oper_ = oper;
+    sub_logical_top_oper_ = reinterpret_cast<ProjectLogicalOperator*>(oper);
   }
 
   ProjectLogicalOperator *get_sub_query_logical_top_oper() const

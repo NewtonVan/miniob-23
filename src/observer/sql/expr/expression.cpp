@@ -600,6 +600,7 @@ RC FuncExpr::try_get_value(Value &value) const
 RC SubQueryExpression::open_sub_query() const
 {
   assert(nullptr != sub_physical_op_oper_);
+
   return sub_physical_op_oper_->open(GCTX.trx_kit_->create_trx(db_->clog_manager()));
 }
 
