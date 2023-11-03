@@ -212,14 +212,14 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
       value.set_boolean(false);
       return RC::SUCCESS;
     }
-    std::vector<Value> right_cells;
-    right_cells.emplace_back(Value());
+    std::vector<Value> right_values;
+    right_values.emplace_back(Value());
     RC tmp_rc = RC::SUCCESS;
     if (ExprType::SUBQUERYTYPE == right_->type()) {
       auto sub_query_expr = (const SubQueryExpression *)(right_.get());
       sub_query_expr->open_sub_query();
-      while (RC::SUCCESS == (tmp_rc = sub_query_expr->get_value(tuple, right_cells.back()))) {
-        right_cells.emplace_back(Value());
+      while (RC::SUCCESS == (tmp_rc = sub_query_expr->get_value(tuple, right_values.back()))) {
+        right_values.emplace_back(Value());
       }
       sub_query_expr->close_sub_query();
       if (RC::RECORD_EOF != tmp_rc) {
@@ -227,7 +227,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
         return tmp_rc;
       }
       // 因为在SubQueryExpression中record_eof时，value为空，所以需要弹出
-      right_cells.pop_back();
+      right_values.pop_back();
     }
 
     auto has_null = [](const std::vector<Value> &values) {
@@ -238,8 +238,8 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
       }
       return false;
     };
-    bool res = CompOp::IN_OP == comp_ ? left_value.in_cells(right_cells)
-                                : (has_null(right_cells) ? false : left_value.not_in_cells(right_cells));
+    bool res = CompOp::IN_OP == comp_ ? left_value.in_cells(right_values)
+                                : (has_null(right_values) ? false : left_value.not_in_cells(right_values));
     value.set_boolean(res);
     return RC::SUCCESS;
   }
@@ -600,7 +600,7 @@ RC SubQueryExpression::gen_plan()
   RC rc = RC::SUCCESS;
   std::unique_ptr<PhysicalOperator> tmp;
   rc = PhysicalPlanGenerator::create(*sub_logical_top_oper_, tmp);
-  sub_physical_op_oper_ = tmp.get();
+  sub_physical_op_oper_ = std::move(tmp);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to create physical operator. rc=%s", strrc(rc));
   }
@@ -636,6 +636,11 @@ RC SubQueryExpression::get_value(const Tuple &tuple, Value &value) const
     LOG_WARN("failed to get current record. rc=%s", strrc(rc));
     return RC::INTERNAL;
   }
+
+  if(child_tuple->cell_num() > 1) {
+    return RC::INTERNAL;
+  }
+//  select_sql_node_->select_expressions[0]->get_value(child_tuple,)
   rc = child_tuple->cell_at(0, value);  // only need the first cell
   return rc;
 }
@@ -644,6 +649,10 @@ RC SubQueryExpression::create_expression(const std::unordered_map<std::string, T
     const std::vector<Table *> &tables, CompOp comp, Db *db) {
   Stmt *stmt = nullptr;
   RC rc = SelectStmt::create(db, *select_sql_node_, stmt);
+  auto select_stmt = (SelectStmt *)stmt;
+  if(select_stmt->query_fields().size() > 1) {
+    return RC::INTERNAL;
+  }
   this->set_sub_query_stmt((SelectStmt *)stmt);
   if (RC::SUCCESS != rc) {
     LOG_ERROR("SubQueryExpression Create SelectStmt Failed. RC = %d:%s", rc, strrc(rc));

@@ -442,7 +442,7 @@ public:
 private:
   const SelectSqlNode *select_sql_node_;
   SelectStmt *sub_stmt_ = nullptr;
-  PhysicalOperator * sub_physical_op_oper_ = nullptr;
+  std::shared_ptr<PhysicalOperator> sub_physical_op_oper_;
   LogicalOperator  *sub_logical_top_oper_ = nullptr;
   Db *db_ = nullptr;
 };

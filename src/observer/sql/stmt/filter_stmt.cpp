@@ -273,7 +273,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_unit->set_left(filter_obj);
   } else if(condition->left()->type() == ExprType::SUBQUERYTYPE) {
     SubQueryExpression *sub_query_expr = static_cast<SubQueryExpression *>(condition->left().get());
-    sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, comp, db);
+    RC rc2 = sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, comp, db);
+    if(rc2 != RC::SUCCESS) {
+      return rc2;
+    }
     FilterObj filter_obj;
     filter_obj.init_expr(condition->left().get());
     filter_unit->set_left(filter_obj);
@@ -324,7 +327,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_unit->set_right(filter_obj);
   } else if(condition->right()->type() == ExprType::SUBQUERYTYPE) {
     SubQueryExpression *sub_query_expr = static_cast<SubQueryExpression *>(condition->right().get());
-    sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, comp, db);
+    RC rc2 = sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, comp, db);
+    if(rc2 != RC::SUCCESS) {
+      return rc2;
+    }
     FilterObj filter_obj;
     filter_obj.init_expr(condition->right().get());
     filter_unit->set_right(filter_obj);
