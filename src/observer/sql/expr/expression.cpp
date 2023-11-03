@@ -505,6 +505,7 @@ RC SubQueryExpression::gen_plan()
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to create physical operator. rc=%s", strrc(rc));
   }
+  return rc;
 }
 
 RC SubQueryExpression::open_sub_query() const
@@ -560,6 +561,8 @@ RC SubQueryExpression::create_expression(const std::unordered_map<std::string, T
     return rc;
   }
   db_ = db;
+  
+  return rc;
 }
 
 RC AggExpr::get_value(const Tuple &tuple, Value &value) const  {
