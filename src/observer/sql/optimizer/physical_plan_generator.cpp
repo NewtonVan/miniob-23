@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2022/12/14.
 //
 
+#include <cstddef>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -296,39 +297,33 @@ RC PhysicalPlanGenerator::create_plan(AggLogicalOperator &agg_oper, std::unique_
     }
   }
 
-  std::vector<TupleCellSpec> specs;
-  std::vector<AggType>       agg_types;
-  for (auto &agg_field : agg_oper.fields_) {
-    switch (agg_field.func_) {
-      case AggFuncType::COUNT_FUNC:
-        if (agg_field.field_is_star) {
-          agg_types.push_back(AggType::COUNT_STAR);
-          specs.push_back(TupleCellSpec("", "*"));
-        } else {
-          agg_types.push_back(AggType::COUNT_AGG);
-          specs.push_back(TupleCellSpec(agg_field.field_.table_name(), agg_field.field_.field_name()));
-        }
-        break;
-      case AggFuncType::SUM_FUNC:
-        agg_types.push_back(AggType::SUM_AGG);
-        specs.push_back(TupleCellSpec(agg_field.field_.table_name(), agg_field.field_.field_name()));
-        break;
-      case AggFuncType::MAX_FUNC:
-        agg_types.push_back(AggType::MAX_AGG);
-        specs.push_back(TupleCellSpec(agg_field.field_.table_name(), agg_field.field_.field_name()));
-        break;
-      case AggFuncType::MIN_FUNC:
-        agg_types.push_back(AggType::MIN_AGG);
-        specs.push_back(TupleCellSpec(agg_field.field_.table_name(), agg_field.field_.field_name()));
-        break;
-      case AggFuncType::AVG_FUNC:
-        agg_types.push_back(AggType::AVG_AGG);
-        specs.push_back(TupleCellSpec(agg_field.field_.table_name(), agg_field.field_.field_name()));
-        break;
+  std::vector<TupleCellSpec> agg_field_specs;
+  std::vector<TupleCellSpec> group_by_field_specs;
+  const auto& agg_fields = agg_oper.fields();
+  const auto& agg_expr_alias = agg_oper.agg_expr_names();
+  const auto& group_by_fields = agg_oper.group_bys(); 
+  auto& agg_types = agg_oper.agg_types();
+  for (size_t i = 0;  i < agg_fields.size(); i++) {
+    switch (agg_types[i]) {
+      case AggType::COUNT_STAR: {
+        agg_field_specs.push_back(TupleCellSpec("", "*", agg_expr_alias[i].c_str()));
+      }break;
+      case AggType::COUNT_AGG: 
+      case AggType::SUM_AGG:
+      case AggType::MAX_AGG:
+      case AggType::MIN_AGG:
+      case AggType::AVG_AGG: {
+        agg_field_specs.push_back(TupleCellSpec(agg_fields[i].table_name(), agg_fields[i].field_name(), agg_expr_alias[i].c_str()));
+      }break;
     }
   }
 
-  AggPhysicalOperator *agg_phy_oper = new AggPhysicalOperator(agg_types, specs);
+  for (size_t i = 0;  i < group_by_fields.size(); i++) {
+      group_by_field_specs.push_back(TupleCellSpec(group_by_fields[i].table_name(), group_by_fields[i].field_name()));
+  }
+
+
+  AggPhysicalOperator *agg_phy_oper = new AggPhysicalOperator(agg_types, agg_field_specs, group_by_field_specs);
 
   if (child_phy_oper) {
     agg_phy_oper->add_child(std::move(child_phy_oper));
@@ -355,7 +350,7 @@ RC PhysicalPlanGenerator::create_plan(UpdateLogicalOperator &update_oper, unique
     }
   }
   oper = unique_ptr<PhysicalOperator>(
-      new UpdatePhysicalOperator(update_oper.table(), update_oper.value(), update_oper.field_name()));
+      new UpdatePhysicalOperator(update_oper.table(), update_oper.values(), update_oper.field_names()));
 
   if (child_physical_oper) {
     oper->add_child(std::move(child_physical_oper));
@@ -422,7 +417,7 @@ RC PhysicalPlanGenerator::create_plan(JoinLogicalOperator &join_oper, unique_ptr
   ASSERT(expressions.size() == 1, "predicate logical operator's children should be 1");
 
   unique_ptr<Expression>       join_condition = expressions.empty() ? nullptr : std::move(expressions.front());
-  unique_ptr<PhysicalOperator> join_physical_oper(new NestedLoopJoinPhysicalOperator(std::move(join_condition)));
+  unique_ptr<PhysicalOperator> join_physical_oper(new StageLoopJoinPhysicalOperator(std::move(join_condition)));
   for (auto &child_oper : child_opers) {
     unique_ptr<PhysicalOperator> child_physical_oper;
     rc = create(*child_oper, child_physical_oper);

@@ -4,11 +4,16 @@
 #include "storage/field/field_meta.h"
 #include "storage/table/table.h"
 #include "storage/trx/trx.h"
+#include <cstdint>
+#include <string>
+#include <variant>
+#include <vector>
 
 using namespace std;
 
-UpdatePhysicalOperator::UpdatePhysicalOperator(Table *table, Value &value, const std::string field_name)
-    : table_(table), value_(value), field_name_(field_name)
+UpdatePhysicalOperator::UpdatePhysicalOperator(
+    Table *table, std::vector<Value> &values, std::vector<std::string> &field_names)
+    : table_(table), values_(values), field_names_(field_names)
 {}
 
 RC UpdatePhysicalOperator::open(Trx *trx)
@@ -36,7 +41,10 @@ RC UpdatePhysicalOperator::next()
     return RC::RECORD_EOF;
   }
 
-  PhysicalOperator *child = children_[0].get();
+  PhysicalOperator *child        = children_[0].get();
+  const int         value_amount = values_.size();
+  std::vector<int>  offsets(value_amount);
+  std::vector<int>  lens(value_amount);
   while (RC::SUCCESS == (rc = child->next())) {
     Tuple *tuple = child->current_tuple();
     if (nullptr == tuple) {
@@ -47,9 +55,13 @@ RC UpdatePhysicalOperator::next()
     RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
     Record   &record    = row_tuple->record();
 
-    const FieldMeta *field = table_->table_meta().field(field_name_.c_str());
+    for (int i = 0; i < value_amount; ++i) {
+      const FieldMeta *field = table_->table_meta().field(field_names_[i].c_str());
+      offsets[i]             = field->offset();
+      lens[i]                = field->len();
+    }
 
-    rc = trx_->update_record(table_, record, value_, field->offset(), field->len());
+    rc = trx_->update_record(table_, record, values_, offsets, lens);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to update record: %s", strrc(rc));
       return rc;

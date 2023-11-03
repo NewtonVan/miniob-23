@@ -15,9 +15,12 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "common/lang/bitmap.h"
 #include "common/rc.h"
+#include "sql/parser/value.h"
 #include "storage/common/condition_filter.h"
 #include "storage/record/record.h"
 #include "storage/trx/trx.h"
+#include <cstdint>
+#include <vector>
 
 using namespace common;
 
@@ -211,7 +214,8 @@ RC RecordPageHandler::insert_record(const char *data, RID *rid)
   return RC::SUCCESS;
 }
 
-RC RecordPageHandler::update_record(Record &record, Value &value, int offset, int len)
+RC RecordPageHandler::update_record(
+    Record &record, std::vector<Value> &values, std::vector<int> &offsets, std::vector<int> &lens)
 {
   ASSERT(readonly_ == false, "cannot update record into page while the page is readonly");
 
@@ -228,17 +232,20 @@ RC RecordPageHandler::update_record(Record &record, Value &value, int offset, in
     return RC::RECORD_NOT_EXIST;
   }
 
+  const int update_amount = values.size();
   // 获取原数据
   char *src_data = get_record_data(rid.slot_num);
-  // TODO(chen): store & update bitmap in record
-  // get specific field
-  char       *change_loc = (char *)((uint64_t)(src_data) + offset);
-  const char *data       = value.data();
-  if (len == -1) {
-    len = value.length();
+  for (int i = 0; i < update_amount; ++i) {
+    // TODO(chen): store & update bitmap in record
+    // get specific field
+    char       *change_loc = (char *)((uint64_t)(src_data) + offsets[i]);
+    const char *data       = values[i].data();
+    if (lens[i] == -1) {
+      lens[i] = values[i].length();
+    }
+    // TODO(chen): adapt variable length
+    memcpy(change_loc, data, lens[i]);
   }
-  // TODO(chen): adapt variable length
-  memcpy(change_loc, data, len);
 
   frame_->mark_dirty();
   return RC::SUCCESS;
@@ -444,7 +451,8 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
   return record_page_handler.insert_record(data, rid);
 }
 
-RC RecordFileHandler::update_record(Record &record, Value &value, int offset, int len)
+RC RecordFileHandler::update_record(
+    Record &record, std::vector<Value> &values, std::vector<int> &offsets, std::vector<int> &lens)
 {
   RC rc = RC::SUCCESS;
 
@@ -455,7 +463,7 @@ RC RecordFileHandler::update_record(Record &record, Value &value, int offset, in
     return rc;
   }
 
-  rc = page_handler.update_record(record, value, offset, len);
+  rc = page_handler.update_record(record, values, offsets, lens);
 
   return rc;
 }

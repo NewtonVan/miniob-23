@@ -18,11 +18,14 @@ See the Mulan PSL v2 for more details. */
 #include "common/math/float_tools.h"
 #include "common/time/datetime.h"
 #include "sql/expr/tuple.h"
+#include "sql/expr/tuple_cell.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/parser/value.h"
 #include "sql/stmt/select_stmt.h"
 #include "sql/optimizer/physical_plan_generator.h"
 #include "storage/trx/trx.h"
 #include "common/global_context.h"
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -658,4 +661,29 @@ RC SubQueryExpression::create_expression(const std::unordered_map<std::string, T
   }
   db_ = db;
   return rc;
+}
+
+RC AggExpr::get_value(const Tuple &tuple, Value &value) const  {
+// should pass in AggTuple
+  ASSERT(tuple.type() == TupleType::AGG, "eval on non aggtuple");
+  // use expr name to fetch cell in AggTuple
+  // "*"
+  TupleCellSpec spec("", "", name().c_str());
+  auto rc = tuple.find_cell(spec, value);
+  if(rc != RC::SUCCESS) {
+    LOG_WARN("agg expr eval fail");
+    return rc;
+  }
+  return RC::SUCCESS;
+}
+AttrType AggExpr::value_type() const {
+  if(agg_type_ == AggType::AVG_AGG) {
+    ASSERT(field_.attr_type() == AttrType::INTS || field_.attr_type() == AttrType::FLOATS, "avg on non-arihmetic value.");
+    return AttrType::FLOATS;
+  }
+  if(agg_type() == AggType::COUNT_STAR) {
+    return AttrType::INTS;
+  }
+  return field_.attr_type();
+
 }

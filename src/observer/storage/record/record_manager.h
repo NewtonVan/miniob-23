@@ -167,7 +167,7 @@ public:
   RC insert_record(const char *data, RID *rid);
 
   // TODO(chen):
-  RC update_record(Record &record, Value &value, int offset, int len);
+  RC update_record(Record &record, std::vector<Value> &values, std::vector<int> &offsets, std::vector<int> &lens);
 
   /**
    * @brief 数据库恢复时，在指定位置插入数据
@@ -280,7 +280,7 @@ public:
   RC insert_record(const char *data, int record_size, RID *rid);
 
   // TODO(chen):
-  RC update_record(Record &record, Value &value, int offset, int len);
+  RC update_record(Record &record, std::vector<Value> &values, std::vector<int> &offsets, std::vector<int> &lens);
 
   /**
    * @brief 数据库恢复时，在指定文件指定位置插入数据

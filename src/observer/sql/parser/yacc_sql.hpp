@@ -157,11 +157,12 @@ union YYSTYPE
   std::vector<std::unique_ptr<Expression>> *  func_args;
   std::vector<std::string> *        field_list;
   AggField*                         field;
-  AggregationFuncSqlNode *          agg_func_call;
   enum AggFuncType                  agg_func;
   std::vector<AggregationFuncSqlNode> * agg_func_call_list;
+  UpdateUnit *                                update_unit;
+  std::vector<UpdateUnit> *                   update_unit_list;
 
-#line 165 "yacc_sql.hpp"
+#line 166 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
