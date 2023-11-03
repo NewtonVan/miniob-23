@@ -14,12 +14,15 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <cstdint>
 #include <stddef.h>
 #include <unordered_set>
 #include <mutex>
 #include <utility>
+#include <vector>
 
 #include "sql/parser/parse.h"
+#include "sql/parser/value.h"
 #include "storage/record/record_manager.h"
 #include "storage/field/field_meta.h"
 #include "storage/table/table.h"
@@ -139,9 +142,10 @@ public:
 
   virtual RC insert_record(Table *table, Record &record) = 0;
   // TODO(chen): last 2 args
-  virtual RC update_record(Table *table, Record &record, Value &value, int offset, int len) = 0;
-  virtual RC delete_record(Table *table, Record &record)                                    = 0;
-  virtual RC visit_record(Table *table, Record &record, bool readonly)                      = 0;
+  virtual RC update_record(
+      Table *table, Record &record, std::vector<Value> &values, std::vector<int> offset, std::vector<int> lens) = 0;
+  virtual RC delete_record(Table *table, Record &record)                                                        = 0;
+  virtual RC visit_record(Table *table, Record &record, bool readonly)                                          = 0;
 
   virtual RC start_if_need() = 0;
   virtual RC commit()        = 0;

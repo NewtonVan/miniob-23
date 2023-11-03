@@ -73,7 +73,7 @@ public:
    * @param record[in/out] 传入的数据包含具体的数据，插入成功会通过此字段返回RID
    */
   RC insert_record(Record &record);
-  RC update_record(Record &record, Value &value, int offset, int len);
+  RC update_record(Record &record, std::vector<Value> &values, std::vector<int> &offset, std::vector<int> &lens);
   RC delete_record(const Record &record);
   RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
   RC get_record(const RID &rid, Record &record);
@@ -81,7 +81,7 @@ public:
   RC recover_insert_record(Record &record);
 
   // TODO refactor
-  RC create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name, bool unique, bool multi= false);
+  RC create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name, bool unique, bool multi = false);
 
   RC get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly);
 
@@ -96,9 +96,13 @@ public:
   RC sync();
 
 private:
-  RC insert_entry_of_indexes(const char *record, const RID &rid);
-  bool insert_valid_for_unique_indexes(const char *record);
-  RC delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists);
+  RC   insert_entry_of_indexes(const char *record, const RID &rid);
+
+  RC   delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists);
+
+  bool insert_valid_for_unique_indexes(Record &record);
+
+  bool update_valid_for_unique_indexes(const char *record);
 
 private:
   RC init_record_handler(const char *base_dir);
@@ -113,5 +117,5 @@ private:
   DiskBufferPool      *data_buffer_pool_ = nullptr;  /// 数据文件关联的buffer pool
   RecordFileHandler   *record_handler_   = nullptr;  /// 记录操作
   std::vector<Index *> indexes_;
-  bool mutil_ =  false;
+  bool                 mutil_ = false;
 };

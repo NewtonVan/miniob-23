@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
+#include "sql/expr/tuple_cell.h"
 #include "sql/operator/project_physical_operator.h"
 #include "storage/record/record.h"
 #include "storage/table/table.h"
@@ -86,6 +87,10 @@ void ProjectPhysicalOperator::init_specs()
     } else if (expr->type() == ExprType::FUNCTION) {
       FuncExpr      *func = static_cast<FuncExpr *>(expr.get());
       TupleCellSpec *spec = new TupleCellSpec("", "", func->name().c_str());
+      tuple_.add_cell_spec(spec);
+    } else if (expr->type() == ExprType::AGG) {
+      AggExpr* agg_expr = static_cast<AggExpr*>(expr.get());
+      TupleCellSpec* spec = new TupleCellSpec("", "", agg_expr->name().c_str());
       tuple_.add_cell_spec(spec);
     }
     // TODO(chen):

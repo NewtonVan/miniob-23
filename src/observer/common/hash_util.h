@@ -90,8 +90,14 @@ class HashUtil {
         std::hash<std::string> hasher;
         return static_cast<hash_t>(hasher(raw));
       }
+      case AttrType::NULLS: {
+        LOG_WARN("hash on null");
+        auto raw = val->get_string();
+        std::hash<std::string> hasher;
+        return static_cast<hash_t>(hasher(raw));
+      }break;
       default: {
-        LOG_PANIC("Unsupported type.");
+        LOG_PANIC("Unsupported type%d.", val->attr_type());
         return 0;
       }
     }

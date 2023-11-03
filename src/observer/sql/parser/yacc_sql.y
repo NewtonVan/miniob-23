@@ -151,9 +151,10 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<std::unique_ptr<Expression>> *  func_args;
   std::vector<std::string> *        field_list;
   AggField*                         field;
-  AggregationFuncSqlNode *          agg_func_call;
   enum AggFuncType                  agg_func;
   std::vector<AggregationFuncSqlNode> * agg_func_call_list;
+  UpdateUnit *                                update_unit;
+  std::vector<UpdateUnit> *                   update_unit_list;
 }
 
 %token <number> NUMBER
@@ -171,6 +172,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <comp>                comp_op
 %type <general_relation_sql_node> general_rel
 %type <rel_attr>            rel_attr
+%type <rel_attr>            agg_field
 %type <attr_names>          attr_name_list
 %type <bools>               order
 %type <order_item>          order_item
@@ -183,18 +185,16 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <condition_list>      condition_list
 %type <condition_list>      join_condition
 %type <expression_list>     select_attr
-%type <agg_func_call>       agg_func_call;
 %type <agg_func>            agg_func
-%type <agg_func_call_list>  agg_func_call_list;
 %type <single_table>        single_table
 %type <relation_list>       rel_list
-%type <field>               agg_field
-%type <field_list>          agg_field_list;
+%type <rel_attr_list>       agg_field_list;
 %type <expression>          expression
 %type <func_args>           length_args
 %type <func_args>           round_args
 %type <func_args>           date_format_args
 %type <expression>          func_expr
+%type <expression>          agg_expr
 %type <expression>          sub_query_expr
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
@@ -220,6 +220,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <sql_node>            command_wrapper
 // commands should be a list but I use a single command instead
 %type <sql_node>            commands
+%type <update_unit>         update_unit
+%type <update_unit_list>    update_list
 
 %left '+' '-'
 %left '*' '/'
@@ -532,20 +534,44 @@ delete_stmt:    /*  delete 语句的语法解析树*/
     }
     ;
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value where 
+    UPDATE ID SET update_list where
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.attribute_name = $4;
-      $$->update.value = *$6;
-      if ($7 != nullptr) {
-        $$->update.conditions.swap(*$7);
-        delete $7;
+      $$->update.update_units.swap(*$4);
+      if ($5 != nullptr) {
+        $$->update.conditions.swap(*$5);
+        delete $5;
       }
       free($2);
-      free($4);
     }
     ;
+
+update_list:
+    update_unit
+    {
+      $$ = new std::vector<UpdateUnit>;
+      $$->emplace_back(std::move(*$1));
+    }
+    | update_list COMMA update_unit
+    {
+      if ($1 == nullptr) {
+        $$ = new std::vector<UpdateUnit>;
+      } else {
+        $$ = $1;
+      }
+
+      $$->emplace_back(std::move(*$3));
+    }
+    ;
+
+update_unit:
+    ID EQ value
+    {
+      $$ = new UpdateUnit($1, $3);
+    }
+    ;
+
 select_stmt:        /*  select 语句的语法解析树*/
     SELECT select_attr FROM single_table rel_list where
     {
@@ -611,31 +637,6 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $6;
       }
       free($4);
-    }
-    | SELECT agg_func_call agg_func_call_list FROM single_table rel_list where
-    {
-        $$ = new ParsedSqlNode(SCF_SELECT);
-
-        if($3 != nullptr) {
-            $$->selection.agg_funcs.swap(*$3);
-            delete $3;
-        }
-
-        $$->selection.agg_funcs.push_back(*$2);
-        delete $2;
-
-        if ($6 != nullptr) {
-            $$->selection.relations.swap(*$6);
-            delete $6;
-        }
-        $$->selection.relations.push_back(*$5);
-        std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
-
-         if ($7 != nullptr) {
-            $$->selection.conditions.swap(*$7);
-            delete $7;
-         }
-         free($5);
     }
     | SELECT expression_list
     {
@@ -709,104 +710,6 @@ order_item_list:
         delete $2;
 	}
 	;
-
-
-
-agg_func_call_list:
-        /* empty */
-        {
-          $$ = nullptr;
-        }
-        | COMMA agg_func_call agg_func_call_list {
-          if ($3 != nullptr) {
-            $$ = $3;
-          } else {
-            $$ = new std::vector<AggregationFuncSqlNode>;
-          }
-
-          $$->push_back(*$2);
-
-          delete $2;
-        }
-
-
-agg_func_call:
-    agg_func LBRACE RBRACE
-    {
-      $$ = new AggregationFuncSqlNode;
-      $$->func = $1;
-      $$->attr.attribute_name = "";
-    }
-    | agg_func LBRACE agg_field agg_field_list RBRACE
-    {
-        $$ = new AggregationFuncSqlNode;
-        $$->func = $1;
-        if($4 == nullptr) {
-          $$->attr.attribute_name = $3->name;
-        }else {
-          $$->attr.attribute_name = "";
-          delete($4);
-        }
-        delete($3);
-    }
-    ;
-
-
-agg_field_list:
-  // empty
-  {
-    $$=nullptr;
-  }
-  | COMMA agg_field agg_field_list
-  {
-    if ($3 != nullptr) {
-      $$ = $3;
-    } else {
-      $$ = new std::vector<std::string>;
-    }
-    $$->push_back($2->name);
-    delete($2);
-  }
-  ;
-
-agg_field:
-  '*'
-  {
-    $$ = new AggField;
-    $$->name = "*";
-  }
-  | ID
-  {
-    $$ = new AggField;
-    $$->name = $1;
-    free($1);
-  }
-  ;
-
-
-
-agg_func:
-    MAX
-    {
-       $$=MAX_FUNC;
-    }
-    | MIN
-    {
-       $$=MIN_FUNC;
-    }
-    | AVG
-    {
-       $$=AVG_FUNC;
-    }
-    | COUNT
-    {
-       $$=COUNT_FUNC;
-    }
-    | SUM
-    {
-       $$=SUM_FUNC;
-    }
-    ;
 
 calc_stmt:
     CALC expression_list
@@ -891,6 +794,21 @@ expression:
       $$ = $1;
       $$->set_name($3);
     }
+    | agg_expr
+    {
+      $$=$1;
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | agg_expr ID
+    {
+      $$=$1;
+      $$->set_name($2);
+    }
+    | agg_expr AS ID
+    {
+      $$=$1;
+      $$->set_name($3);
+    }
     ;
 
 func_expr:
@@ -904,6 +822,123 @@ func_expr:
       $$ = new FuncExpr(FuncExpr::FuncType::DATE_FORMAT, *$3);
     }
     ;
+
+
+
+
+agg_expr:
+    agg_func LBRACE RBRACE
+    {
+      if($1 == AggFuncType::COUNT_FUNC) {
+        $$ = new AggExpr(AggType::COUNT_STAR);
+      } else if($1 == AggFuncType::SUM_FUNC) {
+        $$ = new AggExpr(AggType::SUM_AGG);
+      } else if($1 == AggFuncType::AVG_FUNC) {
+        $$ = new AggExpr(AggType::AVG_AGG);
+      } else if($1 == AggFuncType::MAX_FUNC) {
+        $$ = new AggExpr(AggType::MAX_AGG);
+      } else {
+        $$ = new AggExpr(AggType::MIN_AGG);
+      }
+      // bad agg
+      // $$->rel_attr_node = nullptr
+    }
+    | agg_func LBRACE agg_field agg_field_list RBRACE
+    {
+      if($1 == AggFuncType::COUNT_FUNC) {
+        if($4 == nullptr && strcmp($3->attribute_name.c_str(), "*") == 0) {
+          $$ = new AggExpr(AggType::COUNT_STAR);
+        } else {
+          $$ = new AggExpr(AggType::COUNT_AGG);
+        }
+      } else if($1 == AggFuncType::SUM_FUNC) {
+        $$ = new AggExpr(AggType::SUM_AGG);
+      } else if($1 == AggFuncType::AVG_FUNC) {
+        $$ = new AggExpr(AggType::AVG_AGG);
+      } else if($1 == AggFuncType::MAX_FUNC) {
+        $$ = new AggExpr(AggType::MAX_AGG);
+      } else {
+        $$ = new AggExpr(AggType::MIN_AGG);
+      }
+
+
+      AggExpr* tmp_expr = static_cast<AggExpr*>($$);
+
+      if($4 == nullptr) {
+
+        tmp_expr->set_rel_attr_node($3);
+
+        if($3->attribute_name == "*") {
+          if(tmp_expr->agg_type() != AggType::COUNT_STAR) {
+            delete $3;
+            tmp_expr->set_rel_attr_node(nullptr);
+          }
+        }
+
+      } else {
+        delete $4;
+        delete $3;
+      }
+      // bad agg
+      // $$->rel_attr_node = nullptr
+    }
+    ;
+
+agg_field_list:
+  // empty
+  {
+    $$=nullptr;
+  }
+  | COMMA agg_field agg_field_list
+  {
+    if ($3 != nullptr) {
+      $$ = $3;
+    } else {
+      $$ = new std::vector<RelAttrSqlNode>;
+    }
+    $$->push_back(*$2);
+    delete $2;
+  }
+  ;
+
+
+
+agg_field:
+  '*'
+  {
+    $$ = new RelAttrSqlNode;
+    $$->attribute_name = "*";
+  }
+  | rel_attr
+  {
+    $$=$1;
+  }
+  ;
+
+
+agg_func:
+    MAX
+    {
+       $$=MAX_FUNC;
+    }
+    | MIN
+    {
+       $$=MIN_FUNC;
+    }
+    | AVG
+    {
+       $$=AVG_FUNC;
+    }
+    | COUNT
+    {
+       $$=COUNT_FUNC;
+    }
+    | SUM
+    {
+       $$=SUM_FUNC;
+    }
+    ;
+
 
 length_args:
     SSS {

@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 #include <string>
 
+#include "sql/parser/parse_defs.h"
 #include "storage/field/field.h"
 #include "sql/parser/value.h"
 #include "common/log/log.h"
@@ -53,6 +54,7 @@ enum class ExprType
   REL_ATTR,     ///< attr的封装，需要转化为field使用
   FUNCTION,     ///< function表达式
   SUBQUERYTYPE,
+  AGG
 };
 
 /**
@@ -445,4 +447,58 @@ private:
   std::shared_ptr<PhysicalOperator> sub_physical_op_oper_;
   LogicalOperator  *sub_logical_top_oper_ = nullptr;
   Db *db_ = nullptr;
+};
+
+
+
+/**
+ * @brief Agg表达式
+ * @ingroup Expression
+ */
+class AggExpr : public Expression
+{
+public:
+
+public:
+  explicit AggExpr(AggType type):agg_type_(type) {};
+  ~AggExpr() {
+    if(rel_attr_node_ != nullptr) {
+      delete rel_attr_node_;
+    }
+  };
+
+  void set_field(Field field) {
+    field_ = field;
+  }
+  void set_agg_type(AggType type) {
+    agg_type_ = type;
+  }
+  void set_rel_attr_node(RelAttrSqlNode* node) {
+    rel_attr_node_ = node;
+  }
+
+  ExprType type() const override { return ExprType::AGG; }
+
+  AttrType value_type() const override;
+
+  // eval on AggTuple : just collect the cell specified in field_
+  RC get_value(const Tuple &tuple, Value &value) const override;
+
+  AggType agg_type() const { return agg_type_; }
+
+  const Field&  field() { return field_; }
+  RelAttrSqlNode* rel_attr() { return rel_attr_node_; }
+
+private:
+  // be set in parse stage
+  AggType                                agg_type_;
+  RelAttrSqlNode*                        rel_attr_node_{nullptr};
+  // name(alias) is also set in parse stage
+  // alias is used in execute stage to construct final sql result schema
+
+  // be set in resolve stage
+  Field                                  field_;
+
+
+
 };

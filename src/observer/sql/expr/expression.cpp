@@ -18,11 +18,14 @@ See the Mulan PSL v2 for more details. */
 #include "common/math/float_tools.h"
 #include "common/time/datetime.h"
 #include "sql/expr/tuple.h"
+#include "sql/expr/tuple_cell.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/parser/value.h"
 #include "sql/stmt/select_stmt.h"
 #include "sql/optimizer/physical_plan_generator.h"
 #include "storage/trx/trx.h"
 #include "common/global_context.h"
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -189,109 +192,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   Value left_value;
   Value right_value;
 
-  // 当是比较符号是EXISTS或NOT_EXISTS字段时，只需要返回是否存在
-  if(comp_ == EXISTS_OP || comp_ == NOT_EXISTS) {
-    assert(ExprType::SUBQUERYTYPE == right_->type());
-    auto sub_query_expr = (const SubQueryExpression *)(right_.get());
-    sub_query_expr->open_sub_query();
-    RC tmp_rc = sub_query_expr->get_value(tuple, right_value);
-    sub_query_expr->close_sub_query();
-    bool res = CompOp::EXISTS_OP == comp_ ? (RC::SUCCESS == tmp_rc) : (RC::RECORD_EOF == tmp_rc);
-    value.set_boolean(res);
-    return RC::SUCCESS;
-  }
-
-  // 当是IN 或 NOT IN时，需要获取子查询的所有tuple的value，然后查看left_value是否存在
-  if(comp_ == IN_OP || comp_ == NOT_IN) {
-    RC rc = left_->get_value(tuple, left_value);
-    if (RC::SUCCESS != rc) {
-      return rc;
-    }
-    if (left_value.is_null()) {
-     // 目前默认 null 不在任何value list中
-      value.set_boolean(false);
-      return RC::SUCCESS;
-    }
-    std::vector<Value> right_values;
-    right_values.emplace_back(Value());
-    RC tmp_rc = RC::SUCCESS;
-    if (ExprType::SUBQUERYTYPE == right_->type()) {
-      auto sub_query_expr = (const SubQueryExpression *)(right_.get());
-      sub_query_expr->open_sub_query();
-      while (RC::SUCCESS == (tmp_rc = sub_query_expr->get_value(tuple, right_values.back()))) {
-        right_values.emplace_back(Value());
-      }
-      sub_query_expr->close_sub_query();
-      if (RC::RECORD_EOF != tmp_rc) {
-        LOG_ERROR("[NOT] IN Get SubQuery Value Failed. RC = %d:%s", tmp_rc, strrc(tmp_rc));
-        return tmp_rc;
-      }
-      // 因为在SubQueryExpression中record_eof时，value为空，所以需要弹出
-      right_values.pop_back();
-    }
-
-    auto has_null = [](const std::vector<Value> &values) {
-      for (auto &value : values) {
-        if (value.is_null()) {
-          return true;
-        }
-      }
-      return false;
-    };
-    bool res = CompOp::IN_OP == comp_ ? left_value.in_cells(right_values)
-                                : (has_null(right_values) ? false : left_value.not_in_cells(right_values));
-    value.set_boolean(res);
-    return RC::SUCCESS;
-  }
-
-  auto get_cell_for_sub_query = [](const SubQueryExpression *expr, const Tuple &tuple, Value &cell) {
-    expr->open_sub_query();
-    RC rc = expr->get_value(tuple, cell);
-    if (RC::RECORD_EOF == rc) {
-      // e.g. a = select a  -> a = null
-      cell.set_null();
-    } else if (RC::SUCCESS == rc) {
-      Value tmp_cell;
-      if (RC::SUCCESS == (rc = expr->get_value(tuple, tmp_cell))) {
-        // e.g. a = select a  -> a = (1, 2, 3)
-        // std::cout << "Should not have rows more than 1" << std::endl;
-        expr->close_sub_query();
-        return RC::INTERNAL;
-      }
-    } else {
-      expr->close_sub_query();
-      return rc;
-    }
-    expr->close_sub_query();
-    return RC::SUCCESS;
-  };
-
-  RC rc = RC::SUCCESS;
-  if (ExprType::SUBQUERYTYPE == left_->type()) {
-    if (RC::SUCCESS != (rc = get_cell_for_sub_query((const SubQueryExpression *)(left_.get()), tuple, left_value))) {
-      LOG_ERROR("Predicate get left cell for sub_query failed. RC = %d:%s", rc, strrc(rc));
-      return rc;
-    }
-  } else {
-    if (RC::SUCCESS != (rc = left_->get_value(tuple, left_value))) {
-      LOG_ERROR("Predicate get left cell failed. RC = %d:%s", rc, strrc(rc));
-      return rc;
-    }
-  }
-
-  if (ExprType::SUBQUERYTYPE == right_->type()) {
-    if (RC::SUCCESS != (rc = get_cell_for_sub_query((const SubQueryExpression *)(right_.get()), tuple, right_value))) {
-      LOG_ERROR("Predicate get right cell for sub_query failed. RC = %d:%s", rc, strrc(rc));
-      return rc;
-    }
-  } else {
-    if (RC::SUCCESS != (rc = right_->get_value(tuple, right_value))) {
-      LOG_ERROR("Predicate get right cell failed. RC = %d:%s", rc, strrc(rc));
-      return rc;
-    }
-  }
-
-  rc = left_->get_value(tuple, left_value);
+  RC rc = left_->get_value(tuple, left_value);
 
   if (rc == RC::INTERNAL_DIV_ZERO) {
     value.set_boolean(false);
@@ -649,14 +550,39 @@ RC SubQueryExpression::create_expression(const std::unordered_map<std::string, T
     const std::vector<Table *> &tables, CompOp comp, Db *db) {
   Stmt *stmt = nullptr;
   RC rc = SelectStmt::create(db, *select_sql_node_, stmt);
-  auto select_stmt = (SelectStmt *)stmt;
-  if(select_stmt->query_fields().size() > 1) {
-    return RC::INTERNAL;
-  }
+//  auto select_stmt = (SelectStmt *)stmt;
+//  if(select_stmt->query_fields().size() > 1) {
+//    return RC::INTERNAL;
+//  }
   this->set_sub_query_stmt((SelectStmt *)stmt);
   if (RC::SUCCESS != rc) {
     LOG_ERROR("SubQueryExpression Create SelectStmt Failed. RC = %d:%s", rc, strrc(rc));
     return rc;
   }
   db_ = db;
+}
+
+RC AggExpr::get_value(const Tuple &tuple, Value &value) const  {
+// should pass in AggTuple
+  ASSERT(tuple.type() == TupleType::AGG, "eval on non aggtuple");
+  // use expr name to fetch cell in AggTuple
+  // "*"
+  TupleCellSpec spec("", "", name().c_str());
+  auto rc = tuple.find_cell(spec, value);
+  if(rc != RC::SUCCESS) {
+    LOG_WARN("agg expr eval fail");
+    return rc;
+  }
+  return RC::SUCCESS;
+}
+AttrType AggExpr::value_type() const {
+  if(agg_type_ == AggType::AVG_AGG) {
+    ASSERT(field_.attr_type() == AttrType::INTS || field_.attr_type() == AttrType::FLOATS, "avg on non-arihmetic value.");
+    return AttrType::FLOATS;
+  }
+  if(agg_type() == AggType::COUNT_STAR) {
+    return AttrType::INTS;
+  }
+  return field_.attr_type();
+
 }

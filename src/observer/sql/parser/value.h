@@ -98,23 +98,8 @@ public:
   void set_value(const Value &value);
 
   bool is_null() const {
-    switch (attr_type_) {
-    case CHARS:
-      return get_string().empty();
-    case INTS:
-      return get_int() == 0;
-    case DATES:
-      return get_date() == 0;
-    case FLOATS:
-      return fabs(get_float()) <= EPSILON;
-    case BOOLEANS:
-      return get_boolean();
-    case NULLS:
-      return true;
-    default:
-      LOG_WARN("unknown value type");
-      return 0;
-    }
+    return attr_type() == AttrType::NULLS;
+
   }
 
   static Value get_null(AttrType attr) {
@@ -130,9 +115,11 @@ public:
     case BOOLEANS:
       return Value(false);
     default:
-      LOG_PANIC("unreachable");
+      LOG_WARN("get null value on %d or %d", UNDEFINED, TEXTS);
+      Value val;
+      val.set_type(AttrType::NULLS);
+      return val;
     }
-    return Value(0);
   }
 
   std::string to_string() const;
