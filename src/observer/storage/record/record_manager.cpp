@@ -240,7 +240,7 @@ RC RecordPageHandler::update_record(
     // get specific field
     char       *change_loc = (char *)((uint64_t)(src_data) + field_metas[i]->offset());
     const char *data       = values[i].data();
-    size_t      copy_len   = field_metas[i]->len() == -1 ? field_metas[i]->len() : values[i].length();
+    size_t      copy_len   = field_metas[i]->len() == -1 ? values[i].length() : field_metas[i]->len();
     // TODO(chen): adapt variable length
     memcpy(change_loc, data, copy_len);
   }
