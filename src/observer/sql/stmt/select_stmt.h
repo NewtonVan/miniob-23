@@ -79,7 +79,10 @@ public:
     }
   };
   bool                          is_agg() { return is_agg_; }
-  const std::vector<agg_field> &all_agg_fields() const { return agg_fields_; }
+  const std::vector<std::string> all_agg_expr_name() const { return all_agg_expr_name_; }
+  const std::vector<Field>& all_agg_fields() const { return agg_fields_; }
+  const std::vector<Field>& non_agg_field() const { return non_agg_fields_; }
+  const std::vector<AggType>& agg_types() const {return agg_types_; } 
 
   const std::vector<Table *>               &tables() const { return tables_; }
   const std::vector<Field>                 &query_fields() const { return query_fields_; }
@@ -99,5 +102,8 @@ private:
   bool                                     use_project_exprs_ = false;
   // whether select has agg func
   bool                   is_agg_;
-  std::vector<agg_field> agg_fields_;
+  std::vector<AggType> agg_types_;
+  std::vector<Field> agg_fields_;
+  std::vector<Field> non_agg_fields_;
+  std::vector<std::string> all_agg_expr_name_;
 };

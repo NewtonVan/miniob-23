@@ -10,4 +10,12 @@ insert into function_table VALUES (6, 'SG6WBX0H6N95I3WB0O', 5.82, '2018-06-18');
 select id, length(name) from function_table where id>2;
 
 
+
+
+insert into function_table VALUES (1, '2MEJ6MYJ178EAE0PO', 9.83, '2024-07-03');
+insert into function_table VALUES (6, '4E12IWZRNS2ES', 4.19, '2019-04-05');
+insert into function_table VALUES (7, 'S6QUW2', 8.88, '2016-01-07');
+insert into function_table_2 VALUES (6, '4E12IWZRNS2ES', 4.19, '2019-04-05');
 select id, length(name) from function_table where length(name)>=4;
+
+select t1.id, t1.name, round(t1.score) as score1, t2.id, t2.name, round(t2.score) as score2 from function_table t1, function_table_2 t2 where t1.id > t2.id and round(t1.score) > round(t2.score);
