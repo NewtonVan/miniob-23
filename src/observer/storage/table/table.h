@@ -76,8 +76,9 @@ public:
    * @details 在表文件和索引中插入关联数据。这里只管在表中插入数据，不关心事务相关操作。
    * @param record[in/out] 传入的数据包含具体的数据，插入成功会通过此字段返回RID
    */
-  RC insert_record(Record &record);
-  RC update_record(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas);
+  RC   insert_record(Record &record);
+  RC   update_record(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas);
+  bool has_uniq_index();
   // 会进行uniq校验，耗时
   RC update_record_uniq(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas);
   RC delete_record(const Record &record);

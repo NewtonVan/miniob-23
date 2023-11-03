@@ -249,33 +249,47 @@ RC Table::insert_record(Record &record)
   return rc;
 }
 
-RC Table::update_record_uniq(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas)
+bool Table::has_uniq_index()
 {
-  std::vector<int> value_idx(field_metas.size());
-  const int        sys_field_num = table_meta_.sys_field_num();
-  const int        field_num     = table_meta_.field_num();
-  const int        update_amount = field_metas.size();
-
-  for (int i = 0; i < update_amount; ++i) {
-    for (int j = sys_field_num; j < field_num; ++j) {
-      if (strcmp(table_meta_.field(j)->name(), field_metas[i]->name()) != 0) {
-        continue;
-      }
-      value_idx[i] = j;
+  for (TableIndex &table_idx : table_indexes_) {
+    if (table_idx.is_unique()) {
+      return true;
     }
   }
 
-  char *new_record = new char[table_meta_.record_size()];
-  std::memcpy(new_record, record.data(), table_meta_.record_size());
-  for (int i = 0; i < values.size(); i++) {
-    change_record_value(new_record, value_idx[i], values[i]);
-  }
+  return false;
+}
 
-  if (!update_valid_for_unique_indexes(new_record)) {
+RC Table::update_record_uniq(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas)
+{
+  // 存在uniq idx时候，校验是否可以进行修改(耗时)
+  if (has_uniq_index()) {
+    std::vector<int> value_idx(field_metas.size());
+    const int        sys_field_num = table_meta_.sys_field_num();
+    const int        field_num     = table_meta_.field_num();
+    const int        update_amount = field_metas.size();
+
+    for (int i = 0; i < update_amount; ++i) {
+      for (int j = sys_field_num; j < field_num; ++j) {
+        if (strcmp(table_meta_.field(j)->name(), field_metas[i]->name()) != 0) {
+          continue;
+        }
+        value_idx[i] = j;
+      }
+    }
+
+    char *new_record = new char[table_meta_.record_size()];
+    std::memcpy(new_record, record.data(), table_meta_.record_size());
+    for (int i = 0; i < values.size(); i++) {
+      change_record_value(new_record, value_idx[i], values[i]);
+    }
+
+    if (!update_valid_for_unique_indexes(new_record)) {
+      delete[] new_record;
+      return RC::RECORD_DUPLICATE_KEY;
+    }
     delete[] new_record;
-    return RC::RECORD_DUPLICATE_KEY;
   }
-  delete[] new_record;
 
   return update_record(record, values, field_metas);
 }
