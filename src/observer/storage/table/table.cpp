@@ -12,12 +12,19 @@ See the Mulan PSL v2 for more details. */
 // Created by Meiyi & Wangyunlai on 2021/5/13.
 //
 
+#include <cstddef>
+#include <cstdlib>
 #include <limits.h>
 #include <string.h>
 #include <algorithm>
 #include <cstring>
+#include <vector>
 
 #include "common/defs.h"
+#include "common/lang/bitmap.h"
+#include "common/rc.h"
+#include "sql/parser/value.h"
+#include "storage/field/field_meta.h"
 #include "storage/table/table.h"
 #include "storage/table/table_meta.h"
 #include "common/log/log.h"
@@ -242,23 +249,56 @@ RC Table::insert_record(Record &record)
   return rc;
 }
 
-RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<int> &offsets, std::vector<int> &lens)
+bool Table::has_uniq_index()
 {
-  // char *new_record = new char(record.len());
-  // std::strcpy(new_record, record.data());
-  // for (int i = 0; i < values.size(); i++) {
-  //   std::memcpy(new_record + offsets[i], values[i].data(), lens[i]);
-  // }
+  for (TableIndex &table_idx : table_indexes_) {
+    if (table_idx.is_unique()) {
+      return true;
+    }
+  }
 
-  // if (!update_valid_for_unique_indexes(new_record)) {
-  //   delete[] new_record;
-  //   return RC::RECORD_DUPLICATE_KEY;
-  // }
-  // delete[] new_record;
+  return false;
+}
 
+RC Table::update_record_uniq(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas)
+{
+  // 存在uniq idx时候，校验是否可以进行修改(耗时)
+  if (has_uniq_index()) {
+    std::vector<int> value_idx(field_metas.size());
+    const int        sys_field_num = table_meta_.sys_field_num();
+    const int        field_num     = table_meta_.field_num();
+    const int        update_amount = field_metas.size();
+
+    for (int i = 0; i < update_amount; ++i) {
+      for (int j = sys_field_num; j < field_num; ++j) {
+        if (strcmp(table_meta_.field(j)->name(), field_metas[i]->name()) != 0) {
+          continue;
+        }
+        value_idx[i] = j;
+      }
+    }
+
+    char *new_record = new char[table_meta_.record_size()];
+    std::memcpy(new_record, record.data(), table_meta_.record_size());
+    for (int i = 0; i < values.size(); i++) {
+      change_record_value(new_record, value_idx[i], values[i]);
+    }
+
+    if (!update_valid_for_unique_indexes(new_record)) {
+      delete[] new_record;
+      return RC::RECORD_DUPLICATE_KEY;
+    }
+    delete[] new_record;
+  }
+
+  return update_record(record, values, field_metas);
+}
+
+RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas)
+{
   RC     rc = RC::SUCCESS;
   Record origin_record(record);
-  rc = record_handler_->update_record(record, values, offsets, lens);
+  rc = record_handler_->update_record(record, values, field_metas);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Update record failed. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
     return rc;
@@ -296,6 +336,44 @@ RC Table::get_record(const RID &rid, Record &record)
 
   record.set_data_owner(record_data, record_size);
   return rc;
+}
+
+RC Table::change_record_value(char *&record, int idx, const Value &value) const
+{
+  const FieldMeta *null_field = table_meta_.null_mask_field();
+  common::Bitmap   bitmap(record + null_field->offset(), null_field->len());
+
+  const FieldMeta *field = table_meta_.field(idx);
+  // check null
+  if (value.attr_type() == AttrType::NULLS) {
+    if (!field->nullable()) {
+      LOG_ERROR("Invalid value type. Cannot be null. table name =%s, field name=%s, type=%d, but given=%d",
+          table_meta_.name(),
+          field->name(),
+          field->type(),
+          value.attr_type());
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+    bitmap.set_bit(idx);
+    memset(record + field->offset(), 0, field->len());
+
+    return RC::SUCCESS;
+  }
+  bitmap.clear_bit(idx);
+
+  // TODO(chen):  type cast?
+
+  // copy data
+  size_t copy_len = field->len();
+  if (field->type() == AttrType::CHARS) {
+    const size_t data_len = strlen(value.data());
+    if (copy_len > data_len) {
+      copy_len = data_len + 1;
+    }
+  }
+  memcpy(record + field->offset(), value.data(), copy_len);
+
+  return RC::SUCCESS;
 }
 
 RC Table::recover_insert_record(Record &record)
@@ -427,7 +505,7 @@ RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly
   return rc;
 }
 
-RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name, bool unique, bool multi)
+RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name, bool unique, Index *&out_index)
 {
   if (common::is_blank(index_name) || nullptr == field_meta) {
     LOG_INFO("Invalid input arguments, table name is %s, index_name is blank or attribute_name is blank", name());
@@ -438,11 +516,6 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
   //      table_meta_.find_index_by_field((field_meta->name())) || !multi) {
   //      return RC::SCHEMA_INDEX_NAME_REPEAT;
   //  }
-
-  if (multi) {
-    mutil_ = true;
-    //    return RC::SUCCESS;
-  }
 
   IndexMeta new_index_meta;
   RC        rc = new_index_meta.init(index_name, *field_meta, unique);
@@ -497,6 +570,7 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
   LOG_INFO("inserted all records into new index. table=%s, index=%s", name(), index_name);
 
   indexes_.push_back(index);
+  out_index = index;
 
   /// 接下来将这个索引放到表的元数据中
   TableMeta new_table_meta(table_meta_);
@@ -538,6 +612,28 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
   return rc;
 }
 
+RC Table::create_index(
+    Trx *trx, std::vector<FieldMeta *> field_metas, std::vector<std::string> index_names, bool unique)
+{
+  RC                   rc       = RC::SUCCESS;
+  const int            idx_size = field_metas.size();
+  std::vector<Index *> index_group(idx_size);
+  for (int i = 0; i < idx_size; ++i) {
+    Index *new_index = nullptr;
+    rc               = create_index(trx, field_metas[i], index_names[i].c_str(), unique, new_index);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("fail to create index: %s", strrc(rc));
+      return rc;
+    }
+    index_group[i] = new_index;
+  }
+
+  TableIndex idx(index_group, unique);
+  table_indexes_.push_back(std::move(idx));
+
+  return rc;
+}
+
 RC Table::delete_record(const Record &record)
 {
   RC rc = RC::SUCCESS;
@@ -568,29 +664,9 @@ RC Table::insert_entry_of_indexes(const char *record, const RID &rid)
 
 bool Table::insert_valid_for_unique_indexes(Record &record)
 {
-  if (mutil_) {
-    int num = 0;
-    for (Index *index : indexes_) {
-      if (index->index_meta().unique()) {
-        std::list<RID> g_rids;
-        if (index->get_entry(record.data(), g_rids) == RC::SUCCESS) {
-          num++;
-        }
-      }
-    }
-    if (num == indexes_.size()) {
+  for (TableIndex &idx : table_indexes_) {
+    if (idx.is_conflict(record)) {
       return false;
-    } else {
-      return true;
-    }
-  } else {
-    for (Index *index : indexes_) {
-      if (index->index_meta().unique()) {
-        std::list<RID> g_rids;
-        if (index->get_entry(record.data(), g_rids) == RC::SUCCESS) {
-          return false;
-        }
-      }
     }
   }
 
@@ -605,49 +681,29 @@ bool hasCommonStringInRows(const std::vector<std::vector<std::string>> &rids)
 
   std::unordered_set<std::string> commonStrings(rids[0].begin(), rids[0].end());
 
-  for (size_t i = 1; i < rids.size(); ++i) {
-    std::unordered_set<std::string> currentRowStrings(rids[i].begin(), rids[i].end());
-
-    for (const std::string &str : commonStrings) {
+  for (auto &str : commonStrings) {
+    bool common = true;
+    for (size_t i = 1; i < rids.size(); ++i) {
+      std::unordered_set<std::string> currentRowStrings(rids[i].begin(), rids[i].end());
       if (currentRowStrings.find(str) == currentRowStrings.end()) {
-        return false;
+        common = false;
+        break;
       }
+    }
+
+    if (common) {
+      return true;
     }
   }
 
-  return true;
+  return false;
 }
 
 bool Table::update_valid_for_unique_indexes(const char *record)
 {
-  if (mutil_) {
-    std::vector<std::vector<std::string>> rids;
-    for (Index *index : indexes_) {
-      if (index->index_meta().unique()) {
-        std::list<RID> g_rids;
-        if (index->get_entry(record, g_rids) == RC::SUCCESS) {
-          std::vector<std::string> tmp;
-          for (const RID &rid : g_rids) {
-            tmp.push_back(rid.to_string());
-          }
-          rids.push_back(tmp);
-        }
-      }
-    }
-    if (rids.size() == indexes_.size()) {
-      if (!hasCommonStringInRows(rids)) {
-        return true;
-      }
+  for (TableIndex &idx : table_indexes_) {
+    if (idx.is_conflict(record)) {
       return false;
-    }
-  } else {
-    for (Index *index : indexes_) {
-      if (index->index_meta().unique()) {
-        std::list<RID> g_rids;
-        if (index->get_entry(record, g_rids) == RC::SUCCESS) {
-          return false;
-        }
-      }
     }
   }
 

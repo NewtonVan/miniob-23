@@ -143,9 +143,9 @@ public:
   virtual RC insert_record(Table *table, Record &record) = 0;
   // TODO(chen): last 2 args
   virtual RC update_record(
-      Table *table, Record &record, std::vector<Value> &values, std::vector<int> offset, std::vector<int> lens) = 0;
-  virtual RC delete_record(Table *table, Record &record)                                                        = 0;
-  virtual RC visit_record(Table *table, Record &record, bool readonly)                                          = 0;
+      Table *table, Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> field_metas) = 0;
+  virtual RC delete_record(Table *table, Record &record)                                                    = 0;
+  virtual RC visit_record(Table *table, Record &record, bool readonly)                                      = 0;
 
   virtual RC start_if_need() = 0;
   virtual RC commit()        = 0;

@@ -1,0 +1,13 @@
+CREATE TABLE update_table_1(id int, t_name char(20), col1 int, col2 int);
+CREATE INDEX index_id on update_table_1(id);
+
+INSERT INTO update_table_1 VALUES (92, '997AEKDVUVSJ5K9S00', 45, 91);
+INSERT INTO update_table_1 VALUES (83, '4YYSD', 54, 1);
+INSERT INTO update_table_1 VALUES (51, 'OKEIMWWWO6QLI657IEQ', 66, 78);
+INSERT INTO update_table_1 VALUES (30 , 'VD5WFR71W6H9X4DFT' , 41 , 65);
+
+select * from update_table_1;
+
+UPDATE update_table_1 SET t_name='VD5WFR71W6' WHERE id=30;
+
+select * from update_table_1;
