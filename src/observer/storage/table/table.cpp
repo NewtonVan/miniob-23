@@ -249,7 +249,7 @@ RC Table::insert_record(Record &record)
   return rc;
 }
 
-RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas)
+RC Table::update_record_uniq(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas)
 {
   std::vector<int> value_idx(field_metas.size());
   const int        sys_field_num = table_meta_.sys_field_num();
@@ -277,6 +277,11 @@ RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<
   }
   delete[] new_record;
 
+  return update_record(record, values, field_metas);
+}
+
+RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas)
+{
   RC     rc = RC::SUCCESS;
   Record origin_record(record);
   rc = record_handler_->update_record(record, values, field_metas);

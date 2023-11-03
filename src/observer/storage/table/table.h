@@ -78,6 +78,8 @@ public:
    */
   RC insert_record(Record &record);
   RC update_record(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas);
+  // 会进行uniq校验，耗时
+  RC update_record_uniq(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas);
   RC delete_record(const Record &record);
   RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
   RC get_record(const RID &rid, Record &record);

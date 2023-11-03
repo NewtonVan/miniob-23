@@ -37,7 +37,7 @@ RC VacuousTrx::insert_record(Table *table, Record &record) { return table->inser
 RC VacuousTrx::update_record(
     Table *table, Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> field_metas)
 {
-  return table->update_record(record, values, field_metas);
+  return table->update_record_uniq(record, values, field_metas);
 };
 
 RC VacuousTrx::delete_record(Table *table, Record &record) { return table->delete_record(record); }
