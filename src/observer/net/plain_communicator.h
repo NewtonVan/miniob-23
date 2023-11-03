@@ -36,6 +36,7 @@ private:
   RC write_state(SessionEvent *event, bool &need_disconnect);
   RC write_debug(SessionEvent *event, bool &need_disconnect);
   RC write_result_internal(SessionEvent *event, bool &need_disconnect);
+  RC write_table_header(SessionEvent *event);
 
 protected:
   std::vector<char> send_message_delimiter_; ///< 发送消息分隔符

@@ -165,27 +165,11 @@ RC PlainCommunicator::write_result(SessionEvent *event, bool &need_disconnect)
   return rc;
 }
 
-RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disconnect)
-{
+RC PlainCommunicator::write_table_header(SessionEvent *event) {
   RC rc = RC::SUCCESS;
-  need_disconnect = true;
-
   SqlResult *sql_result = event->sql_result();
-
-  if (RC::SUCCESS != sql_result->return_code() || !sql_result->has_operator()) {
-    return write_state(event, need_disconnect);
-  }
-
-  rc = sql_result->open();
-  if (OB_FAIL(rc)) {
-    sql_result->close();
-    sql_result->set_return_code(rc);
-    return write_state(event, need_disconnect);
-  }
-
   const TupleSchema &schema = sql_result->tuple_schema();
   const int cell_num = schema.cell_num();
-
   // 写表头
   for (int i = 0; i < cell_num; i++) {
     const TupleCellSpec &spec = schema.cell_at(i);
@@ -219,10 +203,39 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
       return rc;
     }
   }
+}
+
+RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disconnect)
+{
+  RC rc = RC::SUCCESS;
+  need_disconnect = true;
+
+  SqlResult *sql_result = event->sql_result();
+
+  if (RC::SUCCESS != sql_result->return_code() || !sql_result->has_operator()) {
+    return write_state(event, need_disconnect);
+  }
+
+  rc = sql_result->open();
+  if (OB_FAIL(rc)) {
+    sql_result->close();
+    sql_result->set_return_code(rc);
+    return write_state(event, need_disconnect);
+  }
+
+  const TupleSchema &schema = sql_result->tuple_schema();
+  const int cell_num = schema.cell_num();
+
+//  write_table_header(event);
 
   rc = RC::SUCCESS;
   Tuple *tuple = nullptr;
+  int having_tuple_num = 0;
   while (RC::SUCCESS == (rc = sql_result->next_tuple(tuple))) {
+    having_tuple_num++;
+    if(having_tuple_num == 1) {
+      write_table_header(event);
+    }
     assert(tuple != nullptr);
 
     int cell_num = tuple->cell_num();
@@ -259,6 +272,19 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
       LOG_WARN("failed to send data to client. err=%s", strerror(errno));
       sql_result->close();
       return rc;
+    }
+  }
+
+  if(having_tuple_num == 0) {
+    if(rc != RC::SUB_QUERY_MORE_DATA) {
+      write_table_header(event);
+    } else {
+      RC rc_close = sql_result->close();
+      if (rc == RC::SUCCESS) {
+        rc = rc_close;
+      }
+      sql_result->set_return_code(rc);
+      return write_state(event, need_disconnect);
     }
   }
 

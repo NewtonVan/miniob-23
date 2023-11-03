@@ -259,7 +259,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
         // e.g. a = select a  -> a = (1, 2, 3)
         // std::cout << "Should not have rows more than 1" << std::endl;
         expr->close_sub_query();
-        return RC::INTERNAL;
+        return RC::SUB_QUERY_MORE_DATA;
       }
     } else {
       expr->close_sub_query();
@@ -271,7 +271,8 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
 
   RC rc = RC::SUCCESS;
   if (ExprType::SUBQUERYTYPE == left_->type()) {
-    if (RC::SUCCESS != (rc = get_cell_for_sub_query((const SubQueryExpression *)(left_.get()), tuple, left_value))) {
+    rc = get_cell_for_sub_query((const SubQueryExpression *)(left_.get()), tuple, left_value);
+    if (RC::SUCCESS != rc) {
       LOG_ERROR("Predicate get left cell for sub_query failed. RC = %d:%s", rc, strrc(rc));
       return rc;
     }
@@ -283,7 +284,8 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   }
 
   if (ExprType::SUBQUERYTYPE == right_->type()) {
-    if (RC::SUCCESS != (rc = get_cell_for_sub_query((const SubQueryExpression *)(right_.get()), tuple, right_value))) {
+    rc = get_cell_for_sub_query((const SubQueryExpression *)(right_.get()), tuple, right_value);
+    if (RC::SUCCESS != rc) {
       LOG_ERROR("Predicate get right cell for sub_query failed. RC = %d:%s", rc, strrc(rc));
       return rc;
     }
@@ -294,24 +296,26 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     }
   }
 
-  rc = left_->get_value(tuple, left_value);
+  if(ExprType::SUBQUERYTYPE != right_->type() && ExprType::SUBQUERYTYPE != left_->type()) {
+    rc = left_->get_value(tuple, left_value);
 
-  if (rc == RC::INTERNAL_DIV_ZERO) {
-    value.set_boolean(false);
-    return RC::SUCCESS;
-  }
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
-    return rc;
-  }
-  rc = right_->get_value(tuple, right_value);
-  if (rc == RC::INTERNAL_DIV_ZERO) {
-    value.set_boolean(false);
-    return RC::SUCCESS;
-  }
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-    return rc;
+    if (rc == RC::INTERNAL_DIV_ZERO) {
+      value.set_boolean(false);
+      return RC::SUCCESS;
+    }
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+      return rc;
+    }
+    rc = right_->get_value(tuple, right_value);
+    if (rc == RC::INTERNAL_DIV_ZERO) {
+      value.set_boolean(false);
+      return RC::SUCCESS;
+    }
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
   }
 
   bool bool_value = false;
