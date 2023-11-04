@@ -21,11 +21,11 @@ See the Mulan PSL v2 for more details. */
 
 #define DEFINE_RCS                       \
   DEFINE_RC(SUCCESS)                     \
+  DEFINE_RC(DUMMY_SUCCESS)               \
   DEFINE_RC(INVALID_ARGUMENT)            \
   DEFINE_RC(UNIMPLENMENT)                \
   DEFINE_RC(SQL_SYNTAX)                  \
   DEFINE_RC(INTERNAL)                    \
-  DEFINE_RC(INTERNAL_DIV_ZERO)           \
   DEFINE_RC(NOMEM)                       \
   DEFINE_RC(NOTFOUND)                    \
   DEFINE_RC(EMPTY)                       \

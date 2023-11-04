@@ -13,10 +13,12 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "common/log/log.h"
+#include "common/rc.h"
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
 #include "sql/expr/tuple_cell.h"
 #include "sql/operator/project_physical_operator.h"
+#include "sql/parser/value.h"
 #include "storage/record/record.h"
 #include "storage/table/table.h"
 #include <memory>
@@ -42,7 +44,20 @@ RC ProjectPhysicalOperator::next()
   if (children_.empty()) {
     return RC::RECORD_EOF;
   }
-  return children_[0]->next();
+  RC rc = children_[0]->next();
+  if (RC::DUMMY_SUCCESS == rc) {
+    Tuple    *tuple    = current_tuple();
+    const int cell_num = tuple->cell_num();
+    Value     cell;
+    for (int i = 0; i < cell_num; ++i) {
+      if (tuple->cell_at(i, cell) != RC::SUCCESS) {
+        return RC::RECORD_EOF;
+      }
+    }
+    return RC::SUCCESS;
+  }
+
+  return rc;
 }
 
 RC ProjectPhysicalOperator::close()
@@ -89,8 +104,8 @@ void ProjectPhysicalOperator::init_specs()
       TupleCellSpec *spec = new TupleCellSpec("", "", func->name().c_str());
       tuple_.add_cell_spec(spec);
     } else if (expr->type() == ExprType::AGG) {
-      AggExpr* agg_expr = static_cast<AggExpr*>(expr.get());
-      TupleCellSpec* spec = new TupleCellSpec("", "", agg_expr->name().c_str());
+      AggExpr       *agg_expr = static_cast<AggExpr *>(expr.get());
+      TupleCellSpec *spec     = new TupleCellSpec("", "", agg_expr->name().c_str());
       tuple_.add_cell_spec(spec);
     }
     // TODO(chen):

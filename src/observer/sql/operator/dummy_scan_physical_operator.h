@@ -13,7 +13,7 @@ public:
   RC open(Trx *trx) override { return RC::SUCCESS; }
   RC next() override
   {
-    RC rc = RC::SUCCESS;
+    RC rc = RC::DUMMY_SUCCESS;
     if (emitted_) {
       return RC::RECORD_EOF;
     }
