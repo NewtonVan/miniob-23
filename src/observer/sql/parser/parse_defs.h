@@ -52,20 +52,20 @@ struct RelAttrSqlNode
  */
 enum CompOp
 {
-  EQUAL_TO,     ///< "="
-  LESS_EQUAL,   ///< "<="
-  NOT_EQUAL,    ///< "<>"
-  LESS_THAN,    ///< "<"
-  GREAT_EQUAL,  ///< ">="
-  GREAT_THAN,   ///< ">"
-  LIKES,        ///< "LIKE"
-  NOT_LIKES,    ///< "NOT LIKE"
-  IS_LEFT_NULL,
-  IS_LEFT_NOT_NULL,
-  IN_OP,
-  NOT_IN,
-  EXISTS_OP,
-  NOT_EXISTS,
+  EQUAL_TO,     ///< "=" 0
+  LESS_EQUAL,   ///< "<=" 1
+  NOT_EQUAL,    ///< "<>" 2
+  LESS_THAN,    ///< "<" 3
+  GREAT_EQUAL,  ///< ">=" 4
+  GREAT_THAN,   ///< ">" 5
+  LIKES,        ///< "LIKE" 6
+  NOT_LIKES,    ///< "NOT LIKE" 7
+  IS_LEFT_NULL, /// 8
+  IS_LEFT_NOT_NULL, /// 9
+  SUB_IN_OP, /// 10
+  SUB_NOT_IN, /// 11
+  SUB_EXISTS_OP, /// 12
+  SUB_NOT_EXISTS, /// 13
   NO_OP
 };
 

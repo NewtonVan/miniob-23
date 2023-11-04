@@ -195,6 +195,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <func_args>           date_format_args
 %type <expression>          func_expr
 %type <expression>          agg_expr
+%type <expression>          sub_query_two_expr
 %type <expression>          sub_query_expr
 %type <expression>          sub_query_list_expr
 %type <expression_list>     expression_list
@@ -650,6 +651,16 @@ select_stmt:        /*  select 语句的语法解析树*/
     }
     ;
 
+sub_query_two_expr:
+    sub_query_expr
+    {
+        $$ = $1;
+    }
+    | sub_query_list_expr
+    {
+        $$ = $1;
+    }
+
 sub_query_expr:
     LBRACE SELECT select_attr FROM single_table rel_list where RBRACE
     {
@@ -806,14 +817,6 @@ expression:
       $$->set_name(token_name(sql_string, &@$));
     }
     | sub_query_expr AS ID {
-      $$ = $1;
-      $$->set_name($3);
-    }
-    | sub_query_list_expr {
-      $$ = $1;
-      $$->set_name(token_name(sql_string, &@$));
-    }
-    | sub_query_list_expr AS ID {
       $$ = $1;
       $$->set_name($3);
     }
@@ -1145,6 +1148,30 @@ condition:
       std::unique_ptr<Expression> right($3);
       $$ = new ComparisonExpr($2, std::move(left), std::move(right));
     }
+    | expression IN sub_query_two_expr
+    {
+      std::unique_ptr<Expression> left($1);
+      std::unique_ptr<Expression> right($3);
+      $$ = new ComparisonExpr(SUB_IN_OP, std::move(left), std::move(right));
+    }
+    | expression NOT IN sub_query_two_expr
+    {
+      std::unique_ptr<Expression> left($1);
+      std::unique_ptr<Expression> right($4);
+      $$ = new ComparisonExpr(SUB_NOT_IN, std::move(left), std::move(right));
+    }
+    | expression EXISTS sub_query_two_expr
+    {
+      std::unique_ptr<Expression> left($1);
+      std::unique_ptr<Expression> right($3);
+      $$ = new ComparisonExpr(SUB_EXISTS_OP, std::move(left), std::move(right));
+    }
+    | expression NOT EXISTS sub_query_two_expr
+    {
+      std::unique_ptr<Expression> left($1);
+      std::unique_ptr<Expression> right($4);
+      $$ = new ComparisonExpr(SUB_NOT_EXISTS, std::move(left), std::move(right));
+    }
     | comp_op expression
     {
       std::unique_ptr<Expression> right($2);
@@ -1161,10 +1188,6 @@ comp_op:
     | NE { $$ = NOT_EQUAL; }
     | LIKE { $$ = LIKES; }
     | NOT_LIKE { $$ = NOT_LIKES; }
-    | IN { $$ = IN_OP; }
-    | NOT IN { $$ = NOT_IN; }
-    | EXISTS { $$ = EXISTS_OP; }
-    | NOT EXISTS { $$ = NOT_EXISTS; }
     ;
 
 load_data_stmt:
