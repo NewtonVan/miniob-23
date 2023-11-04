@@ -68,7 +68,8 @@ RC collect_field(Db *db, Table *default_table,
     std::unordered_map<std::string, Table *> *tables, Expression* expr, std::vector<Field>& all_agg_field , std::vector<Field>& all_non_agg_field, std::vector<AggType>& agg_types, std::vector<std::string>& all_agg_expr_name);
 
 
-RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
+RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector<Table *> &parent_tables,
+    const std::unordered_map<std::string, Table *> &parent_table_map, bool is_sub_query, Stmt *&stmt)
 {
   if (nullptr == db) {
     LOG_WARN("invalid argument. db is null");
@@ -255,15 +256,33 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
-  RC          rc          = FilterStmt::create(db,
-      default_table,
-      &table_map,
-      select_sql.conditions,
-      static_cast<int>(select_sql.conditions.size()),
-      filter_stmt);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("cannot construct filter stmt");
-    return rc;
+
+  // 子查询，需要和父表关联的情况下
+  RC rc = RC::SUCCESS;
+  if(is_sub_query) {
+    std::unordered_map<std::string, Table *> temp_table_map = table_map;
+    temp_table_map.insert(parent_table_map.begin(), parent_table_map.end());
+    rc = FilterStmt::create(db,
+        default_table,
+        &temp_table_map,
+        select_sql.conditions,
+        static_cast<int>(select_sql.conditions.size()),
+        filter_stmt);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot construct filter stmt");
+      return rc;
+    }
+  } else {
+    rc = FilterStmt::create(db,
+        default_table,
+        &table_map,
+        select_sql.conditions,
+        static_cast<int>(select_sql.conditions.size()),
+        filter_stmt);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot construct filter stmt");
+      return rc;
+    }
   }
 
   // create order_by stmt

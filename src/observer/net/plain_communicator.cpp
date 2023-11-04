@@ -203,6 +203,8 @@ RC PlainCommunicator::write_table_header(SessionEvent *event) {
       return rc;
     }
   }
+
+  return rc;
 }
 
 RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disconnect)

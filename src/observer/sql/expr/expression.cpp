@@ -231,6 +231,10 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
       }
       // 因为在SubQueryExpression中record_eof时，value为空，所以需要弹出
       right_values.pop_back();
+    } else {
+      assert(ExprType::SUBLISTTYPE == right_->type());
+      auto list_expr = (const ListExpression *)(right_.get());
+      right_values = list_expr->get_tuple_cells();
     }
 
     auto has_null = [](const std::vector<Value> &values) {
@@ -653,7 +657,7 @@ RC SubQueryExpression::get_value(const Tuple &tuple, Value &value) const
 RC SubQueryExpression::create_expression(const std::unordered_map<std::string, Table *> &table_map,
     const std::vector<Table *> &tables, CompOp comp, Db *db) {
   Stmt *stmt = nullptr;
-  RC rc = SelectStmt::create(db, *select_sql_node_, stmt);
+  RC rc = SelectStmt::create(db, *select_sql_node_, tables, table_map, true, stmt);
   auto select_stmt = (SelectStmt*)(stmt);
   if(select_stmt->use_project_exprs() && select_stmt->project_exprs().size() > 1 || select_stmt->query_fields().size() > 1) {
     return RC::SUB_QUERY_MULTI_FIELDS;

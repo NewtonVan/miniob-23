@@ -196,6 +196,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <expression>          func_expr
 %type <expression>          agg_expr
 %type <expression>          sub_query_expr
+%type <expression>          sub_query_list_expr
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
@@ -673,6 +674,20 @@ sub_query_expr:
       free($5);
     }
 
+sub_query_list_expr:
+    LBRACE value value_list RBRACE
+    {
+      std::vector<Value> values;
+      if ($3 != nullptr) {
+        values.swap(*$3);
+      }
+      values.emplace_back(*$2);
+      std::reverse(values.begin(), values.end());
+
+      $$ = new ListExpression(values);
+      delete $2;
+    }
+
 order_item:
 	rel_attr order {
         $$ = new OrderBy;
@@ -791,6 +806,14 @@ expression:
       $$->set_name(token_name(sql_string, &@$));
     }
     | sub_query_expr AS ID {
+      $$ = $1;
+      $$->set_name($3);
+    }
+    | sub_query_list_expr {
+      $$ = $1;
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | sub_query_list_expr AS ID {
       $$ = $1;
       $$->set_name($3);
     }

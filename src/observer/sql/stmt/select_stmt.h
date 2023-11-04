@@ -45,7 +45,8 @@ public:
   StmtType type() const override { return StmtType::SELECT; }
 
 public:
-  static RC create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt);
+  static RC create(Db *db, const SelectSqlNode &select_sql, const std::vector<Table *> &parent_tables,
+      const std::unordered_map<std::string, Table *> &parent_table_map, bool is_sub_query, Stmt *&stmt);
   // TODO(chen): handle alias issue
   static RC collectJoinTables(Db *db, GeneralRelationSqlNode *rel, std::vector<Table *> &tables,
       std::unordered_map<std::string, Table *> &table_map, std::unordered_map<std::string, std::string> &alias_map);

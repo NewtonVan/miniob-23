@@ -340,9 +340,13 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_expr(condition->right().get());
     filter_unit->set_right(filter_obj);
+  } else if (condition->right()->type() == ExprType::SUBLISTTYPE) {
+    FilterObj filter_obj;
+    filter_obj.init_expr(condition->right().get());
+    filter_unit->set_right(filter_obj);
   } else {
-    LOG_WARN("unsupported right expr, %d", condition->right()->type());
-    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      LOG_WARN("unsupported right expr, %d", condition->right()->type());
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
   }
 
   LOG_DEBUG("filter_unit->left().value.attr_type(): %d, filter_unit->right().value.attr_type(): %d", filter_unit->left().value.attr_type(), filter_unit->right().value.attr_type());

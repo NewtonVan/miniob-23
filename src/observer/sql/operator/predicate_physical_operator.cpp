@@ -47,7 +47,17 @@ RC PredicatePhysicalOperator::next()
     }
 
     Value value;
-    rc = expression_->get_value(*tuple, value);
+
+    // 子查询中父查询与子查询关联的情况
+    JoinedTuple join_tuple;
+    join_tuple.set_left(tuple);
+    join_tuple.set_right(const_cast<Tuple *>(parent_tuple_));
+    if(nullptr == parent_tuple_) {
+      rc = expression_->get_value(*tuple, value);
+    } else {
+      rc = expression_->get_value(join_tuple, value);
+    }
+
     if (rc != RC::SUCCESS) {
       return rc;
     }

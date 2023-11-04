@@ -54,6 +54,7 @@ enum class ExprType
   REL_ATTR,     ///< attr的封装，需要转化为field使用
   FUNCTION,     ///< function表达式
   SUBQUERYTYPE,
+  SUBLISTTYPE,
   AGG
 };
 
@@ -400,7 +401,7 @@ public:
 
   RC get_value(const Tuple &tuple, Value &value) const override;
 
-  RC try_get_value(Value &value) const { return RC::UNIMPLENMENT; }
+  RC try_get_value(Value &value) const override { return RC::UNIMPLENMENT; }
 
   void set_sub_query_stmt(SelectStmt *sub_stmt)
   {
@@ -453,7 +454,25 @@ private:
   Db *db_ = nullptr;
 };
 
+class ListExpression : public Expression {
+public:
+  ListExpression(std::vector<Value> &values) : values_(values){}
 
+  ~ListExpression() override = default;
+
+  AttrType value_type() const override { return AttrType::UNDEFINED; }
+
+  RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
+
+  RC try_get_value(Value &value) const override { return RC::UNIMPLENMENT; }
+
+  ExprType type() const override { return ExprType::SUBLISTTYPE; }
+
+  const std::vector<Value> get_tuple_cells() const { return values_; }
+
+private:
+  std::vector<Value> values_;
+};
 
 /**
  * @brief Agg表达式
