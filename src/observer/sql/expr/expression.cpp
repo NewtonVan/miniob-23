@@ -113,12 +113,12 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
 
   // 左右其中一个为空，且比较符号不是IS_LEFT_NULL和IS_LEFT_NULL，则永远返回false，因为null和任何值比较都返回false
   if (left.attr_type() != right.attr_type() && (left.attr_type() == NULLS || right.attr_type() == NULLS) &&
-      comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NULL) {
+      comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NOT_NULL) {
     result = false;
     return rc;
   }
 
-  if (left.attr_type() == NULLS && right.attr_type() == NULLS && comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NULL) {
+  if (left.attr_type() == NULLS && right.attr_type() == NULLS && comp_ != IS_LEFT_NULL && comp_ != IS_LEFT_NOT_NULL) {
     result = false;
     return rc;
   }
@@ -303,22 +303,14 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   if(ExprType::SUBQUERYTYPE != right_->type() && ExprType::SUBQUERYTYPE != left_->type()) {
     rc = left_->get_value(tuple, left_value);
 
-    if (rc == RC::INTERNAL_DIV_ZERO) {
-      value.set_boolean(false);
-      return RC::SUCCESS;
-    }
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
-      return rc;
-    }
-    rc = right_->get_value(tuple, right_value);
-    if (rc == RC::INTERNAL_DIV_ZERO) {
-      value.set_boolean(false);
-      return RC::SUCCESS;
-    }
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-      return rc;
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+    return rc;
+  }
+  rc = right_->get_value(tuple, right_value);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+    return rc;
     }
   }
 
@@ -389,6 +381,12 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
 {
   RC rc = RC::SUCCESS;
 
+  // 又一个为NULL，整个结果均为NULL
+  if (left_value.attr_type() == AttrType::NULLS || right_value.attr_type() == AttrType::NULLS) {
+    value.set_type(AttrType::NULLS);
+    return rc;
+  }
+
   const AttrType target_type = value_type();
 
   switch (arithmetic_type_) {
@@ -421,8 +419,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
         if (right_value.get_int() == 0) {
           // NOTE:
           // 设置为整数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为整数最大值。
-          value.set_int(numeric_limits<int>::max());
-          return RC::INTERNAL_DIV_ZERO;
+          value.set_type(AttrType::NULLS);
         } else {
           value.set_int(left_value.get_int() / right_value.get_int());
         }
@@ -430,8 +427,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
         if (right_value.get_float() > -EPSILON && right_value.get_float() < EPSILON) {
           // NOTE:
           // 设置为浮点数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为浮点数最大值。
-          value.set_float(numeric_limits<float>::max());
-          return RC::INTERNAL_DIV_ZERO;
+          value.set_type(AttrType::NULLS);
         } else {
           value.set_float(left_value.get_float() / right_value.get_float());
         }
@@ -677,21 +673,22 @@ RC AggExpr::get_value(const Tuple &tuple, Value &value) const  {
   // use expr name to fetch cell in AggTuple
   // "*"
   TupleCellSpec spec("", "", name().c_str());
-  auto rc = tuple.find_cell(spec, value);
-  if(rc != RC::SUCCESS) {
+  auto          rc = tuple.find_cell(spec, value);
+  if (rc != RC::SUCCESS) {
     LOG_WARN("agg expr eval fail");
     return rc;
   }
   return RC::SUCCESS;
 }
-AttrType AggExpr::value_type() const {
-  if(agg_type_ == AggType::AVG_AGG) {
-    ASSERT(field_.attr_type() == AttrType::INTS || field_.attr_type() == AttrType::FLOATS, "avg on non-arihmetic value.");
+AttrType AggExpr::value_type() const
+{
+  if (agg_type_ == AggType::AVG_AGG) {
+    ASSERT(
+        field_.attr_type() == AttrType::INTS || field_.attr_type() == AttrType::FLOATS, "avg on non-arihmetic value.");
     return AttrType::FLOATS;
   }
-  if(agg_type() == AggType::COUNT_STAR) {
+  if (agg_type() == AggType::COUNT_STAR) {
     return AttrType::INTS;
   }
   return field_.attr_type();
-
 }

@@ -26,6 +26,7 @@ std::string AggPhysicalOperator::param() const  {
 RC AggPhysicalOperator::open(Trx *trx) {
     materialized_child_ = false;
     finish_ = false;
+    empty_table_ = true;
     ASSERT(children_.size() == 1, "agg should have just one child");
     children_[0]->open(trx);
     return RC::SUCCESS;
@@ -38,6 +39,7 @@ RC AggPhysicalOperator::next() {
 
   if (!materialized_child_) {
     while (children_[0]->next() == RC::SUCCESS) {
+      empty_table_ = false;
       Tuple* tmp_tuple = children_[0]->current_tuple();
       // construct AggregateKey AggregateValue
       auto agg_key = MakeAggregateKey(tmp_tuple);
@@ -45,6 +47,44 @@ RC AggPhysicalOperator::next() {
     
       sht_.InsertCombine(agg_key, agg_val);
     }
+
+    // todo(lyq) (handle empty table)
+    if(empty_table_) {
+      // construct a result and  return RC::RECORD_EOF on next call on next_tuple
+      std::vector<Value> values;
+      // default agg value
+      for (int i = 0; i < agg_types_.size(); i++) {
+        switch (agg_types_[i]) {
+        case COUNT_STAR:
+          values.push_back(Value::get_null(AttrType::INTS));
+          break;
+        case COUNT_AGG:
+          values.push_back(Value::get_null(AttrType::INTS));
+          break;
+        case SUM_AGG:
+        case MIN_AGG:
+        case MAX_AGG:
+        case AVG_AGG:
+        // deal with float conversion in CombineAggregateValues
+          Value val;
+          val.set_type(AttrType::NULLS);
+          values.push_back(val);
+          break;
+        }
+      }
+
+      // default group by field todo(lyq)
+      for(int i =0; i < group_by_specs_.size(); i++) {
+        Value val;
+        val.set_type(AttrType::NULLS);
+        values.push_back(val);
+      }
+      
+      materialized_child_ = true;
+      tuple_.set_tuple(values , specs_, group_by_specs_);
+      return RC::SUCCESS; 
+    }
+
     iter_ = std::make_unique<SimpleHashTable::Iterator>(sht_.Begin());
 
     // handle avg in sht_;
@@ -63,14 +103,16 @@ RC AggPhysicalOperator::next() {
                     if(count != 0) {
                       val.set_float(static_cast<float>(val.get_int())/count);
                     }else{
-                      val.set_float(static_cast<float>(EPSILON));
+                      // set null
+                      val.set_type(AttrType::NULLS);
                     }
                 break;
                 case FLOATS:
                   if(count != 0) {
                       val.set_float(val.get_float()/ count);
                     }else{
-                      val.set_float(static_cast<float>(EPSILON) );
+                      // set null 
+                      val.set_type(AttrType::NULLS);
                     }
                 break;
                 default:
@@ -83,7 +125,7 @@ RC AggPhysicalOperator::next() {
     materialized_child_ = true;
   }
 
-  if (iter_->operator==(sht_.End())) {
+  if (empty_table_ || iter_->operator==(sht_.End())) {
     finish_ = true;
     return RC::RECORD_EOF;
   }
