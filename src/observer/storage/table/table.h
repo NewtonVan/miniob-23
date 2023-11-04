@@ -117,6 +117,8 @@ private:
 
   bool update_valid_for_unique_indexes(const char *record);
 
+  RC update_null_mask(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas);
+
 private:
   RC init_record_handler(const char *base_dir);
 

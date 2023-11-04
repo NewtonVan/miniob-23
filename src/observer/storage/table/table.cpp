@@ -294,8 +294,60 @@ RC Table::update_record_uniq(Record &record, std::vector<Value> &values, std::ve
   return update_record(record, values, field_metas);
 }
 
+RC Table::update_null_mask(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas) {
+  std::vector<int> value_idx(field_metas.size());
+  const int        sys_field_num = table_meta_.sys_field_num();
+  const int        field_num     = table_meta_.field_num();
+  const int        update_amount = field_metas.size();
+
+  for (int i = 0; i < update_amount; ++i) {
+    for (int j = sys_field_num; j < field_num; ++j) {
+      if (strcmp(table_meta_.field(j)->name(), field_metas[i]->name()) != 0) {
+        continue;
+      }
+      value_idx[i] = j;
+    }
+  }
+
+  for(int i = 0; i < values.size(); i++) {
+    int idx = value_idx[i];
+    const FieldMeta *null_field = table_meta_.null_mask_field();
+    common::Bitmap   bitmap(record.data() + null_field->offset(), null_field->len());
+
+    const FieldMeta *field = table_meta_.field(idx);
+    // check null
+    if (values[i].attr_type() == AttrType::NULLS) {
+      if (!field->nullable()) {
+        LOG_ERROR("Invalid value type. Cannot be null. table name =%s, field name=%s, type=%d, but given=%d",
+          table_meta_.name(),
+          field->name(),
+          field->type(),
+          values[i].attr_type());
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
+      bitmap.set_bit(idx);
+      //      memset(record.data() + field->offset(), 0, field->len());
+      return RC::SUCCESS;
+    }
+    bitmap.clear_bit(idx);
+  }
+
+  return RC::SUCCESS;
+}
+
 RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas)
 {
+  // 如果存在一个要需要更新为null的字段，才更新，主要因为update_null_mask内部逻辑复杂度较高，防止big-order-by big-write之类的case不过
+  for(int i = 0; i < values.size(); i++) {
+    if(values[i].attr_type() == NULLS) {
+      RC tmp_rc;
+      if(RC::SUCCESS != ( tmp_rc = update_null_mask(record, values, field_metas))) {
+        return tmp_rc;
+      }
+      break;
+    }
+  }
+
   RC     rc = RC::SUCCESS;
   Record origin_record(record);
   rc = record_handler_->update_record(record, values, field_metas);
