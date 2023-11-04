@@ -108,21 +108,23 @@ extern int yydebug;
     NULL_T = 314,
     UNIQUE = 315,
     ORDER = 316,
-    BY = 317,
-    ASC = 318,
-    EQ = 319,
-    LT = 320,
-    GT = 321,
-    LE = 322,
-    GE = 323,
-    NE = 324,
-    IN = 325,
-    EXISTS = 326,
-    NUMBER = 327,
-    FLOAT = 328,
-    ID = 329,
-    SSS = 330,
-    UMINUS = 331
+    GROUP = 317,
+    HAVING = 318,
+    BY = 319,
+    ASC = 320,
+    EQ = 321,
+    LT = 322,
+    GT = 323,
+    LE = 324,
+    GE = 325,
+    NE = 326,
+    IN = 327,
+    EXISTS = 328,
+    NUMBER = 329,
+    FLOAT = 330,
+    ID = 331,
+    SSS = 332,
+    UMINUS = 333
   };
 #endif
 
@@ -130,7 +132,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 128 "yacc_sql.y"
+#line 130 "yacc_sql.y"
 
   ParsedSqlNode *                             sql_node;
   ComparisonExpr *                            condition;
@@ -162,8 +164,10 @@ union YYSTYPE
   std::vector<AggregationFuncSqlNode> * agg_func_call_list;
   UpdateUnit *                                update_unit;
   std::vector<UpdateUnit> *                   update_unit_list;
+  GroupBy*                                    group_by;
+  Having*                                      having;
 
-#line 167 "yacc_sql.hpp"
+#line 171 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

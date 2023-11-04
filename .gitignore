@@ -25,4 +25,6 @@ GRTAGS
 GPATH
 GTAGS
 docs/book
+yacc_sql.output
+observe.log*
 #*#

@@ -164,10 +164,11 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
   const std::vector<Table *> &tables     = select_stmt->tables();
   const std::vector<Field>   &query_fields = select_stmt->query_fields();
-  const std::vector<AggType>& all_agg_types = select_stmt->agg_types();
+
+  const std::vector<AggType>& all_agg_types = select_stmt->all_agg_types();
   const std::vector<Field>& all_agg_fields = select_stmt->all_agg_fields();
-  const std::vector<Field>& all_group_by_fields = select_stmt->non_agg_field();
-  const std::vector<std::string> all_agg_expr_name = select_stmt->all_agg_expr_name();
+  const std::vector<std::string> all_agg_expr_names = select_stmt->all_agg_expr_names();
+  const std::vector<Field>& all_group_by_fields = select_stmt->group_by_fields();
 
   if (select_stmt->join_stmt() != nullptr) {
     RC rc = RC::SUCCESS;
@@ -217,14 +218,24 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
   }
   unique_ptr<SortLogicalOperator> sort_oper(new SortLogicalOperator(all_fields, select_stmt->orderby_stmt()));
 
-  // WIP(lyq) agg logicalOperator comes in
 
   std::unique_ptr<LogicalOperator> agg_oper;
+  std::unique_ptr<LogicalOperator> having_oper;
+  // todo(lyq) having clause
   if(select_stmt->is_agg()) {
-    AggLogicalOperator* agg_oper_ptr = new AggLogicalOperator(all_agg_types, all_agg_fields, all_group_by_fields, all_agg_expr_name);
+    AggLogicalOperator* agg_oper_ptr = new AggLogicalOperator(all_agg_types, all_agg_fields, all_group_by_fields, all_agg_expr_names);
     unique_ptr<LogicalOperator> agg_opers (agg_oper_ptr);
     agg_oper.swap(agg_opers);
+
+    RC                          rc = create_plan(select_stmt->having_stmt(), having_oper);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to create predicate logical plan. rc=%s", strrc(rc));
+      return rc;
+    }
   }
+
+
+
 
   unique_ptr<LogicalOperator> project_oper;
   if (select_stmt->use_project_exprs()) {
@@ -262,10 +273,17 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
         predicate_oper = std::move(sort_oper);
       }
 
+
       if(agg_oper) {
         agg_oper->add_child(std::move(predicate_oper));
         predicate_oper = std::move(agg_oper);
       }
+
+      if(having_oper) {
+        having_oper->add_child(std::move(predicate_oper));
+        predicate_oper = std::move(having_oper);
+      }
+
     }
 
     project_oper->add_child(std::move(predicate_oper));
@@ -283,14 +301,16 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
         table_oper = std::move(agg_oper);
       }
 
+      if(having_oper) {
+        having_oper->add_child(std::move(table_oper));
+        table_oper = std::move(having_oper);
+      }
+
       project_oper->add_child(std::move(table_oper));
     }
   }
 
-//  sub_logical_operator = predicate_oper;
-
   logical_operator.swap(project_oper);
-
   return RC::SUCCESS;
 }
 

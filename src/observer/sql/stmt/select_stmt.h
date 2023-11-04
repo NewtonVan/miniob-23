@@ -22,6 +22,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/rc.h"
 #include "sql/expr/expression.h"
 #include "sql/parser/parse_defs.h"
+#include "sql/stmt/filter_stmt.h"
 #include "sql/stmt/join_stmt.h"
 #include "sql/stmt/stmt.h"
 #include "storage/field/field.h"
@@ -80,16 +81,26 @@ public:
     }
   };
   bool                          is_agg() { return is_agg_; }
-  const std::vector<std::string> all_agg_expr_name() const { return all_agg_expr_name_; }
-  const std::vector<Field>& all_agg_fields() const { return agg_fields_; }
-  const std::vector<Field>& non_agg_field() const { return non_agg_fields_; }
-  const std::vector<AggType>& agg_types() const {return agg_types_; } 
+  const std::vector<std::string> select_agg_expr_names() const { return select_agg_expr_names_; }
+  const std::vector<Field>& select_agg_fields() const { return select_agg_fields_; }
+  const std::vector<AggType>& select_agg_types() const {return select_agg_types_; }
+  const std::vector<Field>& group_by_fields() const { return group_by_fields_; }
+  const std::vector<std::string> having_agg_expr_names() const { return having_agg_expr_names_; }
+  const std::vector<AggType>& having_agg_types() const {return having_agg_types_; }
+  const std::vector<Field>& having_agg_fields() const { return having_agg_fields_; }
+
+  const std::vector<std::string> all_agg_expr_names() const { return all_agg_expr_names_; }
+  const std::vector<AggType>& all_agg_types() const {return all_agg_types_; }
+  const std::vector<Field>& all_agg_fields() const { return all_agg_fields_; }
+
+  HavingStmt*  having_stmt() const { return having_stmt_;  }
 
   const std::vector<Table *>               &tables() const { return tables_; }
   const std::vector<Field>                 &query_fields() const { return query_fields_; }
   FilterStmt                               *filter_stmt() const { return filter_stmt_; }
   JoinStmt                                 *join_stmt() const { return join_stmt_; }
   OrderByStmt                              *orderby_stmt() const { return orderby_stmt_; }
+
   std::vector<std::unique_ptr<Expression>> &project_exprs() { return project_exprs_; }
   bool                                      use_project_exprs() const { return use_project_exprs_; }
 
@@ -101,10 +112,20 @@ private:
   JoinStmt                                *join_stmt_         = nullptr;
   OrderByStmt                             *orderby_stmt_      = nullptr;
   bool                                     use_project_exprs_ = false;
-  // whether select has agg func
+  // agg related
   bool                   is_agg_;
-  std::vector<AggType> agg_types_;
-  std::vector<Field> agg_fields_;
-  std::vector<Field> non_agg_fields_;
-  std::vector<std::string> all_agg_expr_name_;
+  std::vector<AggType> select_agg_types_;
+  std::vector<Field> select_agg_fields_;
+  std::vector<std::string> select_agg_expr_names_;
+  std::vector<std::string> having_agg_expr_names_;
+  std::vector<AggType> having_agg_types_;
+  std::vector<Field> having_agg_fields_;
+
+  std::vector<std::string> all_agg_expr_names_;
+  std::vector<AggType> all_agg_types_;
+  std::vector<Field> all_agg_fields_;
+
+  std::vector<Field> group_by_fields_;
+  // actually a filter stmt underlying
+  HavingStmt* having_stmt_;
 };

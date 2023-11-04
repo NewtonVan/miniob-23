@@ -72,6 +72,7 @@ Tuple *ProjectPhysicalOperator::current_tuple()
   if (use_project_exprs()) {
     expression_tuple_->set_tuple(children_[0]->current_tuple());
     tuple_.set_tuple(expression_tuple_);
+
   } else {
     tuple_.set_tuple(children_[0]->current_tuple());
   }
@@ -104,8 +105,8 @@ void ProjectPhysicalOperator::init_specs()
       TupleCellSpec *spec = new TupleCellSpec("", "", func->name().c_str());
       tuple_.add_cell_spec(spec);
     } else if (expr->type() == ExprType::AGG) {
-      AggExpr       *agg_expr = static_cast<AggExpr *>(expr.get());
-      TupleCellSpec *spec     = new TupleCellSpec("", "", agg_expr->name().c_str());
+      AggExpr* agg_expr = static_cast<AggExpr*>(expr.get());
+      TupleCellSpec* spec = new TupleCellSpec("", "", agg_expr->name().c_str());
       tuple_.add_cell_spec(spec);
     }
     // TODO(chen):

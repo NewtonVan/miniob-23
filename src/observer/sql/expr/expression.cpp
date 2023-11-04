@@ -617,7 +617,6 @@ RC SubQueryExpression::gen_plan()
 RC SubQueryExpression::open_sub_query() const
 {
   assert(nullptr != sub_physical_op_oper_);
-
   return sub_physical_op_oper_->open(GCTX.trx_kit_->create_trx(db_->clog_manager()));
 }
 
@@ -668,27 +667,32 @@ RC SubQueryExpression::create_expression(const std::unordered_map<std::string, T
 }
 
 RC AggExpr::get_value(const Tuple &tuple, Value &value) const  {
-// should pass in AggTuple
+  // should pass in AggTuple
   ASSERT(tuple.type() == TupleType::AGG, "eval on non aggtuple");
   // use expr name to fetch cell in AggTuple
   // "*"
   TupleCellSpec spec("", "", name().c_str());
-  auto          rc = tuple.find_cell(spec, value);
-  if (rc != RC::SUCCESS) {
+  auto rc = tuple.find_cell(spec, value);
+  if(rc != RC::SUCCESS) {
     LOG_WARN("agg expr eval fail");
     return rc;
   }
   return RC::SUCCESS;
 }
-AttrType AggExpr::value_type() const
-{
-  if (agg_type_ == AggType::AVG_AGG) {
-    ASSERT(
-        field_.attr_type() == AttrType::INTS || field_.attr_type() == AttrType::FLOATS, "avg on non-arihmetic value.");
-    return AttrType::FLOATS;
-  }
-  if (agg_type() == AggType::COUNT_STAR) {
+
+// revisit(lyq)  value_type may be null in some case, only possible to judge when AggPhysicalExecutor finish its execute_stage
+// following method just return a static predict of the value type if possible
+// most of time, just return undefined
+AttrType AggExpr::value_type() const {
+  if(agg_type() == AggType::COUNT_STAR ||agg_type() == AggType::COUNT_AGG) {
     return AttrType::INTS;
   }
-  return field_.attr_type();
+  // arrive here we may not have field set(bug)
+  // if(agg_type_ == AggType::AVG_AGG) {
+  //   ASSERT(field_.attr_type() == AttrType::INTS || field_.attr_type() == AttrType::FLOATS, "avg on non-arihmetic value.");
+  //   return AttrType::FLOATS;
+  // }
+  // return field_.attr_type();
+
+  return AttrType::UNDEFINED;
 }

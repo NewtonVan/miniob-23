@@ -28,6 +28,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/table/table.h"
 #include <algorithm>
 #include <cstdlib>
+#include <ctime>
 #include <memory>
 #include <string>
 #include <sys/types.h>
@@ -47,9 +48,13 @@ SelectStmt::~SelectStmt()
     delete join_stmt_;
     join_stmt_ = nullptr;
   }
-  if (nullptr != orderby_stmt_) {
+  if(nullptr != orderby_stmt_) {
     delete orderby_stmt_;
     orderby_stmt_ = nullptr;
+  }
+  if(nullptr != having_stmt_) {
+    delete having_stmt_;
+    having_stmt_ = nullptr;
   }
 }
 
@@ -62,9 +67,10 @@ static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
   }
 }
 
-RC collect_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables, Expression *expr,
-    std::vector<Field> &all_agg_field, std::vector<Field> &all_non_agg_field, std::vector<AggType> &agg_types,
-    std::vector<std::string> &all_agg_expr_name);
+
+
+RC collect_field(Db *db, Table *default_table,
+    std::unordered_map<std::string, Table *> *tables, Expression* expr, std::vector<Field>& all_agg_field , std::vector<Field>& all_non_agg_field, std::vector<AggType>& agg_types, std::vector<std::string>& all_agg_expr_name);
 
 RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector<Table *> &parent_tables,
     const std::unordered_map<std::string, Table *> &parent_table_map, bool is_sub_query, Stmt *&stmt)
@@ -115,59 +121,140 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
     default_table = tables[0];
   }
   // invalid AggExpr
-  // example: count(), count(*, num)
-  // detected in parse_stage and reported at resolve_stage
-  // satisfy AggExpr->rel_attr() == nullptr
+    // example: count(), count(*, num)
+    // detected in parse_stage and reported at resolve_stage
+    // satisfy AggExpr->rel_attr() == nullptr
 
   // collect agg (just in select_sql.select_expression，collect having clause in future)
-  // collect all_agg_field to construct AggTuple in AggPhysicalOperator
-  // while colleting, if any AggExpr is invalid agg return RC::BAD_AGG, (mem manage)
-  // finally, if all_agg_field is not empty, set is_agg = true;
+    // collect all_agg_field to construct AggTuple in AggPhysicalOperator
+    // while colleting, if any AggExpr is invalid agg return RC::BAD_AGG, (mem manage)
+    // finally, if all_agg_field is not empty, set is_agg = true;
 
-  // if is_agg == true:
-  // collect all_non_agg_field to be compared with group by field and to construct AggTuple AggPhysicalOperator
-  // if any non_agg_field do not exist in group_by clause return RC::BAD_AGG
-  // rewrite all expr in select_sql.selection_expression
+    // if is_agg == true:
+    // collect all_non_agg_field to be compared with group by field and to construct AggTuple AggPhysicalOperator
+    // if any non_agg_field do not exist in group_by clause return RC::BAD_AGG
+    // rewrite all expr in select_sql.selection_expression
 
-  // if is_agg == false:
+    // if is_agg == false:
 
   // agg select
-  bool                     is_agg = false;
-  std::vector<AggType>     all_agg_types;
-  std::vector<Field>       all_agg_field;
-  std::vector<std::string> all_agg_expr_name;
-  std::vector<Field>       all_non_agg_field;
+  bool is_agg = false;
+
+  // record agg and non-agg in select attrs
+  std::vector<std::string> select_agg_expr_names;
+  std::vector<AggType> select_agg_types;
+  std::vector<Field> select_agg_fields;
+  std::vector<Field> select_non_agg_fields;
+
+  // record group by field
+  std::vector<Field> group_by_fields;
+
+  // record agg and non-agg in having clause
+  std::vector<Field> having_agg_fields;
+  std::vector<std::string> having_agg_expr_names;
+  std::vector<AggType> having_agg_types;
+  std::vector<Field> having_non_agg_fields;
+
 
   // non agg select
   std::vector<Field> query_fields;
-  bool               field_only = true;
+  bool   field_only = true;
 
   // final select expression
   std::vector<std::unique_ptr<Expression>> new_select_expressions;
 
-  for (Expression *select_expr : select_sql.select_expressions) {
-    auto rc = collect_field(
-        db, default_table, &table_map, select_expr, all_agg_field, all_non_agg_field, all_agg_types, all_agg_expr_name);
-    if (rc != RC::SUCCESS) {
+  for(Expression* select_expr : select_sql.select_expressions) {
+    auto rc =  collect_field(db, default_table, &table_map, select_expr , select_agg_fields, select_non_agg_fields, select_agg_types, select_agg_expr_names);
+    if(rc != RC::SUCCESS) {
       // mem manage(todo) free pointer in select_sql.select_expressions
       return rc;
     }
   }
-  // agg 顶层 select num, count(*) from t; expressions groub_by fields
-  // count(*), count(num)
-  // funcexpr(aggexpr) expr->eval(aggtuple)
 
-  if (!all_agg_field.empty()) {
+  if(!select_agg_fields.empty()) {
     field_only = false;
-    if (!all_non_agg_field.empty()) {
-      // todo(lyq) handle group by
+    // collect group by field
+    for(auto& attr : select_sql.group_by.attrs) {
+      Table* table = nullptr;
+      const FieldMeta* field_meta = nullptr;
+
+      // group by * is illegal
+      if(attr.attribute_name == "*") {
+        return RC::BAD_AGG;
+      }
+
+      auto rc = get_table_and_field(db, default_table, &table_map, attr, table, field_meta);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot find attr");
+        return rc;
+      }
+      group_by_fields.emplace_back(table, field_meta);
+    }
+
+    // select clause check
+    if(!select_non_agg_fields.empty()) {
+      // field in all_non_agg_field must exist in all_group_by field
+      bool all_hit = true;
+      for(auto& non_agg_field : select_non_agg_fields) {
+        bool cur_hit = false;
+        for(auto& group_by_field : group_by_fields) {
+          if(non_agg_field.table_name() == group_by_field.table_name() && non_agg_field.field_name() == group_by_field.field_name()) {
+            cur_hit = true;
+          }
+        }
+        if(!cur_hit) {
+          all_hit = false;
+          break;
+        }
+      }
+      if(!all_hit) {
+        return RC::BAD_AGG;
+      }
+    }
+
+    // having check
+    // make sure having clause only have agg func and group by field
+    if(!select_sql.group_by.having.conds.empty()) {
+      for(auto& cmp_expr : select_sql.group_by.having.conds) {
+        auto rc =  collect_field(db, default_table, &table_map, cmp_expr , having_agg_fields, having_non_agg_fields, having_agg_types, having_agg_expr_names);
+        if(rc != RC::SUCCESS) {
+          return rc;
+        }
+      }
+
+      // non agg fields in having clause must hit field in group_by field
+      if(!having_non_agg_fields.empty()) {
+        bool all_hit = true;
+        for(auto& having_non_agg_field : having_non_agg_fields) {
+          bool cur_hit = false;
+          for(auto& group_by_field : group_by_fields) {
+            if(having_non_agg_field.table_name() == group_by_field.table_name() && having_non_agg_field.field_name() == group_by_field.field_name()) {
+              cur_hit = true;
+            }
+          }
+          if(!cur_hit) {
+            all_hit = false;
+            break;
+          }
+        }
+        if(!all_hit) {
+          return RC::BAD_AGG;
+        }
+      }
+    }
+
+    // finally we have a valid agg
+    is_agg = true;
+
+  } else {
+    // no agg but with group by
+    if(!select_sql.group_by.attrs.empty()){
       return RC::BAD_AGG;
     }
-    is_agg = true;
   }
 
-  if (is_agg) {
-    for (Expression *old_expr : select_sql.select_expressions) {
+  if(is_agg) {
+    for(Expression* old_expr : select_sql.select_expressions) {
       // rewrite all RelAttrNode to Field
       std::unique_ptr<Expression> new_expr;
       auto rc = rewrite_attr_expr_to_field_expr(db, default_table, &table_map, old_expr, new_expr);
@@ -241,8 +328,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
     if (!field_only || query_fields.empty()) {
       for (int i = 0; i < select_sql.select_expressions.size(); ++i) {
         std::unique_ptr<Expression> select_expr;
-        auto                        rc = rewrite_attr_expr_to_field_expr(
-            db, default_table, &table_map, select_sql.select_expressions[i], select_expr);
+        auto rc =
+            rewrite_attr_expr_to_field_expr(db, default_table, &table_map, select_sql.select_expressions[i], select_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("fail to rewrite, idx: %d, rc: %s", i, strrc(rc));
           return rc;
@@ -283,6 +370,16 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
     }
   }
 
+  HavingStmt* having_stmt = nullptr;
+  rc = FilterStmt::create(db, default_table, &table_map,
+    select_sql.group_by.having.conds, static_cast<int>(select_sql.group_by.having.conds.size()), having_stmt);
+
+
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("cannot construct having stmt");
+    return rc;
+  }
+
   // create order_by stmt
   OrderByStmt *orderby_stmt = nullptr;
   if (!select_sql.order_by.empty()) {
@@ -293,6 +390,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
       return rc;
     }
   }
+
 
   // create join stmt
   Stmt *join_stmt = nullptr;
@@ -307,12 +405,31 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
 
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
-  // TODO add expression copy
-  select_stmt->all_agg_expr_name_.swap(all_agg_expr_name);
-  select_stmt->agg_fields_.swap(all_agg_field);
+  // agg related
+  // we need all agg fields, types and expr name withing select clause and having clause
+  // and all group by fields
+  // select_stmt->select_agg_expr_names_.swap(select_agg_expr_names);
+  // select_stmt->select_agg_types_.swap(select_agg_types);
+  // select_stmt->select_agg_fields_.swap(select_agg_fields);
+  // select_stmt->having_agg_expr_names_.swap(having_agg_expr_names);
+  // select_stmt->having_agg_types_.swap(having_agg_types);
+  // select_stmt->having_agg_fields_.swap(having_agg_fields);
+
+  std::copy(select_agg_expr_names.begin() , select_agg_expr_names.end(), std::back_inserter(select_stmt->all_agg_expr_names_));
+  std::copy(having_agg_expr_names.begin(),  having_agg_expr_names.end(), std::back_inserter(select_stmt->all_agg_expr_names_));
+
+  std::copy(select_agg_types.begin() , select_agg_types.end(), std::back_inserter(select_stmt->all_agg_types_));
+  std::copy(having_agg_types.begin(),  having_agg_types.end(), std::back_inserter(select_stmt->all_agg_types_));
+
+  std::copy(select_agg_fields.begin() , select_agg_fields.end(), std::back_inserter(select_stmt->all_agg_fields_));
+  std::copy(having_agg_fields.begin(),  having_agg_fields.end(), std::back_inserter(select_stmt->all_agg_fields_));
+
+  select_stmt->group_by_fields_.swap(group_by_fields);
+
+  select_stmt->having_stmt_ = having_stmt;
+
   select_stmt->is_agg_ = is_agg;
-  select_stmt->non_agg_fields_.swap(all_non_agg_field);
-  select_stmt->agg_types_.swap(all_agg_types);
+  // TODO add expression copy
   select_stmt->tables_.swap(tables);
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->filter_stmt_       = filter_stmt;
@@ -460,10 +577,10 @@ RC SelectStmt::get_table_and_field(Db *db, Table *default_table, std::unordered_
   return RC::SUCCESS;
 }
 
-RC collect_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables, Expression *expr,
-    std::vector<Field> &all_agg_field, std::vector<Field> &all_non_agg_field, std::vector<AggType> &agg_types,
-    std::vector<std::string> &all_agg_expr_name)
-{
+
+
+RC collect_field(Db *db, Table *default_table,
+    std::unordered_map<std::string, Table *> *tables, Expression* expr, std::vector<Field>& all_agg_field, std::vector<Field>& all_non_agg_field, std::vector<AggType>& agg_types, std::vector<std::string>& all_agg_expr_name) {
   RC rc = RC::SUCCESS;
   switch (expr->type()) {
     case ExprType::REL_ATTR: {
@@ -471,7 +588,7 @@ RC collect_field(Db *db, Table *default_table, std::unordered_map<std::string, T
       Table              *table    = nullptr;
       const FieldMeta    *field    = nullptr;
 
-      if (strcmp(rel_attr->field_name(), "*") == 0) {
+      if(strcmp(rel_attr->field_name(), "*") == 0) {
         // note, arrive here, expr is definitely not an valid agg
         // so we can just append a all_non_agg_field to pass the agg logic
         all_non_agg_field.push_back(Field(nullptr, nullptr));
@@ -483,18 +600,20 @@ RC collect_field(Db *db, Table *default_table, std::unordered_map<std::string, T
         }
         all_non_agg_field.push_back(Field(table, field));
       }
-    } break;
+    }
+    break;
     case ExprType::AGG: {
-      AggExpr         *agg_expr = static_cast<AggExpr *>(expr);
-      Table           *table    = nullptr;
-      const FieldMeta *field    = nullptr;
+      AggExpr* agg_expr = static_cast<AggExpr *>(expr);
+      Table              *table    = nullptr;
+      const FieldMeta    *field    = nullptr;
+
 
       // bad agg call check
-      if (agg_expr->rel_attr() == nullptr) {
+      if(agg_expr->rel_attr() == nullptr) {
         return RC::BAD_AGG;
       }
 
-      if (strcmp(agg_expr->rel_attr()->attribute_name.c_str(), "*") == 0) {
+      if(strcmp(agg_expr->rel_attr()->attribute_name.c_str() , "*") == 0) {
         ASSERT(agg_expr->agg_type() == AggType::COUNT_STAR, "inconsistent agg");
         agg_types.push_back(agg_expr->agg_type());
         all_agg_field.push_back(Field(nullptr, nullptr));
@@ -509,71 +628,60 @@ RC collect_field(Db *db, Table *default_table, std::unordered_map<std::string, T
       }
 
       all_agg_expr_name.push_back(agg_expr->name());
-    } break;
+    }
+    break;
     case ExprType::ARITHMETIC: {
-      ArithmeticExpr *arithmetic = static_cast<ArithmeticExpr *>(expr);
+      ArithmeticExpr* arithmetic = static_cast<ArithmeticExpr *>(expr);
       if (arithmetic->arithmetic_type() == ArithmeticExpr::Type::NEGATIVE) {
-        rc = collect_field(db,
-            default_table,
-            tables,
-            arithmetic->left().get(),
-            all_agg_field,
-            all_non_agg_field,
-            agg_types,
-            all_agg_expr_name);
-        if (rc != RC::SUCCESS) {
+        rc =  collect_field(db, default_table, tables, arithmetic->left().get(), all_agg_field, all_non_agg_field, agg_types, all_agg_expr_name);
+        if(rc != RC::SUCCESS) {
           return rc;
         }
       } else {
-        rc = collect_field(db,
-            default_table,
-            tables,
-            arithmetic->left().get(),
-            all_agg_field,
-            all_non_agg_field,
-            agg_types,
-            all_agg_expr_name);
-        if (rc != RC::SUCCESS) {
+        rc =  collect_field(db, default_table, tables, arithmetic->left().get(), all_agg_field, all_non_agg_field, agg_types, all_agg_expr_name);
+        if(rc != RC::SUCCESS) {
           return rc;
         }
-        rc = collect_field(db,
-            default_table,
-            tables,
-            arithmetic->right().get(),
-            all_agg_field,
-            all_non_agg_field,
-            agg_types,
-            all_agg_expr_name);
-        if (rc != RC::SUCCESS) {
+        rc =  collect_field(db, default_table, tables, arithmetic->right().get(), all_agg_field, all_non_agg_field, agg_types, all_agg_expr_name);
+        if(rc != RC::SUCCESS) {
           return rc;
         }
       }
-    } break;
+    }
+    break;
     case ExprType::CAST: {
-      CastExpr *cast_expr = static_cast<CastExpr *>(expr);
-      rc                  = collect_field(db,
-          default_table,
-          tables,
-          cast_expr->child().get(),
-          all_agg_field,
-          all_non_agg_field,
-          agg_types,
-          all_agg_expr_name);
-      if (rc != RC::SUCCESS) {
+      CastExpr  *cast_expr = static_cast<CastExpr *>(expr);
+      rc =  collect_field(db, default_table, tables, cast_expr->child().get(), all_agg_field, all_non_agg_field, agg_types, all_agg_expr_name);
+      if(rc != RC::SUCCESS) {
         return rc;
       }
-    } break;
+    }
+    break;
     case ExprType::FUNCTION: {
-      FuncExpr *func_expr = static_cast<FuncExpr *>(expr);
-      for (auto &arg : func_expr->args()) {
-        rc = collect_field(
-            db, default_table, tables, arg.get(), all_agg_field, all_non_agg_field, agg_types, all_agg_expr_name);
-        if (rc != RC::SUCCESS) {
+      FuncExpr  *func_expr = static_cast<FuncExpr *>(expr);
+      for(auto& arg : func_expr->args()) {
+        rc =  collect_field(db, default_table, tables, arg.get(), all_agg_field, all_non_agg_field, agg_types, all_agg_expr_name);
+        if(rc != RC::SUCCESS) {
           return rc;
         }
       }
-    } break;
-    default: return RC::SUCCESS;
+    }
+    break;
+    case ExprType::COMPARISON: {
+      // only having clause can reache here
+      ComparisonExpr  *cmp_expr = static_cast<ComparisonExpr *>(expr);
+      rc =  collect_field(db, default_table, tables, cmp_expr->left().get(), all_agg_field, all_non_agg_field, agg_types, all_agg_expr_name);
+      if(rc != RC::SUCCESS) {
+        return rc;
+      }
+      rc =  collect_field(db, default_table, tables, cmp_expr->right().get(), all_agg_field, all_non_agg_field, agg_types, all_agg_expr_name);
+      if(rc != RC::SUCCESS) {
+        return rc;
+      }
+    }
+    break;
+    default:
+      return RC::SUCCESS;
   }
   return RC::SUCCESS;
 }
@@ -651,26 +759,26 @@ RC SelectStmt::rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
       std::unique_ptr<Expression> new_func(new FuncExpr(func->func_type(), args));
       ret_expr.swap(new_func);
     } break;
-    case ExprType::AGG: {
+    case ExprType::AGG:{
       // arrive here, must be rewriting a valid select agg
       // fill in field
       // agg do not have child expr
-      Table           *table    = nullptr;
-      const FieldMeta *field    = nullptr;
-      AggExpr         *agg_expr = static_cast<AggExpr *>(old_expr);
+      Table              *table    = nullptr;
+      const FieldMeta    *field    = nullptr;
+      AggExpr  *agg_expr = static_cast<AggExpr *>(old_expr);
       // bad agg
       // select count()
       // select cout(*,num)
-      if (agg_expr->rel_attr() == nullptr) {
+      if(agg_expr->rel_attr() == nullptr) {
         return RC::BAD_AGG;
       }
 
       // special case: select count(*)
-      if (agg_expr->agg_type() == AggType::COUNT_STAR) {
+      if(agg_expr->agg_type() == AggType::COUNT_STAR) {
         ASSERT(strcmp(agg_expr->rel_attr()->attribute_name.c_str(), "*") == 0, "count star inconsistent");
         agg_expr->set_field(Field(nullptr, nullptr));
       } else {
-        rc = get_table_and_field(db, default_table, tables, *agg_expr->rel_attr(), table, field);
+        rc = get_table_and_field(db, default_table, tables, *agg_expr->rel_attr() , table, field);
         if (rc != RC::SUCCESS) {
           LOG_WARN("cannot find attr");
           return rc;
@@ -679,8 +787,11 @@ RC SelectStmt::rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
       }
       std::unique_ptr<Expression> new_epxr(agg_expr);
       ret_expr.swap(new_epxr);
-    } break;
-    default: LOG_WARN("unsupported expr rewrite"); return RC::INTERNAL;
+    }
+      break;
+    default:
+      LOG_WARN("unsupported expr rewrite");
+      return RC::INTERNAL;
   }
   ret_expr->set_name(old_expr->name());
   return rc;

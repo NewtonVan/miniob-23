@@ -178,6 +178,16 @@ typedef struct OrderBy
   int            order;  // 0:asc, 1:desc
 } OrderBy;
 
+
+typedef struct Having {
+  std::vector<ComparisonExpr *>  conds;
+}Having;
+typedef struct GroupBy {
+  std::vector<RelAttrSqlNode> attrs;
+  Having having;
+} GroupBy;
+
+
 struct RelationSqlNode
 {
   std::string relation;
@@ -198,6 +208,7 @@ struct SelectSqlNode
   std::vector<OrderBy>                order_by;
   std::vector<Expression *>           select_expressions;  ///< 记录含有表达式点select clause,
   std::vector<AggregationFuncSqlNode> agg_funcs;           ///< 与attributes只有一个可行
+  GroupBy                             group_by;
 };
 
 /**
