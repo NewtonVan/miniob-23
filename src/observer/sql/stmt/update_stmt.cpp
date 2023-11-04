@@ -69,6 +69,8 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     const AttrType field_type   = field_meta->type();
     const AttrType value_type   = update.update_units[i].value.attr_type();
     Value         *mutableValue = const_cast<Value *>(&update.update_units[i].value);
+    if(!field_meta->nullable() && value_type == NULLS) return RC::INVALID_ARGUMENT;
+    if(field_meta->nullable() && value_type == NULLS) continue;
     if (field_type != value_type) {
       if (field_type == AttrType::DATES && value_type == AttrType::CHARS) {
         int64_t date;
