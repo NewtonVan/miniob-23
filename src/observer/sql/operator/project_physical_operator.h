@@ -30,12 +30,14 @@ class ProjectPhysicalOperator : public PhysicalOperator
 {
 public:
   ProjectPhysicalOperator(std::vector<std::unique_ptr<Expression>> &expressions) : expressions_(std::move(expressions))
-  {}
+  {
+    expression_tuple_ = new ExpressionTuple(expressions_);
+    tuple_.set_tuple(expression_tuple_);
+  }
 
   virtual ~ProjectPhysicalOperator() = default;
 
   void                                      add_expressions(std::vector<std::unique_ptr<Expression>> &&expressions) {}
-  void                                      add_projection(const Table *table, const FieldMeta *field);
   void                                      init_specs();
   std::vector<std::unique_ptr<Expression>> &expressions() { return expressions_; }
 
@@ -49,17 +51,8 @@ public:
 
   Tuple *current_tuple() override;
 
-  void toggle_use_project_exprs()
-  {
-    use_project_exprs_ = true;
-    expression_tuple_  = new ExpressionTuple(expressions_);
-    tuple_.set_tuple(expression_tuple_);
-  }
-  bool use_project_exprs() const { return use_project_exprs_; }
-
 private:
   ProjectTuple                             tuple_;
   std::vector<std::unique_ptr<Expression>> expressions_;
-  bool                                     use_project_exprs_ = false;
-  ExpressionTuple                         *expression_tuple_  = nullptr;
+  ExpressionTuple                         *expression_tuple_ = nullptr;
 };

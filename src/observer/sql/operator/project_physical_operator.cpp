@@ -69,21 +69,8 @@ RC ProjectPhysicalOperator::close()
 }
 Tuple *ProjectPhysicalOperator::current_tuple()
 {
-  if (use_project_exprs()) {
-    expression_tuple_->set_tuple(children_[0]->current_tuple());
-    tuple_.set_tuple(expression_tuple_);
-  } else {
-    tuple_.set_tuple(children_[0]->current_tuple());
-  }
+  expression_tuple_->set_tuple(children_[0]->current_tuple());
   return &tuple_;
-}
-
-void ProjectPhysicalOperator::add_projection(const Table *table, const FieldMeta *field_meta)
-{
-  // 对单表来说，展示的(alias) 字段总是字段名称，
-  // 对多表查询来说，展示的alias 需要带表名字
-  TupleCellSpec *spec = new TupleCellSpec(table->name(), field_meta->name(), field_meta->name());
-  tuple_.add_cell_spec(spec);
 }
 
 void ProjectPhysicalOperator::init_specs()
@@ -92,8 +79,9 @@ void ProjectPhysicalOperator::init_specs()
     if (expr->type() == ExprType::FIELD) {
       FieldExpr *field_expr = static_cast<FieldExpr *>(expr.get());
       // TODO(chen): add alias
-      TupleCellSpec *spec =
-          new TupleCellSpec(field_expr->table_name(), field_expr->field_name(), field_expr->name().c_str());
+      TupleCellSpec *spec = new TupleCellSpec(field_expr->table_name(),
+          field_expr->field_name(),
+          field_expr->name().empty() ? nullptr : field_expr->name().c_str());
       tuple_.add_cell_spec(spec);
     } else if (expr->type() == ExprType::ARITHMETIC) {
       ArithmeticExpr *arithmetic = static_cast<ArithmeticExpr *>(expr.get());

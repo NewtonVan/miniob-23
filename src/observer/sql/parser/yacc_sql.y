@@ -774,6 +774,14 @@ expression:
       $$=$1;
       $$->set_name($3);
     }
+    | ID DOT '*'
+    {
+      RelAttrSqlNode *attr = new RelAttrSqlNode;
+      attr->relation_name  = $1;
+      attr->attribute_name = "*";
+      $$ = new StarExprSqlNode(attr);
+      free($1);
+    }
     ;
 
 func_expr:
@@ -958,7 +966,7 @@ select_attr:
       RelAttrSqlNode *attr = new RelAttrSqlNode;
       attr->relation_name  = "";
       attr->attribute_name = "*";
-      $$->emplace_back(new RelAttrExprSqlNode(attr));
+      $$->emplace_back(new StarExprSqlNode(attr));
     }
     | expression_list {
       std::reverse($1->begin(), $1->end());

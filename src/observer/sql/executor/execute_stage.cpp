@@ -70,32 +70,21 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
   TupleSchema schema;
   switch (stmt->type()) {
     case StmtType::SELECT: {
-      SelectStmt *select_stmt     = static_cast<SelectStmt *>(stmt);
-      bool        with_table_name = select_stmt->tables().size() > 1;
-      if (select_stmt->use_project_exprs()) {
-        ProjectPhysicalOperator *proj_oper = static_cast<ProjectPhysicalOperator *>(physical_operator.get());
-        for (const std::unique_ptr<Expression> &expr : proj_oper->expressions()) {
-          if (expr->type() == ExprType::FIELD) {
-            FieldExpr *attr = static_cast<FieldExpr *>(expr.get());
-            if (strlen(attr->field_alias()) > 0) {
-              schema.append_cell(attr->field_alias());
-            }
-            if (with_table_name) {
-              schema.append_cell(attr->table_name(), attr->field_name());
-            } else {
-              schema.append_cell(attr->field_name());
-            }
+      SelectStmt              *select_stmt     = static_cast<SelectStmt *>(stmt);
+      bool                     with_table_name = select_stmt->tables().size() > 1;
+      ProjectPhysicalOperator *proj_oper       = static_cast<ProjectPhysicalOperator *>(physical_operator.get());
+      for (const std::unique_ptr<Expression> &expr : proj_oper->expressions()) {
+        if (expr->type() == ExprType::FIELD) {
+          FieldExpr *attr = static_cast<FieldExpr *>(expr.get());
+          if (!attr->name().empty()) {
+            schema.append_cell(attr->name().c_str());
+          } else if (with_table_name) {
+            schema.append_cell(attr->table_name(), attr->field_name());
           } else {
-            schema.append_cell(expr->name().c_str());
+            schema.append_cell(attr->field_name());
           }
-        }
-      } else {
-        for (const Field &field : select_stmt->query_fields()) {
-          if (with_table_name) {
-            schema.append_cell(field.table_name(), field.field_name());
-          } else {
-            schema.append_cell(field.field_name());
-          }
+        } else {
+          schema.append_cell(expr->name().c_str());
         }
       }
     } break;

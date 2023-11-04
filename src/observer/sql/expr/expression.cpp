@@ -42,6 +42,12 @@ RC RelAttrExprSqlNode::get_value(const Tuple &tuple, Value &value) const
   return RC::INTERNAL;
 }
 
+RC StarExprSqlNode::get_value(const Tuple &tuple, Value &value) const
+{
+  LOG_ERROR("StarExprSqlNode only used as a container in parse stage");
+  return RC::INTERNAL;
+}
+
 RC ValueExpr::get_value(const Tuple &tuple, Value &value) const
 {
   value = value_;
