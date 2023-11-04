@@ -66,6 +66,8 @@ enum CompOp
   SUB_NOT_IN,
   SUB_EXISTS_OP,
   SUB_NOT_EXISTS,
+  AND_OP,
+  OR_OP,
   NO_OP
 };
 

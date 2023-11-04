@@ -98,6 +98,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         FROM
         WHERE
         AND
+        OR
         SET
         ON
         LOAD
@@ -198,6 +199,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <expression>          sub_query_two_expr
 %type <expression>          sub_query_expr
 %type <expression>          sub_query_list_expr
+%type <expression>          sub_query_where
+%type <expression>          condition_and
+%type <expression>          condition_or
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
@@ -1110,6 +1114,29 @@ where:
       $$ = $2;  
     }
     ;
+
+select_where:
+    {
+      $$ = nullptr;
+    }
+    | WHERE condition_or {
+      $$ = $2;
+    }
+    ;
+condition_or:
+    condition_and {
+     $$ = $1;
+    }
+    | condition_or OR condition_and {
+     Condition * c_expr = malloc(sizeof(Condition));
+     condition_init(c_expr, OR_OP, $1, $3);
+     Expr * expr = malloc(sizeof(Expr));
+     expr_init_condition(expr, c_expr);
+
+     $$ = expr;
+    }
+    ;
+
 condition_list:
     /* empty */
     {

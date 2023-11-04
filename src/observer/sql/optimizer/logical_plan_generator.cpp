@@ -362,8 +362,7 @@ RC LogicalPlanGenerator::create_plan_for_subquery(const FilterUnit *filter, std:
     }
     return RC::SUCCESS;
   };
-
-//  if (CompOp::AND_OP == filter->comp() || CompOp::OR_OP == filter->comp()) {
+//  if (ConjunctionExpr::Type::AND == filter->comp() || ConjunctionExpr::Type::OR == filter->comp()) {
 //    if (RC::SUCCESS != (rc = create_plan_for_subquery(filter->left_unit(), logical_operator))) {
 //      return rc;
 //    }

@@ -104,6 +104,7 @@ DATE_FORMAT                             RETURN_TOKEN(DATE_FORMAT);
 FROM                                    RETURN_TOKEN(FROM);
 WHERE                                   RETURN_TOKEN(WHERE);
 AND                                     RETURN_TOKEN(AND);
+OR                                      RETURN_TOKEN(OR);
 INSERT                                  RETURN_TOKEN(INSERT);
 INTO                                    RETURN_TOKEN(INTO);
 VALUES                                  RETURN_TOKEN(VALUES);
