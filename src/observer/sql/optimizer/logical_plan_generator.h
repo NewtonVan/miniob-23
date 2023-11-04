@@ -49,4 +49,6 @@ private:
   RC create_plan(DeleteStmt *delete_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
   RC create_plan(ExplainStmt *explain_stmt, std::unique_ptr<LogicalOperator> &logical_operator);
   RC create_plan_for_subquery(const FilterUnit *filter, std::unique_ptr<LogicalOperator> &logical_operator);
+  RC generate_conjunction_expression(const std::vector<FilterUnit *>& filter_units, std::unique_ptr<Expression>& expression);
+  RC generate_conjunction_or_comparison_expression(const FilterUnit* filter_unit, std::unique_ptr<Expression>& expressions);
 };

@@ -229,6 +229,28 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     return RC::INVALID_ARGUMENT;
   }
 
+  if(CompOp::AND_OP == comp || CompOp::OR_OP == comp) {
+    FilterUnit *left_unit = nullptr;
+    FilterUnit *right_unit = nullptr;
+    rc = create_filter_unit(db, default_table, tables, reinterpret_cast<ComparisonExpr*>(condition->left().get()), left_unit);
+    if (rc != RC::SUCCESS) {
+      LOG_ERROR("filter unit create left expression failed");
+      return rc;
+    }
+    rc = create_filter_unit(db, default_table, tables, reinterpret_cast<ComparisonExpr*>(condition->right().get()), right_unit);
+    if (rc != RC::SUCCESS) {
+      LOG_ERROR("filter unit create left expression failed");
+      delete left_unit;
+      return rc;
+    }
+
+    filter_unit = new FilterUnit;
+    filter_unit->set_comp(comp);
+    filter_unit->set_left_unit(left_unit);
+    filter_unit->set_right_unit(right_unit);
+    return rc;
+  }
+
   filter_unit = new FilterUnit;
 
   AttrType left_attr_type;

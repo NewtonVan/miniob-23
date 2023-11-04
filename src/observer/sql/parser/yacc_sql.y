@@ -199,9 +199,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <expression>          sub_query_two_expr
 %type <expression>          sub_query_expr
 %type <expression>          sub_query_list_expr
-%type <expression>          sub_query_where
-%type <expression>          condition_and
-%type <expression>          condition_or
+%type <condition_list>      select_where
+%type <condition>           condition_and
+%type <condition>           condition_or
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
@@ -579,7 +579,7 @@ update_unit:
     ;
 
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM single_table rel_list where
+    SELECT select_attr FROM single_table rel_list select_where
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -599,7 +599,7 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       free($4);
     }
-    | SELECT select_attr FROM general_rel INNER JOIN ID join_condition where
+    | SELECT select_attr FROM general_rel INNER JOIN ID join_condition select_where
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -616,7 +616,7 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       free($7);
     }
-    | SELECT select_attr FROM single_table rel_list where ORDER BY order_item order_item_list
+    | SELECT select_attr FROM single_table rel_list select_where ORDER BY order_item order_item_list
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -666,7 +666,7 @@ sub_query_two_expr:
     }
 
 sub_query_expr:
-    LBRACE SELECT select_attr FROM single_table rel_list where RBRACE
+    LBRACE SELECT select_attr FROM single_table rel_list select_where RBRACE
     {
       SelectSqlNode* select_sql_node = new SelectSqlNode();
       if ($3 != nullptr) {
@@ -681,6 +681,7 @@ sub_query_expr:
       std::reverse(select_sql_node->relations.begin(), select_sql_node->relations.end());
 
       if ($7 != nullptr) {
+        select_sql_node->have_sub_query_condition_expr = true;
         select_sql_node->conditions.swap(*$7);
         delete $7;
       }
@@ -1120,7 +1121,8 @@ select_where:
       $$ = nullptr;
     }
     | WHERE condition_or {
-      $$ = $2;
+      $$ = new std::vector<ComparisonExpr *>;
+      $$->emplace_back($2);
     }
     ;
 condition_or:
@@ -1128,14 +1130,21 @@ condition_or:
      $$ = $1;
     }
     | condition_or OR condition_and {
-     Condition * c_expr = malloc(sizeof(Condition));
-     condition_init(c_expr, OR_OP, $1, $3);
-     Expr * expr = malloc(sizeof(Expr));
-     expr_init_condition(expr, c_expr);
-
-     $$ = expr;
+        std::unique_ptr<Expression> left($1);
+        std::unique_ptr<Expression> right($3);
+        $$ = new ComparisonExpr(OR_OP, std::move(left), std::move(right));
     }
     ;
+condition_and:
+     condition {
+        $$ = $1;
+     }
+     | condition_and AND condition {
+        std::unique_ptr<Expression> left($1);
+        std::unique_ptr<Expression> right($3);
+        $$ = new ComparisonExpr(AND_OP, std::move(left), std::move(right));
+     }
+     ;
 
 condition_list:
     /* empty */
