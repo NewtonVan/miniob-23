@@ -332,6 +332,9 @@ public:
   void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
   int  cell_num() const override { return speces_.size(); }
 
+  //id, col 
+  // 0, 1 
+
   RC cell_at(int index, Value &cell) const override
   {
     if (index < 0 || index >= static_cast<int>(speces_.size())) {
@@ -705,9 +708,6 @@ public:
         agg_value.not_null_count_.push_back(0);
         break;
       case SUM_AGG:
-        agg_value.aggregates.push_back(Value::get_null(AttrType::INTS));
-        agg_value.not_null_count_.push_back(0);
-        break;
       case MIN_AGG:
       case MAX_AGG:
       case AVG_AGG:

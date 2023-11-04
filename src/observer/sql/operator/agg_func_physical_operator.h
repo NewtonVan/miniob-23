@@ -99,6 +99,7 @@ private:
 
 
   SimpleHashTable sht_;
+  // we will have group by field in select attr 
   std::vector<std::unique_ptr<Expression>> exprs_;
   std::vector<AggType> agg_types_;
   std::vector<TupleCellSpec> specs_;
@@ -108,4 +109,6 @@ private:
 
   bool materialized_child_{false};
   bool finish_{false};
+  // whether agg exec on a empty set of record 
+  bool empty_table_{true};
 };
