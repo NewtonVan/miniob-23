@@ -66,6 +66,9 @@ RC collect_field(Db *db, Table *default_table, std::unordered_map<std::string, T
     std::vector<Field> &all_agg_field, std::vector<Field> &all_non_agg_field, std::vector<AggType> &agg_types,
     std::vector<std::string> &all_agg_expr_name);
 
+RC parse_rel_attr(Db *db, const std::unordered_map<std::string, Table *> &table_map,
+    const RelAttrSqlNode &relation_attr, const std::vector<Table *> &tables, std::vector<Field> &query_fields);
+
 RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector<Table *> &parent_tables,
     const std::unordered_map<std::string, Table *> &parent_table_map, bool is_sub_query, Stmt *&stmt)
 {
@@ -238,10 +241,28 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
     }
     LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_fields.size());
 
-    if (!field_only || query_fields.empty()) {
-      for (int i = 0; i < select_sql.select_expressions.size(); ++i) {
+    for (int i = 0; i < select_sql.select_expressions.size(); ++i) {
+      if (select_sql.select_expressions[i]->type() == ExprType::STAR) {
+        const RelAttrSqlNode &relation_attr =
+            *static_cast<StarExprSqlNode *>(select_sql.select_expressions[i])->get_rel_attr();
+        std::vector<Field> star_query_fields;
+        RC                 rc = parse_rel_attr(db, table_map, relation_attr, tables, star_query_fields);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("Fail to expand star");
+        }
+        // if t.*, then prefix "t."
+        std::string table_prefix = relation_attr.relation_name.empty() ? "" : relation_attr.relation_name + ".";
+
+        for (Field &field : star_query_fields) {
+          std::unique_ptr<Expression> field_expr(new FieldExpr(field.table(), field.meta()));
+          field_expr->set_name(table_prefix + field.field_name());
+          // TODO(chen): set expr name
+          new_select_expressions.emplace_back(std::move(field_expr));
+        }
+      } else {
         std::unique_ptr<Expression> select_expr;
-        auto                        rc = rewrite_attr_expr_to_field_expr(
+
+        auto rc = rewrite_attr_expr_to_field_expr(
             db, default_table, &table_map, select_sql.select_expressions[i], select_expr);
         if (OB_FAIL(rc)) {
           LOG_WARN("fail to rewrite, idx: %d, rc: %s", i, strrc(rc));
@@ -315,10 +336,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
   select_stmt->agg_types_.swap(all_agg_types);
   select_stmt->tables_.swap(tables);
   select_stmt->query_fields_.swap(query_fields);
-  select_stmt->filter_stmt_       = filter_stmt;
-  select_stmt->orderby_stmt_      = orderby_stmt;
-  select_stmt->join_stmt_         = static_cast<JoinStmt *>(join_stmt);
-  select_stmt->use_project_exprs_ = !field_only || select_stmt->query_fields().empty();
+  select_stmt->filter_stmt_  = filter_stmt;
+  select_stmt->orderby_stmt_ = orderby_stmt;
+  select_stmt->join_stmt_    = static_cast<JoinStmt *>(join_stmt);
   select_stmt->project_exprs_.swap(new_select_expressions);
   stmt = select_stmt;
   return RC::SUCCESS;
@@ -422,6 +442,9 @@ RC SelectStmt::collectQueryFieldsInExpression(
           return rc;
         }
       }
+    } break;
+    case ExprType::STAR: {
+      query_attr.push_back(*static_cast<StarExprSqlNode *>(select_expr)->get_rel_attr());
     } break;
     default: {
       LOG_WARN("Unsupported query expressions, type: %d",  select_expr->type());
@@ -684,4 +707,63 @@ RC SelectStmt::rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
   }
   ret_expr->set_name(old_expr->name());
   return rc;
+}
+
+RC parse_rel_attr(Db *db, const std::unordered_map<std::string, Table *> &table_map,
+    const RelAttrSqlNode &relation_attr, const std::vector<Table *> &tables, std::vector<Field> &query_fields)
+{
+  if (common::is_blank(relation_attr.relation_name.c_str()) && 0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
+    for (Table *table : tables) {
+      wildcard_fields(table, query_fields);
+    }
+
+  } else if (!common::is_blank(relation_attr.relation_name.c_str())) {
+    const char *table_name = relation_attr.relation_name.c_str();
+    const char *field_name = relation_attr.attribute_name.c_str();
+
+    if (0 == strcmp(table_name, "*")) {
+      if (0 != strcmp(field_name, "*")) {
+        LOG_WARN("invalid field name while table is *. attr=%s", field_name);
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+      for (Table *table : tables) {
+        wildcard_fields(table, query_fields);
+      }
+    } else {
+      auto iter = table_map.find(table_name);
+      if (iter == table_map.end()) {
+        LOG_WARN("no such table in from list: %s", table_name);
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+
+      Table *table = iter->second;
+      if (0 == strcmp(field_name, "*")) {
+        wildcard_fields(table, query_fields);
+      } else {
+        const FieldMeta *field_meta = table->table_meta().field(field_name);
+        if (nullptr == field_meta) {
+          LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
+          return RC::SCHEMA_FIELD_MISSING;
+        }
+
+        query_fields.push_back(Field(table, field_meta));
+      }
+    }
+  } else {
+    if (tables.size() != 1) {
+      LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
+      return RC::SCHEMA_FIELD_MISSING;
+    }
+
+    Table           *table      = tables[0];
+    const FieldMeta *field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
+    if (nullptr == field_meta) {
+      LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
+      return RC::SCHEMA_FIELD_MISSING;
+    }
+
+    query_fields.push_back(Field(table, field_meta));
+  }
+
+  return RC::SUCCESS;
 }

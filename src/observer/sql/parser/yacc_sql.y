@@ -199,9 +199,6 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <expression>          sub_query_two_expr
 %type <expression>          sub_query_expr
 %type <expression>          sub_query_list_expr
-%type <expression>          sub_query_where
-%type <expression>          condition_and
-%type <expression>          condition_or
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
@@ -839,6 +836,14 @@ expression:
       $$=$1;
       $$->set_name($3);
     }
+    | ID DOT '*'
+    {
+      RelAttrSqlNode *attr = new RelAttrSqlNode;
+      attr->relation_name  = $1;
+      attr->attribute_name = "*";
+      $$ = new StarExprSqlNode(attr);
+      free($1);
+    }
     ;
 
 func_expr:
@@ -1023,7 +1028,7 @@ select_attr:
       RelAttrSqlNode *attr = new RelAttrSqlNode;
       attr->relation_name  = "";
       attr->attribute_name = "*";
-      $$->emplace_back(new RelAttrExprSqlNode(attr));
+      $$->emplace_back(new StarExprSqlNode(attr));
     }
     | expression_list {
       std::reverse($1->begin(), $1->end());
@@ -1114,29 +1119,6 @@ where:
       $$ = $2;  
     }
     ;
-
-select_where:
-    {
-      $$ = nullptr;
-    }
-    | WHERE condition_or {
-      $$ = $2;
-    }
-    ;
-condition_or:
-    condition_and {
-     $$ = $1;
-    }
-    | condition_or OR condition_and {
-     Condition * c_expr = malloc(sizeof(Condition));
-     condition_init(c_expr, OR_OP, $1, $3);
-     Expr * expr = malloc(sizeof(Expr));
-     expr_init_condition(expr, c_expr);
-
-     $$ = expr;
-    }
-    ;
-
 condition_list:
     /* empty */
     {

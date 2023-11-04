@@ -146,6 +146,29 @@ private:
   std::string     alias_;
 };
 
+class StarExprSqlNode : public Expression
+{
+public:
+  StarExprSqlNode() = default;
+  StarExprSqlNode(RelAttrSqlNode *rel) : rel_attr_(rel) {}
+  ~StarExprSqlNode()
+  {
+    if (rel_attr_ != nullptr) {
+      delete rel_attr_;
+    }
+  }
+
+  ExprType type() const override { return ExprType::STAR; }
+  AttrType value_type() const override { return AttrType::UNDEFINED; }
+  RC       get_value(const Tuple &tuple, Value &value) const override;
+
+  RelAttrSqlNode *get_rel_attr() { return rel_attr_; }
+  void            set_relation(RelAttrSqlNode *rel) { rel_attr_ = rel; }
+
+private:
+  RelAttrSqlNode *rel_attr_ = nullptr;
+};
+
 /**
  * @brief 字段表达式
  * @ingroup Expression
@@ -170,13 +193,10 @@ public:
 
   const char *field_name() const { return field_.field_name(); }
 
-  const char *field_alias() const { return alias_.c_str(); }
-
   RC get_value(const Tuple &tuple, Value &value) const override;
 
 private:
-  Field       field_;
-  std::string alias_;
+  Field field_;
 };
 
 /**
@@ -508,20 +528,20 @@ public:
   RC get_value(const Tuple &tuple, Value &value) const override;
 
   AggType agg_type() const { return agg_type_; }
-
+  
   const Field&  field() { return field_; }
   RelAttrSqlNode* rel_attr() { return rel_attr_node_; }
 
 private:
-  // be set in parse stage
+  // be set in parse stage 
   AggType                                agg_type_;
   RelAttrSqlNode*                        rel_attr_node_{nullptr};
-  // name(alias) is also set in parse stage
-  // alias is used in execute stage to construct final sql result schema
+  // name(alias) is also set in parse stage 
+  // alias is used in execute stage to construct final sql result schema 
 
-  // be set in resolve stage
-  Field                                  field_;
+  // be set in resolve stage 
+  Field                                  field_;                 
 
-
-
+  
+  
 };

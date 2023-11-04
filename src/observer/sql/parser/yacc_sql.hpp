@@ -93,35 +93,36 @@ extern int yydebug;
     FROM = 299,
     WHERE = 300,
     AND = 301,
-    SET = 302,
-    ON = 303,
-    LOAD = 304,
-    DATA = 305,
-    INFILE = 306,
-    EXPLAIN = 307,
-    LIKE = 308,
-    NOT_LIKE = 309,
-    IS = 310,
-    NOT = 311,
-    NULLABLE = 312,
-    NULL_T = 313,
-    UNIQUE = 314,
-    ORDER = 315,
-    BY = 316,
-    ASC = 317,
-    EQ = 318,
-    LT = 319,
-    GT = 320,
-    LE = 321,
-    GE = 322,
-    NE = 323,
-    IN = 324,
-    EXISTS = 325,
-    NUMBER = 326,
-    FLOAT = 327,
-    ID = 328,
-    SSS = 329,
-    UMINUS = 330
+    OR = 302,
+    SET = 303,
+    ON = 304,
+    LOAD = 305,
+    DATA = 306,
+    INFILE = 307,
+    EXPLAIN = 308,
+    LIKE = 309,
+    NOT_LIKE = 310,
+    IS = 311,
+    NOT = 312,
+    NULLABLE = 313,
+    NULL_T = 314,
+    UNIQUE = 315,
+    ORDER = 316,
+    BY = 317,
+    ASC = 318,
+    EQ = 319,
+    LT = 320,
+    GT = 321,
+    LE = 322,
+    GE = 323,
+    NE = 324,
+    IN = 325,
+    EXISTS = 326,
+    NUMBER = 327,
+    FLOAT = 328,
+    ID = 329,
+    SSS = 330,
+    UMINUS = 331
   };
 #endif
 
@@ -129,7 +130,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 127 "yacc_sql.y"
+#line 128 "yacc_sql.y"
 
   ParsedSqlNode *                             sql_node;
   ComparisonExpr *                            condition;
@@ -162,7 +163,7 @@ union YYSTYPE
   UpdateUnit *                                update_unit;
   std::vector<UpdateUnit> *                   update_unit_list;
 
-#line 166 "yacc_sql.hpp"
+#line 167 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

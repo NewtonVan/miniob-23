@@ -68,8 +68,8 @@ private:
   std::vector<TupleCellSpec> cells_;
 };
 
-
-enum TupleType {
+enum TupleType
+{
   UNKNOWN,
   ROW,
   PROJECT,
@@ -268,9 +268,7 @@ public:
     }
     return RC::NOTFOUND;
   }
-  TupleType type() const override {
-    return TupleType::ROW;
-  }
+  TupleType type() const override { return TupleType::ROW; }
 
   std::vector<TupleCellSpec *> get_row_schema() const override
   {
@@ -278,9 +276,8 @@ public:
     std::vector<TupleCellSpec *> speces(speces_size);
 
     for (int i = 0; i < speces_size; ++i) {
-      bool null_alias = nullptr == speces_[i]->field_alias() || strlen(speces_[i]->field_alias()) == 0;
-      speces[i] =
-          new TupleCellSpec(table_->name(), speces_[i]->field_name(), null_alias ? nullptr : speces_[i]->field_alias());
+      speces[i] = new TupleCellSpec(
+          table_->name(), speces_[i]->field_name(), speces_[i]->name().empty() ? nullptr : speces_[i]->name().c_str());
     }
 
     return speces;
@@ -332,8 +329,8 @@ public:
   void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
   int  cell_num() const override { return speces_.size(); }
 
-  //id, col 
-  // 0, 1 
+  //id, col
+  // 0, 1
 
   RC cell_at(int index, Value &cell) const override
   {
@@ -348,10 +345,8 @@ public:
     return tuple_->find_cell(*spec, cell);
   }
 
-  RC find_cell(const TupleCellSpec &spec, Value &cell) const override { return tuple_->find_cell(spec, cell); }
-  TupleType type() const override {
-    return TupleType::PROJECT;
-  }
+  RC        find_cell(const TupleCellSpec &spec, Value &cell) const override { return tuple_->find_cell(spec, cell); }
+  TupleType type() const override { return TupleType::PROJECT; }
 
 #if 0
   RC cell_spec_at(int index, const TupleCellSpec *&spec) const override
@@ -396,10 +391,29 @@ public:
     return expr->try_get_value(cell);
   }
 
+  bool match_field(const TupleCellSpec &spec, const std::unique_ptr<Expression> &expr) const
+  {
+    if (expr->type() == ExprType::FIELD) {
+      FieldExpr *field_expr = static_cast<FieldExpr *>(expr.get());
+      // 1. table not empty, must match both
+      if (strlen(spec.table_name()) != 0) {
+        return (0 == strcmp(spec.table_name(), field_expr->table_name())) &&
+               (0 == strcmp(spec.field_name(), field_expr->field_name()));
+      }
+      // 2. field not empty
+      if (strlen(spec.field_name()) != 0) {
+        return 0 == strcmp(spec.field_name(), field_expr->field_name());
+      }
+      // 3. else check whether alias same
+    }
+
+    return 0 == strcmp(spec.alias(), expr->name().c_str());
+  }
+
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override
   {
     for (const std::unique_ptr<Expression> &expr : expressions_) {
-      if (0 == strcmp(spec.alias(), expr->name().c_str())) {
+      if (match_field(spec, expr)) {
         if (tuple_ != nullptr) {
           return expr->get_value(*tuple_, cell);
         }
@@ -409,10 +423,8 @@ public:
     return RC::NOTFOUND;
   }
 
-  void set_tuple(Tuple *tuple) { tuple_ = tuple; }
-  TupleType type() const override {
-    return TupleType::EXPR;
-  }
+  void      set_tuple(Tuple *tuple) { tuple_ = tuple; }
+  TupleType type() const override { return TupleType::EXPR; }
 
 private:
   const std::vector<std::unique_ptr<Expression>> &expressions_;
@@ -445,9 +457,7 @@ public:
 
   virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override { return RC::INTERNAL; }
 
-  TupleType type() const override {
-    return TupleType::VALUELIST;
-  }
+  TupleType type() const override { return TupleType::VALUELIST; }
 
 private:
   std::vector<Value> cells_;
@@ -493,9 +503,7 @@ public:
     return right_->find_cell(spec, value);
   }
 
-  TupleType type() const override {
-    return TupleType::JOIN;
-  }
+  TupleType                    type() const override { return TupleType::JOIN; }
   std::vector<TupleCellSpec *> get_row_schema() const override
   {
     std::vector<TupleCellSpec *> speces;
@@ -554,9 +562,7 @@ public:
     }
     return RC::NOTFOUND;
   }
-  TupleType type() const override {
-    return TupleType::SORT;
-  }
+  TupleType type() const override { return TupleType::SORT; }
 
 private:
   std::vector<TupleCellSpec> *specs_;
@@ -611,20 +617,20 @@ struct AggregationValue
   std::vector<size_t> not_null_count_;
 };
 
-class AggTuple : public Tuple {
-  public:
-    void set_tuple(std::vector<Value>& tuple, std::vector<TupleCellSpec>& specs, std::vector<TupleCellSpec>& group_by_spec) {
-      tuple_ = tuple;
-      specs_ = specs;
-      groub_by_specs_ = group_by_spec;
-    }
+class AggTuple : public Tuple
+{
+public:
+  void set_tuple(
+      std::vector<Value> &tuple, std::vector<TupleCellSpec> &specs, std::vector<TupleCellSpec> &group_by_spec)
+  {
+    tuple_          = tuple;
+    specs_          = specs;
+    groub_by_specs_ = group_by_spec;
+  }
 
-    int cell_num() const override
-    {
-      return tuple_.size();
-    }
+  int cell_num() const override { return tuple_.size(); }
 
-  RC cell_at(int index, Value &value) const override // fix
+  RC cell_at(int index, Value &value) const override  // fix
   {
     // const int left_cell_num =cell_num();
     if (index >= 0 && index < cell_num()) {
@@ -635,10 +641,10 @@ class AggTuple : public Tuple {
     return RC::NOTFOUND;
   }
 
-  // AggExpr eval on AggTuple by alias 
+  // AggExpr eval on AggTuple by alias
   RC find_cell(const TupleCellSpec &spec, Value &value) const override
   {
-    // find in agg field 
+    // find in agg field
     for (size_t i = 0; i < specs_.size(); ++i) {
       // check alias for now
       // alias check for agg call, like count(*)
@@ -653,7 +659,8 @@ class AggTuple : public Tuple {
       // check alias for now
       // alias check for agg call, like count(*)
       // table name and relation name check for group by
-      if (0 == strcmp(spec.table_name(), groub_by_specs_[i].table_name()) && 0 == strcmp(spec.field_name(), groub_by_specs_[i].field_name())) {
+      if (0 == strcmp(spec.table_name(), groub_by_specs_[i].table_name()) &&
+          0 == strcmp(spec.field_name(), groub_by_specs_[i].field_name())) {
         return cell_at(i, value);
       }
     }
@@ -661,28 +668,25 @@ class AggTuple : public Tuple {
     return RC::NOTFOUND;
   }
 
-  TupleType type() const override {
-    return TupleType::AGG;
-  }
+  TupleType type() const override { return TupleType::AGG; }
 
+private:
+  // agg field and group_by field
+  // exmaple: select count(*) from aggregation_func group by name
+  //  name   course
+  //. smith.   1
+  //. smith    2
+  // ....
+  //  bob      1
+  // ...
 
-  private:
-    // agg field and group_by field 
-    // exmaple: select count(*) from aggregation_func group by name
-    //  name   course
-    //. smith.   1
-    //. smith    2
-    // ....
-    //  bob      1
-    // ...
-
-    // {value(2), value("smith")}
-    // agg field first, then group by field 
-    // agg field is accessed by alias, i.e. expr name "count(*)"
-    // group by field accessed by relation name and field name 
-    std::vector<Value> tuple_;
-    std::vector<TupleCellSpec> specs_;
-    std::vector<TupleCellSpec> groub_by_specs_;
+  // {value(2), value("smith")}
+  // agg field first, then group by field
+  // agg field is accessed by alias, i.e. expr name "count(*)"
+  // group by field accessed by relation name and field name
+  std::vector<Value>         tuple_;
+  std::vector<TupleCellSpec> specs_;
+  std::vector<TupleCellSpec> groub_by_specs_;
 };
 
 // agg hash table
@@ -722,7 +726,8 @@ public:
     return agg_value;
   }
 
-  void CombineAggregateValues(AggregationValue *result, const AggregationValue &input) {
+  void CombineAggregateValues(AggregationValue *result, const AggregationValue &input)
+  {
     for (uint32_t i = 0; i < agg_types_.size(); i++) {
       Value &agg_val = result->aggregates[i];
       if (!input.aggregates[i].is_null()) {

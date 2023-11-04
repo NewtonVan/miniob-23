@@ -29,8 +29,6 @@ See the Mulan PSL v2 for more details. */
 class ProjectLogicalOperator : public LogicalOperator
 {
 public:
-  ProjectLogicalOperator(const std::vector<Field> &fields);
-  // TODO(chen): field may not needed
   explicit ProjectLogicalOperator(
       const std::vector<Field> &fields, std::vector<std::unique_ptr<Expression>> &&expressions);
   virtual ~ProjectLogicalOperator() = default;
@@ -40,8 +38,6 @@ public:
   std::vector<std::unique_ptr<Expression>>       &expressions() { return expressions_; }
   const std::vector<std::unique_ptr<Expression>> &expressions() const { return expressions_; }
   const std::vector<Field>                       &fields() const { return fields_; }
-  bool                                            use_project_exprs() const { return use_project_exprs_; }
-  void                                            toggle_use_project_exprs() { use_project_exprs_ = true; }
 
 private:
   //! 投影映射的字段名称
@@ -49,5 +45,4 @@ private:
   //! 或者是执行某个函数。所以这里应该是表达式Expression。
   //! 不过现在简单处理，就使用字段来描述
   std::vector<Field> fields_;
-  bool               use_project_exprs_ = false;
 };

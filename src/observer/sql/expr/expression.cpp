@@ -46,6 +46,12 @@ RC RelAttrExprSqlNode::get_value(const Tuple &tuple, Value &value) const
   return RC::INTERNAL;
 }
 
+RC StarExprSqlNode::get_value(const Tuple &tuple, Value &value) const
+{
+  LOG_ERROR("StarExprSqlNode only used as a container in parse stage");
+  return RC::INTERNAL;
+}
+
 RC ValueExpr::get_value(const Tuple &tuple, Value &value) const
 {
   value = value_;
@@ -655,7 +661,7 @@ RC SubQueryExpression::create_expression(const std::unordered_map<std::string, T
   Stmt *stmt = nullptr;
   RC rc = SelectStmt::create(db, *select_sql_node_, tables, table_map, true, stmt);
   auto select_stmt = (SelectStmt*)(stmt);
-  if(select_stmt->use_project_exprs() && select_stmt->project_exprs().size() > 1 || select_stmt->query_fields().size() > 1) {
+  if(select_stmt->project_exprs().size() > 1 || select_stmt->query_fields().size() > 1) {
     return RC::SUB_QUERY_MULTI_FIELDS;
   }
   this->set_sub_query_stmt((SelectStmt *)stmt);
