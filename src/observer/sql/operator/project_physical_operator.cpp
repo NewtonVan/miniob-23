@@ -57,6 +57,7 @@ Tuple *ProjectPhysicalOperator::current_tuple()
   if (use_project_exprs()) {
     expression_tuple_->set_tuple(children_[0]->current_tuple());
     tuple_.set_tuple(expression_tuple_);
+
   } else {
     tuple_.set_tuple(children_[0]->current_tuple());
   }

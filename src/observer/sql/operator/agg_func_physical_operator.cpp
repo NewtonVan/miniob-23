@@ -81,7 +81,7 @@ RC AggPhysicalOperator::next() {
       }
       
       materialized_child_ = true;
-      tuple_.set_tuple(values , specs_, group_by_specs_);
+      tuple_.set_tuple(values , agg_specs_, group_by_specs_);
       return RC::SUCCESS; 
     }
 
@@ -144,7 +144,7 @@ RC AggPhysicalOperator::next() {
     }
   }
 
-  tuple_.set_tuple(values , specs_, group_by_specs_);
+  tuple_.set_tuple(values , agg_specs_, group_by_specs_);
   iter_->operator++();
 
   return RC::SUCCESS;

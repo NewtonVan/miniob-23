@@ -52,6 +52,10 @@ SelectStmt::~SelectStmt()
     delete orderby_stmt_;
     orderby_stmt_ = nullptr;
   }
+  if(nullptr != having_stmt_) {
+    delete having_stmt_;
+    having_stmt_ = nullptr;
+  }
 }
 
 static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
@@ -349,6 +353,16 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     return rc;
   }
 
+  HavingStmt* having_stmt = nullptr;
+  rc = FilterStmt::create(db, default_table, &table_map, 
+    select_sql.group_by.having.conds, static_cast<int>(select_sql.group_by.having.conds.size()), having_stmt);
+
+
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("cannot construct having stmt");
+    return rc;
+  }
+
   // create order_by stmt
   OrderByStmt *orderby_stmt = nullptr;
   if (!select_sql.order_by.empty()) {
@@ -377,13 +391,25 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   // agg related
   // we need all agg fields, types and expr name withing select clause and having clause 
   // and all group by fields
-  select_stmt->select_agg_expr_names_.swap(select_agg_expr_names);
-  select_stmt->select_agg_types_.swap(select_agg_types);
-  select_stmt->select_agg_fields_.swap(select_agg_fields);
+  // select_stmt->select_agg_expr_names_.swap(select_agg_expr_names);
+  // select_stmt->select_agg_types_.swap(select_agg_types);
+  // select_stmt->select_agg_fields_.swap(select_agg_fields);
+  // select_stmt->having_agg_expr_names_.swap(having_agg_expr_names);
+  // select_stmt->having_agg_types_.swap(having_agg_types);
+  // select_stmt->having_agg_fields_.swap(having_agg_fields);
+  
+  std::copy(select_agg_expr_names.begin() , select_agg_expr_names.end(), std::back_inserter(select_stmt->all_agg_expr_names_));  
+  std::copy(having_agg_expr_names.begin(),  having_agg_expr_names.end(), std::back_inserter(select_stmt->all_agg_expr_names_)); 
+
+  std::copy(select_agg_types.begin() , select_agg_types.end(), std::back_inserter(select_stmt->all_agg_types_));  
+  std::copy(having_agg_types.begin(),  having_agg_types.end(), std::back_inserter(select_stmt->all_agg_types_));  
+
+  std::copy(select_agg_fields.begin() , select_agg_fields.end(), std::back_inserter(select_stmt->all_agg_fields_));  
+  std::copy(having_agg_fields.begin(),  having_agg_fields.end(), std::back_inserter(select_stmt->all_agg_fields_)); 
+
   select_stmt->group_by_fields_.swap(group_by_fields);
-  select_stmt->having_agg_expr_names_.swap(having_agg_expr_names);
-  select_stmt->having_agg_types_.swap(having_agg_types);
-  select_stmt->having_agg_fields_.swap(having_agg_fields);
+
+  select_stmt->having_stmt_ = having_stmt;
 
   select_stmt->is_agg_ = is_agg;
   // TODO add expression copy

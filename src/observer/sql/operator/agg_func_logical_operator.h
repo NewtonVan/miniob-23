@@ -10,9 +10,10 @@
 #pragma once
 class AggLogicalOperator : public LogicalOperator {
     public:
-        explicit AggLogicalOperator(const std::vector<AggType>& agg_types, const std::vector<Field>& fields, const std::vector<Field>& groub_bys, const std::vector<std::string>& all_agg_expr_name):agg_types_(agg_types), fields_(fields),group_bys_(groub_bys), agg_expr_names_(all_agg_expr_name) {};
+        explicit AggLogicalOperator(const std::vector<AggType>& agg_types, const std::vector<Field>& fields, const std::vector<Field>& groub_bys, const std::vector<std::string>& all_agg_expr_name):agg_types_(agg_types), agg_fields_(fields),group_bys_(groub_bys), agg_expr_names_(all_agg_expr_name) {};
         virtual ~AggLogicalOperator() = default;
-
+        
+        // todo(lyq) we must pass expression in having clasue to filter groups in AggPhysicalOperator
         // void add_expressions(std::vector<std::unique_ptr<Expression>>&& expressions) {
         //     for(auto& expr : expressions) {
         //         expressions_.push_back(expr);
@@ -34,7 +35,7 @@ class AggLogicalOperator : public LogicalOperator {
             return agg_types_;
         }
         const std::vector<Field>& fields() const {
-            return fields_;
+            return agg_fields_;
         }
         const std::vector<Field>& group_bys() const {
             return group_bys_;
@@ -46,6 +47,6 @@ class AggLogicalOperator : public LogicalOperator {
     private:    
         std::vector<AggType> agg_types_;
         std::vector<std::string> agg_expr_names_;
-        std::vector<Field> fields_; 
+        std::vector<Field> agg_fields_; 
         std::vector<Field> group_bys_;   
 };
