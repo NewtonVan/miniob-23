@@ -62,10 +62,10 @@ enum CompOp
   NOT_LIKES,    ///< "NOT LIKE"
   IS_LEFT_NULL,
   IS_LEFT_NOT_NULL,
-  IN_OP,
-  NOT_IN,
-  EXISTS_OP,
-  NOT_EXISTS,
+  SUB_IN_OP,
+  SUB_NOT_IN,
+  SUB_EXISTS_OP,
+  SUB_NOT_EXISTS,
   NO_OP
 };
 

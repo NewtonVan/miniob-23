@@ -193,19 +193,19 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   Value right_value;
 
   // 当是比较符号是EXISTS或NOT_EXISTS字段时，只需要返回是否存在
-  if(comp_ == EXISTS_OP || comp_ == NOT_EXISTS) {
+  if(comp_ == SUB_EXISTS_OP || comp_ == SUB_NOT_EXISTS) {
     assert(ExprType::SUBQUERYTYPE == right_->type());
     auto sub_query_expr = (const SubQueryExpression *)(right_.get());
     sub_query_expr->open_sub_query();
     RC tmp_rc = sub_query_expr->get_value(tuple, right_value);
     sub_query_expr->close_sub_query();
-    bool res = CompOp::EXISTS_OP == comp_ ? (RC::SUCCESS == tmp_rc) : (RC::RECORD_EOF == tmp_rc);
+    bool res = CompOp::SUB_EXISTS_OP == comp_ ? (RC::SUCCESS == tmp_rc) : (RC::RECORD_EOF == tmp_rc);
     value.set_boolean(res);
     return RC::SUCCESS;
   }
 
   // 当是IN 或 NOT IN时，需要获取子查询的所有tuple的value，然后查看left_value是否存在
-  if(comp_ == IN_OP || comp_ == NOT_IN) {
+  if(comp_ == SUB_IN_OP || comp_ == SUB_NOT_IN) {
     RC rc = left_->get_value(tuple, left_value);
     if (RC::SUCCESS != rc) {
       return rc;
@@ -245,7 +245,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
       }
       return false;
     };
-    bool res = CompOp::IN_OP == comp_ ? left_value.in_cells(right_values)
+    bool res = CompOp::SUB_IN_OP == comp_ ? left_value.in_cells(right_values)
                                 : (has_null(right_values) ? false : left_value.not_in_cells(right_values));
     value.set_boolean(res);
     return RC::SUCCESS;
