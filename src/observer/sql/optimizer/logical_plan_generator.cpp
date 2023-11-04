@@ -164,10 +164,11 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
   const std::vector<Table *> &tables     = select_stmt->tables();
   const std::vector<Field>   &query_fields = select_stmt->query_fields();
-  const std::vector<AggType>& all_agg_types = select_stmt->agg_types();
-  const std::vector<Field>& all_agg_fields = select_stmt->all_agg_fields();
-  const std::vector<Field>& all_group_by_fields = select_stmt->non_agg_field();
-  const std::vector<std::string> all_agg_expr_name = select_stmt->all_agg_expr_name();
+  
+  const std::vector<AggType>& all_agg_types = select_stmt->select_agg_types();
+  const std::vector<Field>& all_agg_fields = select_stmt->select_agg_fields();
+  const std::vector<Field>& all_group_by_fields = select_stmt->group_by_fields();
+  const std::vector<std::string> all_agg_expr_name = select_stmt->select_agg_expr_names();
 
   if (select_stmt->join_stmt() != nullptr) {
     RC rc = RC::SUCCESS;
