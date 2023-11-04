@@ -111,9 +111,11 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         NULLABLE
         NULL_T
         UNIQUE
-		ORDER
-		BY
-		ASC
+        ORDER
+        GROUP
+        HAVING
+        BY
+        ASC
         EQ
         LT
         GT
@@ -153,6 +155,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<AggregationFuncSqlNode> * agg_func_call_list;
   UpdateUnit *                                update_unit;
   std::vector<UpdateUnit> *                   update_unit_list;
+  GroupBy*                                    group_by;
+  Having*                                      having;
 }
 
 %token <number> NUMBER
@@ -168,6 +172,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <value>               unsigned_value
 %type <number>              number
 %type <comp>                comp_op
+%type <group_by>            group_by
+%type <having>              having
 %type <general_relation_sql_node> general_rel
 %type <rel_attr>            rel_attr
 %type <rel_attr>            agg_field
@@ -187,6 +193,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <single_table>        single_table
 %type <relation_list>       rel_list
 %type <rel_attr_list>       agg_field_list;
+%type <rel_attr_list>       rel_attr_list
 %type <expression>          expression
 %type <func_args>           length_args
 %type <func_args>           round_args
@@ -570,7 +577,7 @@ update_unit:
     ;
 
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM single_table rel_list where
+    SELECT select_attr FROM single_table rel_list where group_by
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -589,8 +596,14 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $6;
       }
       free($4);
+
+      if($7 != nullptr) {
+        $$->selection.group_by = *$7;
+        delete $7;
+      }
+      
     }
-    | SELECT select_attr FROM general_rel INNER JOIN ID join_condition where
+    | SELECT select_attr FROM general_rel INNER JOIN ID join_condition where group_by
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -606,6 +619,12 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $9;
       }
       free($7);
+
+      if($10 != nullptr) {
+        $$->selection.group_by=*$10;
+        delete $10;
+      }
+
     }
     | SELECT select_attr FROM single_table rel_list where ORDER BY order_item order_item_list
     {
@@ -1040,6 +1059,68 @@ join_condition:
       $$ = $2;
     }
     ;
+
+
+group_by:
+  /* empty */ 
+  {
+    $$=nullptr;
+  }
+  /* group by */
+  | GROUP BY rel_attr rel_attr_list having
+  {
+    $$ = new GroupBy;
+    if($4 != nullptr) {
+      $$->attrs.swap(*$4);
+      delete $4;
+    }
+    $$->attrs.emplace_back(*$3);
+    std::reverse($$->attrs.begin(), $$->attrs.end());
+    delete $3;
+    if($5 != nullptr) {
+      $$->having = *$5;
+      delete $5;
+    }
+  }
+  ;
+
+having:
+  {
+    $$=nullptr;
+  }
+  | HAVING condition_list 
+  {
+    $$ = new Having;
+    if($2 != nullptr) {
+      $$->conds.swap(*$2);
+      delete $2;
+    } else {
+      // if cond is empty, which means we have select .... from ... group by xxx having  
+      // should return BAG_AGG on resolve_stage, but we just suppress this
+      // 
+    }
+    std::reverse($$->conds.begin(), $$->conds.end());
+  }
+  ;
+
+
+
+rel_attr_list:
+  {
+    $$=nullptr;
+  }
+  | COMMA rel_attr rel_attr_list
+  {
+    if ($3 != nullptr) {
+        $$ = $3;
+    } else {
+      $$ = new std::vector<RelAttrSqlNode>;
+    }
+    $$->push_back(std::move(*$2));
+  }
+  ;
+
+
 where:
     /* empty */
     {

@@ -134,6 +134,8 @@ NOT                                     RETURN_TOKEN(NOT);
 NULLABLE                                RETURN_TOKEN(NULLABLE);
 NULL                                    RETURN_TOKEN(NULL_T);
 UNIQUE                                  RETURN_TOKEN(UNIQUE);
+GROUP                                   RETURN_TOKEN(GROUP);
+HAVING                                  RETURN_TOKEN(HAVING); 
 ORDER                                   RETURN_TOKEN(ORDER);
 BY                                      RETURN_TOKEN(BY);
 ASC                                     RETURN_TOKEN(ASC);

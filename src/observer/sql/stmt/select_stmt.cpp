@@ -162,9 +162,15 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     field_only = false;
     if(!all_non_agg_field.empty()) {
       // todo(lyq) handle group by
+      
       return RC::BAD_AGG;
     }
     is_agg = true;
+  } else {
+    // no agg but with group by
+    if(!select_sql.group_by.attrs.empty()){
+      return RC::BAD_AGG;
+    }
   }
 
   if(is_agg) {
