@@ -276,6 +276,7 @@ struct AttrInfoSqlNode
   bool        null;
 };
 
+class ParsedSqlNode;
 /**
  * @brief 描述一个create table语句
  * @ingroup SQLParser
@@ -285,6 +286,8 @@ struct CreateTableSqlNode
 {
   std::string                  relation_name;  ///< Relation name
   std::vector<AttrInfoSqlNode> attr_infos;     ///< attributes
+  SelectSqlNode                select_sql_node;
+  bool                         is_create_table_select;
 };
 
 /**
@@ -352,8 +355,6 @@ struct SetVariableSqlNode
   std::string name;
   Value       value;
 };
-
-class ParsedSqlNode;
 
 /**
  * @brief 描述一个explain语句
