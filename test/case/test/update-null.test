@@ -12,3 +12,17 @@ update null_table3 set num = (select num from null_table2 where id = 2) where id
 SELECT * FROM null_table3;
 update null_table3 set num = (select num from null_table2 where id < 3) where id = 4;
 SELECT * FROM null_table3;
+
+CREATE TABLE null_table5(id int not null, num int null, name char(10) null);
+CREATE TABLE null_table4(id int not null, num int null, name char(10) null);
+
+INSERT INTO null_table5 VALUES (7, null, 'N4');
+INSERT INTO null_table5 VALUES (5, 1, 'N1');
+INSERT INTO null_table5 VALUES (4, 4, 'N4');
+
+INSERT INTO null_table4 VALUES (4, 4, 'N4');
+INSERT INTO null_table4 VALUES (2, 1, 'N1');
+
+UPDATE null_table4 SET id=(SELECT null_table5.num from null_table5 where null_table5.id=7) where id=5;
+UPDATE null_table4 SET id=null where id=1;
+SELECT * FROM null_table4;

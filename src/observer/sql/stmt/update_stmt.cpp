@@ -75,31 +75,31 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     Expression *dst_expr = nullptr;
 
     if (src_expr->type() == ExprType::VALUE) {
-      ValueExpr     *value_ptr    = static_cast<ValueExpr *>(src_expr);
-      const AttrType field_type   = field_meta->type();
-      const AttrType value_type   = value_ptr->value_type();
-      Value         *mutableValue = const_cast<Value *>(&value_ptr->get_value());
+      ValueExpr *value_ptr = static_cast<ValueExpr *>(src_expr);
+      // const AttrType field_type   = field_meta->type();
+      // const AttrType value_type   = value_ptr->value_type();
+      // Value         *mutableValue = const_cast<Value *>(&value_ptr->get_value());
 
-      // convert data type if needed
-      RC rc = RC::SUCCESS;
-      rc    = cast(field_meta->nullable(), field_type, value_type, mutableValue);
-      if (rc != RC::SUCCESS) {
-        if (rc == RC::SCHEMA_FIELD_TYPE_MISMATCH) {
-          LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
-            table_name, field_meta->name(), field_type, value_type);
-        }
-        return rc;
-      }
+      // // convert data type if needed
+      // RC rc = RC::SUCCESS;
+      // rc    = cast(field_meta->nullable(), field_type, value_type, mutableValue);
+      // if (rc != RC::SUCCESS) {
+      //   if (rc == RC::SCHEMA_FIELD_TYPE_MISMATCH) {
+      //     LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+      //       table_name, field_meta->name(), field_type, value_type);
+      //   }
+      //   return rc;
+      // }
 
       dst_expr = value_ptr;
     } else if (src_expr->type() == ExprType::SUBQUERYTYPE) {
       SubQueryExpression *sub_expr = static_cast<SubQueryExpression *>(src_expr);
       RC                  rc       = sub_expr->create_expression(table_map, tables, CompOp::EQUAL_TO, db);
-      if(rc != RC::SUCCESS) {
+      if (rc != RC::SUCCESS) {
         return rc;
       }
 
-      dst_expr                     = sub_expr;
+      dst_expr = sub_expr;
     } else {
       LOG_ERROR("Unknown expr type: %d", src_expr->type());
     }
@@ -126,13 +126,13 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
 RC UpdateStmt::cast(bool nullable, const AttrType field_type, const AttrType value_type, Value *value)
 {
   if (!nullable && value_type == NULLS)
-    return RC::INVALID_ARGUMENT;
+    return RC::INVALID_ARGUMENT_TYPE;
   if (field_type != value_type && !(nullable && value_type == NULLS)) {
     if (field_type == AttrType::DATES && value_type == AttrType::CHARS) {
       int64_t date;
       bool    valid = serialize_date(&date, value->data());
       if (!valid) {
-        return RC::INVALID_ARGUMENT;
+        return RC::INVALID_ARGUMENT_TYPE;
       } else {
         value->set_type(AttrType::DATES);
         value->set_date(date);
@@ -140,7 +140,7 @@ RC UpdateStmt::cast(bool nullable, const AttrType field_type, const AttrType val
     } else if (field_type == AttrType::TEXTS && value_type == AttrType::CHARS) {
       value->set_text(value->data());
       if (strlen(value->get_text()) > 65535) {
-        return RC::INVALID_ARGUMENT;
+        return RC::INVALID_ARGUMENT_TYPE;
       }
     } else {
       // TODO try to convert the value type to field type

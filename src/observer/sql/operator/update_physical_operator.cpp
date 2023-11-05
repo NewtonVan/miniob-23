@@ -45,6 +45,9 @@ RC UpdatePhysicalOperator::open(Trx *trx)
   rc = gen_values();
   if (rc == RC::SUB_QUERY_MULTI_TUPLES) {
     scan_tuple_must_be_empty_ = true;
+  } else if (rc == RC::INVALID_ARGUMENT_TYPE) {
+    // type convert failed, but ok if result from children is empty
+    scan_tuple_must_be_empty_ = true;
   } else if (rc != RC::SUCCESS) {
     LOG_WARN("failed to generate values: %s", strrc(rc));
     return rc;
@@ -92,17 +95,17 @@ RC UpdatePhysicalOperator::gen_values()
       if (RC::SUCCESS != (rc = get_cell_for_sub_query(sub_expr, value))) {
         return rc;
       }
-      rc = UpdateStmt::cast(field_metas_[i]->nullable(), field_metas_[i]->type(), value.attr_type(), &value);
-      if (rc != RC::SUCCESS) {
-        LOG_WARN("field type mismatch after exec sub query. table=%s, field=%s, field type=%d, value_type=%d",
-            table_->name(), field_names_[i].c_str(), field_metas_[i]->type(), value.attr_type());
-        return rc;
-      }
     } else {
       ValueExpr *v_expr = static_cast<ValueExpr *>(value_exprs_[i]);
       v_expr->try_get_value(value);
     }
-    // TODO(chen): type cast like update_stmt
+
+    rc = UpdateStmt::cast(field_metas_[i]->nullable(), field_metas_[i]->type(), value.attr_type(), &value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("field type mismatch after exec sub query. table=%s, field=%s, field type=%d, value_type=%d",
+            table_->name(), field_names_[i].c_str(), field_metas_[i]->type(), value.attr_type());
+      return rc;
+    }
 
     values_.push_back(value);
   }
