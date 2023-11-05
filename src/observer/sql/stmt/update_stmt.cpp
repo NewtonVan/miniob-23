@@ -142,6 +142,22 @@ RC UpdateStmt::cast(bool nullable, const AttrType field_type, const AttrType val
       if (strlen(value->get_text()) > 65535) {
         return RC::INVALID_ARGUMENT_TYPE;
       }
+    } else if (field_type == AttrType::FLOATS && value_type == AttrType::INTS) {
+      value->set_float(value->get_int());
+    } else if (field_type == AttrType::INTS && value_type == AttrType::FLOATS) {
+      value->set_int(value->get_float());
+    } else if (field_type == AttrType::CHARS && value_type == AttrType::INTS) {
+      int         i_val = value->get_int();
+      std::string s_val = std::to_string(i_val);
+      value->set_string(s_val.c_str(), s_val.length());
+    } else if (field_type == AttrType::INTS && value_type == AttrType::CHARS) {
+      value->set_int(std::stoi(value->get_string()));
+    } else if (field_type == AttrType::CHARS && value_type == AttrType::FLOATS) {
+      float       f_val = value->get_float();
+      std::string s_val = std::to_string(f_val);
+      value->set_string(s_val.c_str(), s_val.length());
+    } else if (field_type == AttrType::FLOATS && value_type == AttrType::CHARS) {
+      value->set_float(std::stod(value->get_string()));
     } else {
       // TODO try to convert the value type to field type
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
