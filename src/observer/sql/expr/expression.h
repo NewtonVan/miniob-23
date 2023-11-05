@@ -407,41 +407,33 @@ private:
   std::vector<std::unique_ptr<Expression>> args_;
 };
 
-class SubQueryExpression : public Expression {
+class SubQueryExpression : public Expression
+{
 public:
   SubQueryExpression(SelectSqlNode *select_sql_node) : select_sql_node_(select_sql_node){};
   ~SubQueryExpression() override = default;
 
-  ExprType type() const override
-  {
-    return ExprType::SUBQUERYTYPE;
-  }
+  ExprType type() const override { return ExprType::SUBQUERYTYPE; }
 
   AttrType value_type() const override { return AttrType::UNDEFINED; }
 
   RC get_value(const Tuple &tuple, Value &value) const override;
 
-  RC try_get_value(Value &value) const override { return RC::UNIMPLENMENT; }
+  RC try_get_value(Value &value) const override;
 
-  void set_sub_query_stmt(SelectStmt *sub_stmt)
-  {
-    sub_stmt_ = sub_stmt;
-  }
+  void set_sub_query_stmt(SelectStmt *sub_stmt) { sub_stmt_ = sub_stmt; }
 
-  SelectStmt *get_sub_query_stmt() const
-  {
-    return sub_stmt_;
-  }
+  SelectStmt *get_sub_query_stmt() const { return sub_stmt_; }
 
-//  void set_sub_query_physical_top_oper(PhysicalOperator *oper)
-//  {
-//    sub_physical_op_oper_ = oper;
-//  }
+  //  void set_sub_query_physical_top_oper(PhysicalOperator *oper)
+  //  {
+  //    sub_physical_op_oper_ = oper;
+  //  }
 
-//  PhysicalOperator *get_sub_query_physical_top_oper() const
-//  {
-//    return sub_physical_op_oper_.get();
-//  }
+  //  PhysicalOperator *get_sub_query_physical_top_oper() const
+  //  {
+  //    return sub_physical_op_oper_.get();
+  //  }
 
   void set_sub_query_logical_top_oper(LogicalOperator *oper)
   {
@@ -449,34 +441,29 @@ public:
     gen_plan();
   }
 
-  LogicalOperator *get_sub_query_logical_top_oper() const
-  {
-    return sub_logical_top_oper_;
-  }
+  LogicalOperator *get_sub_query_logical_top_oper() const { return sub_logical_top_oper_; }
 
-  const SelectSqlNode * get_select_sql_node() {
-    return select_sql_node_;
-  }
-
+  const SelectSqlNode *get_select_sql_node() { return select_sql_node_; }
 
   RC open_sub_query() const;
   RC close_sub_query() const;
   RC gen_plan();
 
-  RC create_expression(const std::unordered_map<std::string, Table *> &table_map,
-      const std::vector<Table *> &tables, CompOp comp = NO_OP, Db *db = nullptr);
+  RC create_expression(const std::unordered_map<std::string, Table *> &table_map, const std::vector<Table *> &tables,
+      CompOp comp = NO_OP, Db *db = nullptr);
 
 private:
-  const SelectSqlNode *select_sql_node_;
-  SelectStmt *sub_stmt_ = nullptr;
+  const SelectSqlNode              *select_sql_node_;
+  SelectStmt                       *sub_stmt_ = nullptr;
   std::shared_ptr<PhysicalOperator> sub_physical_op_oper_;
-  LogicalOperator  *sub_logical_top_oper_ = nullptr;
-  Db *db_ = nullptr;
+  LogicalOperator                  *sub_logical_top_oper_ = nullptr;
+  Db                               *db_                   = nullptr;
 };
 
-class ListExpression : public Expression {
+class ListExpression : public Expression
+{
 public:
-  ListExpression(std::vector<Value> &values) : values_(values){}
+  ListExpression(std::vector<Value> &values) : values_(values) {}
 
   ~ListExpression() override = default;
 
@@ -501,24 +488,18 @@ private:
 class AggExpr : public Expression
 {
 public:
-
 public:
-  explicit AggExpr(AggType type):agg_type_(type) {};
-  ~AggExpr() {
-    if(rel_attr_node_ != nullptr) {
+  explicit AggExpr(AggType type) : agg_type_(type){};
+  ~AggExpr()
+  {
+    if (rel_attr_node_ != nullptr) {
       delete rel_attr_node_;
     }
   };
 
-  void set_field(Field field) {
-    field_ = field;
-  }
-  void set_agg_type(AggType type) {
-    agg_type_ = type;
-  }
-  void set_rel_attr_node(RelAttrSqlNode* node) {
-    rel_attr_node_ = node;
-  }
+  void set_field(Field field) { field_ = field; }
+  void set_agg_type(AggType type) { agg_type_ = type; }
+  void set_rel_attr_node(RelAttrSqlNode *node) { rel_attr_node_ = node; }
 
   ExprType type() const override { return ExprType::AGG; }
 
@@ -528,20 +509,17 @@ public:
   RC get_value(const Tuple &tuple, Value &value) const override;
 
   AggType agg_type() const { return agg_type_; }
-  
-  const Field&  field() { return field_; }
-  RelAttrSqlNode* rel_attr() { return rel_attr_node_; }
+
+  const Field    &field() { return field_; }
+  RelAttrSqlNode *rel_attr() { return rel_attr_node_; }
 
 private:
-  // be set in parse stage 
-  AggType                                agg_type_;
-  RelAttrSqlNode*                        rel_attr_node_{nullptr};
-  // name(alias) is also set in parse stage 
-  // alias is used in execute stage to construct final sql result schema 
+  // be set in parse stage
+  AggType         agg_type_;
+  RelAttrSqlNode *rel_attr_node_{nullptr};
+  // name(alias) is also set in parse stage
+  // alias is used in execute stage to construct final sql result schema
 
-  // be set in resolve stage 
-  Field                                  field_;                 
-
-  
-  
+  // be set in resolve stage
+  Field field_;
 };

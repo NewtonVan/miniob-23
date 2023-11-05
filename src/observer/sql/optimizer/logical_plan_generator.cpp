@@ -336,13 +336,15 @@ RC LogicalPlanGenerator::create_plan(FilterStmt *filter_stmt, unique_ptr<Logical
   return RC::SUCCESS;
 }
 
-RC LogicalPlanGenerator::create_plan_for_subquery(const FilterUnit *filter, std::unique_ptr<LogicalOperator> &logical_operator) {
+RC LogicalPlanGenerator::create_plan_for_subquery(
+    const FilterUnit *filter, std::unique_ptr<LogicalOperator> &logical_operator)
+{
   RC rc = RC::SUCCESS;
   // process sub query
   auto process_sub_query_expr = [&](Expression *expr) {
     if (expr != nullptr && ExprType::SUBQUERYTYPE == expr->type()) {
-      auto sub_query_expr = (SubQueryExpression *)expr;
-      SelectStmt *sub_select = sub_query_expr->get_sub_query_stmt();
+      auto                             sub_query_expr       = (SubQueryExpression *)expr;
+      SelectStmt                      *sub_select           = sub_query_expr->get_sub_query_stmt();
       std::unique_ptr<LogicalOperator> sub_logical_operator = nullptr;
       if (RC::SUCCESS != (rc = create_plan(sub_select, sub_logical_operator))) {
         return rc;
@@ -352,18 +354,39 @@ RC LogicalPlanGenerator::create_plan_for_subquery(const FilterUnit *filter, std:
     }
     return RC::SUCCESS;
   };
-//  if (ConjunctionExpr::Type::AND == filter->comp() || ConjunctionExpr::Type::OR == filter->comp()) {
-//    if (RC::SUCCESS != (rc = create_plan_for_subquery(filter->left_unit(), logical_operator))) {
-//      return rc;
-//    }
-//    return create_plan_for_subquery(filter->right_unit(), logical_operator);
-//  }
+  //  if (ConjunctionExpr::Type::AND == filter->comp() || ConjunctionExpr::Type::OR == filter->comp()) {
+  //    if (RC::SUCCESS != (rc = create_plan_for_subquery(filter->left_unit(), logical_operator))) {
+  //      return rc;
+  //    }
+  //    return create_plan_for_subquery(filter->right_unit(), logical_operator);
+  //  }
 
   if (RC::SUCCESS != (rc = process_sub_query_expr(filter->left().expr))) {
     return rc;
   }
 
   return process_sub_query_expr(filter->right().expr);
+}
+
+RC LogicalPlanGenerator::create_plan_for_subquery(Expression *expr, std::unique_ptr<LogicalOperator> &logical_operator)
+{
+  RC rc = RC::SUCCESS;
+
+  auto process_sub_query_expr = [&](Expression *expr) {
+    if (expr != nullptr && ExprType::SUBQUERYTYPE == expr->type()) {
+      SubQueryExpression              *sub_query_expr       = static_cast<SubQueryExpression *>(expr);
+      SelectStmt                      *sub_select           = sub_query_expr->get_sub_query_stmt();
+      std::unique_ptr<LogicalOperator> sub_logical_operator = nullptr;
+      if (RC::SUCCESS != (rc = create_plan(sub_select, sub_logical_operator))) {
+        return rc;
+      }
+      assert(nullptr != sub_logical_operator);
+      sub_query_expr->set_sub_query_logical_top_oper(sub_logical_operator.get());
+    }
+    return RC::SUCCESS;
+  };
+
+  return process_sub_query_expr(expr);
 }
 
 RC LogicalPlanGenerator::create_plan(InsertStmt *insert_stmt, unique_ptr<LogicalOperator> &logical_operator)
@@ -396,7 +419,15 @@ RC LogicalPlanGenerator::create_plan(UpdateStmt *update_stmt, std::unique_ptr<Lo
     return rc;
   }
 
-  // 2. update
+  // 2. create sub query if needed
+  const int update_amount = update_stmt->value_amount();
+  for (int i = 0; i < update_amount; ++i) {
+    if (update_stmt->values()[i]->type() == ExprType::SUBQUERYTYPE) {
+      create_plan_for_subquery(update_stmt->values()[i], logical_operator);
+    }
+  }
+
+  // 3. update
   unique_ptr<LogicalOperator> update_op(
       new UpdateLogicalOperator(table, update_stmt->values(), update_stmt->attribute_names()));
 

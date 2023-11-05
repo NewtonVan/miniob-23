@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include "common/rc.h"
+#include "sql/expr/expression.h"
 #include "sql/parser/value.h"
 #include "sql/stmt/filter_stmt.h"
 #include "sql/stmt/stmt.h"
@@ -30,7 +31,7 @@ class Table;
 class UpdateStmt : public Stmt
 {
 public:
-  UpdateStmt(Table *table, std::vector<Value> &values, int value_amount, FilterStmt *filter_stmt,
+  UpdateStmt(Table *table, std::vector<Expression *> &values, int value_amount, FilterStmt *filter_stmt,
       std::vector<std::string> &attribute_name);
   ~UpdateStmt() override;
 
@@ -38,18 +39,19 @@ public:
 
 public:
   static RC create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt);
+  static RC cast(bool nullable, const AttrType field_type, const AttrType value_type, Value *value);
 
 public:
   Table                          *table() const { return table_; }
-  std::vector<Value>              values() const { return values_; }
+  std::vector<Expression *>       values() const { return values_; }
   int                             value_amount() const { return value_amount_; }
   FilterStmt                     *filter_stmt() const { return filter_stmt_; }
   const std::vector<std::string> &attribute_names() const { return attribute_names_; }
 
 private:
-  Table                   *table_ = nullptr;
-  std::vector<Value>       values_;
-  int                      value_amount_ = 0;
-  FilterStmt              *filter_stmt_  = nullptr;
-  std::vector<std::string> attribute_names_;
+  Table                    *table_ = nullptr;
+  std::vector<Expression *> values_;
+  int                       value_amount_ = 0;
+  FilterStmt               *filter_stmt_  = nullptr;
+  std::vector<std::string>  attribute_names_;
 };

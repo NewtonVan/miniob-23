@@ -13,6 +13,10 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/stmt/update_stmt.h"
+#include "common/log/log.h"
+#include "common/rc.h"
+#include "sql/expr/expression.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/parser/value.h"
 #include "sql/stmt/filter_stmt.h"
 #include "storage/db/db.h"
@@ -21,7 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 #include <vector>
 
-UpdateStmt::UpdateStmt(Table *table, std::vector<Value> &values, int value_amount, FilterStmt *filter_stmt,
+UpdateStmt::UpdateStmt(Table *table, std::vector<Expression *> &values, int value_amount, FilterStmt *filter_stmt,
     std::vector<std::string> &attribute_name)
     : table_(table),
       values_(values),
@@ -53,9 +57,11 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
 
-  const int                update_fields_cnt = update.update_units.size();
-  std::vector<std::string> attributes;
-  std::vector<Value>       values;
+  const int                                update_fields_cnt = update.update_units.size();
+  std::vector<std::string>                 attributes;
+  std::vector<Expression *>                value_exprs;
+  std::unordered_map<std::string, Table *> table_map;
+  std::vector<Table *>                     tables;
   for (int i = 0; i < update_fields_cnt; ++i) {
     // check whether field match
     const TableMeta &table_meta = table->table_meta();
@@ -65,40 +71,40 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
       return RC::SCHEMA_FIELD_NOT_EXIST;
     }
 
-    // convert data type if needed
-    const AttrType field_type   = field_meta->type();
-    const AttrType value_type   = update.update_units[i].value.attr_type();
-    Value         *mutableValue = const_cast<Value *>(&update.update_units[i].value);
-    if(!field_meta->nullable() && value_type == NULLS) return RC::INVALID_ARGUMENT;
-    if (field_type != value_type && !(field_meta->nullable() && value_type == NULLS)) {
-      if (field_type == AttrType::DATES && value_type == AttrType::CHARS) {
-        int64_t date;
-        bool    valid = serialize_date(&date, mutableValue->data());
-        if (!valid) {
-          return RC::INVALID_ARGUMENT;
-        } else {
-          mutableValue->set_type(AttrType::DATES);
-          mutableValue->set_date(date);
-        }
-      } else if (field_type == AttrType::TEXTS && value_type == AttrType::CHARS) {
-        mutableValue->set_text(mutableValue->data());
-        if (strlen(mutableValue->get_text()) > 65535) {
-          return RC::INVALID_ARGUMENT;
-        }
-      } else {
-        // TODO try to convert the value type to field type
-        LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+    Expression *src_expr = update.update_units[i].value;
+    Expression *dst_expr = nullptr;
+
+    if (src_expr->type() == ExprType::VALUE) {
+      ValueExpr     *value_ptr    = static_cast<ValueExpr *>(src_expr);
+      const AttrType field_type   = field_meta->type();
+      const AttrType value_type   = value_ptr->value_type();
+      Value         *mutableValue = const_cast<Value *>(&value_ptr->get_value());
+
+      // convert data type if needed
+      RC rc = RC::SUCCESS;
+      rc    = cast(field_meta->nullable(), field_type, value_type, mutableValue);
+      if (rc != RC::SUCCESS) {
+        if (rc == RC::SCHEMA_FIELD_TYPE_MISMATCH) {
+          LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
             table_name, field_meta->name(), field_type, value_type);
-        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        }
+        return rc;
       }
+
+      dst_expr = value_ptr;
+    } else if (src_expr->type() == ExprType::SUBQUERYTYPE) {
+      SubQueryExpression *sub_expr = static_cast<SubQueryExpression *>(src_expr);
+      RC                  rc       = sub_expr->create_expression(table_map, tables, CompOp::EQUAL_TO, db);
+      dst_expr                     = sub_expr;
+    } else {
+      LOG_ERROR("Unknown expr type: %d", src_expr->type());
     }
 
     // collect values
     attributes.push_back(update.update_units[i].attribute_name);
-    values.push_back(*mutableValue);
+    value_exprs.push_back(dst_expr);
   }
   // build filter_stmt
-  std::unordered_map<std::string, Table *> table_map;
   table_map.insert(std::pair<std::string, Table *>(std::string(table_name), table));
 
   FilterStmt *filter_stmt = nullptr;
@@ -109,6 +115,34 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     return rc;
   }
 
-  stmt = new UpdateStmt(table, values, update_fields_cnt, filter_stmt, attributes);
+  stmt = new UpdateStmt(table, value_exprs, update_fields_cnt, filter_stmt, attributes);
+  return RC::SUCCESS;
+}
+
+RC UpdateStmt::cast(bool nullable, const AttrType field_type, const AttrType value_type, Value *value)
+{
+  if (!nullable && value_type == NULLS)
+    return RC::INVALID_ARGUMENT;
+  if (field_type != value_type && !(nullable && value_type == NULLS)) {
+    if (field_type == AttrType::DATES && value_type == AttrType::CHARS) {
+      int64_t date;
+      bool    valid = serialize_date(&date, value->data());
+      if (!valid) {
+        return RC::INVALID_ARGUMENT;
+      } else {
+        value->set_type(AttrType::DATES);
+        value->set_date(date);
+      }
+    } else if (field_type == AttrType::TEXTS && value_type == AttrType::CHARS) {
+      value->set_text(value->data());
+      if (strlen(value->get_text()) > 65535) {
+        return RC::INVALID_ARGUMENT;
+      }
+    } else {
+      // TODO try to convert the value type to field type
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+  }
+
   return RC::SUCCESS;
 }

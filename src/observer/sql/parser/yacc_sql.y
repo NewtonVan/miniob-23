@@ -571,6 +571,10 @@ update_list:
 update_unit:
     ID EQ value
     {
+      $$ = new UpdateUnit($1, new ValueExpr(*$3));
+    }
+    | ID EQ sub_query_expr
+    {
       $$ = new UpdateUnit($1, $3);
     }
     ;
