@@ -246,7 +246,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
   unique_ptr<LogicalOperator> insert_create_select_operator;
   if(select_stmt->use_create_table_select_stmt() && !select_stmt->create_table_select_table_name().empty()) {
-    unique_ptr<LogicalOperator> insert_create_select_fields(new InsertCreateSelectLogicalOperator(select_stmt->DB(), query_fields, select_stmt->create_table_select_table_name()));
+    unique_ptr<LogicalOperator> insert_create_select_fields(new InsertCreateSelectLogicalOperator(select_stmt->DB(), query_fields, select_stmt->create_table_select_table_name(), std::move(select_stmt->table_select_attr_infos())));
     insert_create_select_operator.swap(insert_create_select_fields);
   }
 

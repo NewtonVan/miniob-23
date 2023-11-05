@@ -29,37 +29,14 @@ RC InsertCreateSelectPhysicalOperator::open(Trx *trx)
 
 RC InsertCreateSelectPhysicalOperator::next()
 {
-  if(is_first_) {
-    ProjectPhysicalOperator* projectOp = static_cast<ProjectPhysicalOperator*>(children_[0].get());
+  ProjectPhysicalOperator* projectOp = static_cast<ProjectPhysicalOperator*>(children_[0].get());
+  int left_not_in_right_count = 0;
 
-    // 创建表
-    if(!projectOp->expressions().empty()) {
-      int attr_count = projectOp->expressions().size();
-      std::vector<AttrInfoSqlNode> attr_infos(attr_count);
-      for(int i = 0; i < attr_count; i++) {
-        for(int i = 0; i < attr_count; i++) {
-          attr_infos[i].type = projectOp->expressions()[i]->value_type();
-          attr_infos[i].null = false;
-          attr_infos[i].length = 4;
-          attr_infos[i].name = projectOp->expressions()[i]->name();
-        }
-        db_->create_table(table_name_.c_str(), attr_count, attr_infos.data());
-        is_first_ = false;
-        table_ = db_->find_table(table_name_.c_str());
-      }
-    } else {
-      int attr_count = fields_.size();
-      std::vector<AttrInfoSqlNode> attr_infos(attr_count);
-      for(int i = 0; i < attr_count; i++) {
-        attr_infos[i].type = fields_[i].meta()->type();
-        attr_infos[i].null = fields_[i].meta()->nullable();
-        attr_infos[i].length = fields_[i].meta()->len();
-        attr_infos[i].name = fields_[i].field_name();
-      }
-      db_->create_table(table_name_.c_str(), attr_count, attr_infos.data());
-      is_first_ = false;
-      table_ = db_->find_table(table_name_.c_str());
-    }
+  // 创建表
+  if(!projectOp->expressions().empty()) {
+    create_table_for_exprs(left_not_in_right_count);
+  } else {
+    create_table_for_fields(left_not_in_right_count);
   }
 
   if (children_.empty()) {
@@ -70,6 +47,12 @@ RC InsertCreateSelectPhysicalOperator::next()
   // 一次全部取出
   while(RC::SUCCESS == (rc = children_[0]->next())) {
     std::vector<Value> values;
+    for(int i = 0; i < left_not_in_right_count; i++) {
+      Value value;
+      value.set_type(NULLS);
+      values.emplace_back(std::move(value));
+    }
+
     Tuple    *tuple    = children_[0]->current_tuple();
     const int cell_num = tuple->cell_num();
     Value     cell;
@@ -79,7 +62,7 @@ RC InsertCreateSelectPhysicalOperator::next()
       }
       values.push_back(cell);
     }
-    rc = make_record(values);
+    rc = insert_record(std::move(values));
     if(rc != RC::SUCCESS) {
       return rc;
     }
@@ -87,7 +70,67 @@ RC InsertCreateSelectPhysicalOperator::next()
   return RC::RECORD_EOF;
 }
 
-RC InsertCreateSelectPhysicalOperator::make_record(std::vector<Value>& values) {
+void InsertCreateSelectPhysicalOperator::create_table_for_exprs(int& left_not_in_right_count) {
+  std::vector<AttrInfoSqlNode> new_attr_infos;
+  ProjectPhysicalOperator* projectOp = static_cast<ProjectPhysicalOperator*>(children_[0].get());
+
+  for(const auto& attr_info : table_select_attr_infos_) {
+    bool find = false;
+    for(const auto& expr : projectOp->expressions()) {
+      if(attr_info.name == expr->name()) {
+        find = true;
+        break;
+      }
+    }
+    if(!find) {
+      new_attr_infos.push_back(attr_info);
+      left_not_in_right_count++;
+    }
+  }
+
+  AttrInfoSqlNode attr;
+  for(const auto& expr : projectOp->expressions()) {
+    attr.name = expr->name();
+    attr.length = 4;
+    attr.null = true;
+    attr.type = expr->value_type();
+    new_attr_infos.push_back(attr);
+  }
+
+  db_->create_table(table_name_.c_str(), new_attr_infos.size(), new_attr_infos.data());
+  table_ = db_->find_table(table_name_.c_str());
+}
+
+void InsertCreateSelectPhysicalOperator::create_table_for_fields(int& left_not_in_right_count) {
+  std::vector<AttrInfoSqlNode> new_attr_infos;
+  for(const auto& attr_info : table_select_attr_infos_) {
+    bool find = false;
+    for(const auto& field : fields_) {
+      if(attr_info.name == field.meta()->name()) {
+        find = true;
+        break;
+      }
+    }
+    if(!find) {
+      new_attr_infos.push_back(attr_info);
+      left_not_in_right_count++;
+    }
+  }
+
+  AttrInfoSqlNode attr;
+  for(const auto& field : fields_) {
+    attr.name = field.meta()->name();
+    attr.length = field.meta()->len();
+    attr.null = field.meta()->nullable();
+    attr.type = field.meta()->type();
+    new_attr_infos.push_back(attr);
+  }
+
+  db_->create_table(table_name_.c_str(), new_attr_infos.size(), new_attr_infos.data());
+  table_ = db_->find_table(table_name_.c_str());
+}
+
+RC InsertCreateSelectPhysicalOperator::insert_record(std::vector<Value>&& values) {
   Record record;
   RC rc = table_->make_record(static_cast<int>(values.size()), values.data(), record);
   if (rc != RC::SUCCESS) {

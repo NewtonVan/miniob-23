@@ -244,7 +244,7 @@ RC PhysicalPlanGenerator::create_plan(InsertCreateSelectLogicalOperator& logical
     return rc;
   }
 
-  auto* insert_create_select_phy_operator = new InsertCreateSelectPhysicalOperator(logical_oper.DB(), logical_oper.fields(), logical_oper.table_name());
+  auto* insert_create_select_phy_operator = new InsertCreateSelectPhysicalOperator(logical_oper.DB(), logical_oper.fields(), logical_oper.table_name(), std::move(logical_oper.table_select_attr_infos()));
   if (child_phy_oper) {
     insert_create_select_phy_operator->add_child(std::move(child_phy_oper));
   }

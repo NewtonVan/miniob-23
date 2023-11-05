@@ -13,7 +13,8 @@ class InsertCreateSelectPhysicalOperator : public PhysicalOperator
 public:
   InsertCreateSelectPhysicalOperator(Db * db,
       const std::vector<Field> &fields,
-      std::string table_name) : db_(db), fields_(fields), table_name_(table_name){}
+      std::string table_name,
+      std::vector<AttrInfoSqlNode>&& attr_infos) : db_(db), fields_(fields), table_name_(table_name), table_select_attr_infos_(std::move(attr_infos)) {}
 
   virtual ~InsertCreateSelectPhysicalOperator() = default;
 
@@ -28,16 +29,20 @@ public:
 
   Tuple *current_tuple() override { return nullptr; }
 
-  RC make_record(std::vector<Value>& values);
+  RC insert_record(std::vector<Value>&& values);
+
+  void create_table_for_exprs(int& left_not_in_right_count);
+  void create_table_for_fields(int& left_not_in_right_count);
 
 private:
   Db* db_;
   const std::vector<Field> fields_;
+  string table_name_;
+  std::vector<AttrInfoSqlNode>  table_select_attr_infos_;
 
+  Trx *trx_;
   bool is_first_ = true;
   Table* table_ = nullptr;
-  string table_name_;
-  Trx *trx_;
 };
 
 #endif  // MINIDB_INSERT_CREATE_SELECT_PHYSICAL_OPERATOR_H

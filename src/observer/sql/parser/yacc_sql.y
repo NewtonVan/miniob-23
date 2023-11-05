@@ -421,8 +421,24 @@ create_table_select_stmt:
       $$ = $5;
       $$->selection.is_create_table_select_stmt = true;
       $$->selection.create_table_select_table_name = $3;
-      delete $3;
     }
+create_table_stmt:    /*create table 语句的语法解析树*/
+    CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE select_stmt
+    {
+      $$ = $8;
+      $$->selection.is_create_table_select_stmt = true;
+      $$->selection.create_table_select_table_name = $3;
+
+      std::vector<AttrInfoSqlNode> *src_attrs = $6;
+      if (src_attrs != nullptr) {
+        $$->selection.table_select_attr_infos.swap(*src_attrs);
+      }
+      $$->selection.table_select_attr_infos.emplace_back(*$5);
+      std::reverse($$->selection.table_select_attr_infos.begin(), $$->selection.table_select_attr_infos.end());
+
+      delete $5;
+    }
+    ;
 
 attr_def_list:
     /* empty */

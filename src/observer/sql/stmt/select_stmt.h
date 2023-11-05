@@ -107,6 +107,7 @@ public:
   bool                                      use_create_table_select_stmt() const { return is_create_table_select_stmt; }
   Db*                                       DB() const { return db; }
   std::string                               create_table_select_table_name() { return create_table_select_table_name_; }
+  std::vector<AttrInfoSqlNode>&             table_select_attr_infos() { return table_select_attr_infos_; }
 
 private:
   std::vector<Field>                       query_fields_;
@@ -136,4 +137,5 @@ private:
   bool is_create_table_select_stmt;
   Db* db;
   string create_table_select_table_name_;
+  std::vector<AttrInfoSqlNode>        table_select_attr_infos_;
 };

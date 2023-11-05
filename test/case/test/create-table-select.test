@@ -55,3 +55,27 @@ insert into t_group_by_2 values(4, 20);
 
 -- echo 5. multi table
 create table text_ttt as select t_group_by.id, t_group_by.name, avg(t_group_by.score), avg(t_group_by_2.age) from t_group_by, t_group_by_2 where t_group_by.id=t_group_by_2.id group by t_group_by.id, t_group_by.name;
+
+create table create_table_select_t3(id int, age int) select id, age from create_table_select_t1;
+select count(*) from create_table_select_t3;
+- 110
+
+create table create_table_select_t1(id int, age int, col int);
+INSERT INTO create_table_select_t1 values (1, 2, 3);
+INSERT INTO create_table_select_t1 values (4, 5, 6);
+
+create table create_table_select_t2(id int, ega int) select id, age, col from create_table_select_t1;
+-- sort select * from create_table_select_t2;
+
+create table create_table_select_t33(id int, ega int not null) select id, age from create_table_select_t1;
+select * from create_table_select_t33;
+
+create table create_table_select_t4(id int, sum int) select id, age+col as sum from create_table_select_t1;
+-- sort select * from create_table_select_t4;
+
+create table create_table_select_t5(id int, age+col int) select id, age+col  from create_table_select_t1;
+
+create table create_table_select_t44(id int, summ char(10)) select id, age+col as summ from create_table_select_t1;
+select * from create_table_select_t44;
+
+

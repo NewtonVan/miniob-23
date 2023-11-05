@@ -187,6 +187,20 @@ typedef struct GroupBy {
   Having having;
 } GroupBy;
 
+/**
+ * @brief 描述一个属性
+ * @ingroup SQLParser
+ * @details 属性，或者说字段(column, field)
+ * Rel -> Relation
+ * Attr -> Attribute
+ */
+struct AttrInfoSqlNode
+{
+  AttrType    type;    ///< Type of attribute
+  std::string name;    ///< Attribute name
+  size_t      length;  ///< Length of attribute
+  bool        null;
+};
 
 struct RelationSqlNode
 {
@@ -209,6 +223,7 @@ struct SelectSqlNode
   GroupBy                             group_by;
   bool                                is_create_table_select_stmt;  /// 是否是create-table-select-stmt，为了在create select plan里加上新的insert算子
   std::string                         create_table_select_table_name;
+  std::vector<AttrInfoSqlNode>        table_select_attr_infos;
   // 没用到
   ComparisonExpr *                    sub_query_condition_expr; /// 子查询中特有的条件表达式，是一颗表达式树
   bool                                have_sub_query_condition_expr;
@@ -262,21 +277,6 @@ struct UpdateSqlNode
   std::string                   relation_name;  ///< Relation to update
   std::vector<UpdateUnit>       update_units;
   std::vector<ComparisonExpr *> conditions;
-};
-
-/**
- * @brief 描述一个属性
- * @ingroup SQLParser
- * @details 属性，或者说字段(column, field)
- * Rel -> Relation
- * Attr -> Attribute
- */
-struct AttrInfoSqlNode
-{
-  AttrType    type;    ///< Type of attribute
-  std::string name;    ///< Attribute name
-  size_t      length;  ///< Length of attribute
-  bool        null;
 };
 
 class ParsedSqlNode;
