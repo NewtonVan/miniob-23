@@ -50,6 +50,7 @@ enum class PhysicalOperatorType
   INSERT,
   UPDATE,
   SORT,
+  INSERT_CREATE_SELECT,
   AGG,
   DUMMY,
 };

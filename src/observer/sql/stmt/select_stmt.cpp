@@ -437,6 +437,14 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
   select_stmt->join_stmt_         = static_cast<JoinStmt *>(join_stmt);
   select_stmt->use_project_exprs_ = !field_only || select_stmt->query_fields().empty();
   select_stmt->project_exprs_.swap(new_select_expressions);
+
+  // for create-table-select
+  if(select_sql.is_create_table_select_stmt && !select_sql.create_table_select_table_name.empty()) {
+    select_stmt->is_create_table_select_stmt = select_sql.is_create_table_select_stmt;
+    select_stmt->db = db;
+    select_stmt->create_table_select_table_name_ = select_sql.create_table_select_table_name;
+  }
+
   stmt = select_stmt;
   return RC::SUCCESS;
 }

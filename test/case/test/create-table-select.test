@@ -1,0 +1,57 @@
+CREATE TABLE ssq_1(id int, age int, name char);
+CREATE TABLE ssq_2(id int, age int, name char);
+CREATE TABLE ssq_3(id int, age int, name char);
+
+INSERT INTO ssq_1 VALUES (1, 4, 'a');
+INSERT INTO ssq_1 VALUES (2, 2, 'b');
+INSERT INTO ssq_1 VALUES (3, 3, 'c');
+INSERT INTO ssq_2 VALUES (1, 2, 'd');
+INSERT INTO ssq_2 VALUES (2, 7, 'e');
+INSERT INTO ssq_2 VALUES (5, 3, 'f');
+
+create table create_table_select_t6 as select ssq_1.id, ssq_1.age, ssq_2.name from ssq_1, ssq_2 where ssq_1.id=ssq_2.id;
+
+create table create_table_select_t10 as select ssq_1.id + 2, ssq_1.age, ssq_2.name from ssq_1, ssq_2 where ssq_1.id=ssq_2.id;
+
+create table create_table_select_t1 as select sum(t1.id) + max(t1.id), avg(t1.age) + min(t1.age) from ssq_1 t1, ssq_2 t2 where t1.id=t2.id;
+
+select * from create_table_select_t6;
+select * from create_table_select_t10;
+select * from create_table_select_t1;
+
+select * from ssq_1;
+
+-- echo 1. create table
+create table t_group_by (id int, score float, name char);
+create table t_group_by_2 (id int, age int);
+
+-- echo 2. insert records
+insert into t_group_by values(3, 1.0, 'a');
+insert into t_group_by values(1, 2.0, 'b');
+insert into t_group_by values(4, 3.0, 'c');
+insert into t_group_by values(3, 2.0, 'c');
+insert into t_group_by values(3, 4.0, 'c');
+insert into t_group_by values(3, 3.0, 'd');
+insert into t_group_by values(3, 2.0, 'f');
+
+insert into t_group_by_2 values(1, 10);
+insert into t_group_by_2 values(2, 20);
+insert into t_group_by_2 values(3, 10);
+insert into t_group_by_2 values(3, 20);
+insert into t_group_by_2 values(3, 40);
+insert into t_group_by_2 values(4, 20);
+
+-- echo 3. primary group by
+-- sort select id, avg(score) from t_group_by group by id;
+
+-- sort select name, min(id), max(score) from t_group_by group by name;
+
+-- sort select id, name, avg(score) from t_group_by group by id, name;
+
+-- echo 4. with where condition
+-- sort select id, avg(score) from t_group_by where id>2 group by id;
+
+-- sort select name, count(id), max(score) from t_group_by where name > 'a' and id>=0 group by name;
+
+-- echo 5. multi table
+create table text_ttt as select t_group_by.id, t_group_by.name, avg(t_group_by.score), avg(t_group_by_2.age) from t_group_by, t_group_by_2 where t_group_by.id=t_group_by_2.id group by t_group_by.id, t_group_by.name;

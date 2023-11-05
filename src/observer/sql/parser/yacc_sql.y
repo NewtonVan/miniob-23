@@ -418,12 +418,10 @@ create_table_stmt:    /*create table 语句的语法解析树*/
 create_table_select_stmt:
      CREATE TABLE ID AS select_stmt
     {
-      $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
-      CreateTableSqlNode &create_table = $$->create_table;
-      create_table.relation_name = $3;
-      create_table.select_sql_node = $$->selection;
-      create_table.is_create_table_select = true;
-      free($3);
+      $$ = $5;
+      $$->selection.is_create_table_select_stmt = true;
+      $$->selection.create_table_select_table_name = $3;
+      delete $3;
     }
 
 attr_def_list:

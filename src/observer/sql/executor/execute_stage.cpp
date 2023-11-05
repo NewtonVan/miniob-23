@@ -72,7 +72,8 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
     case StmtType::SELECT: {
       SelectStmt *select_stmt     = static_cast<SelectStmt *>(stmt);
       bool        with_table_name = select_stmt->tables().size() > 1;
-      if (select_stmt->use_project_exprs()) {
+      if(select_stmt->use_create_table_select_stmt() && !select_stmt->create_table_select_table_name().empty()) {}
+      else if (select_stmt->use_project_exprs()) {
         ProjectPhysicalOperator *proj_oper = static_cast<ProjectPhysicalOperator *>(physical_operator.get());
         for (const std::unique_ptr<Expression> &expr : proj_oper->expressions()) {
           if (expr->type() == ExprType::FIELD) {

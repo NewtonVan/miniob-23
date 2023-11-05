@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/update_logical_operator.h"
 #include "sql/operator/agg_func_logical_operator.h"
+#include "sql/operator/insert_create_select_logical_operator.h"
 
 class TableGetLogicalOperator;
 class PredicateLogicalOperator;
@@ -31,6 +32,7 @@ class ExplainLogicalOperator;
 class JoinLogicalOperator;
 class CalcLogicalOperator;
 class SortLogicalOperator;
+
 
 /**
  * @brief 物理计划生成器
@@ -58,4 +60,5 @@ private:
   static RC create_plan(CalcLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);
   static RC create_plan(SortLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);
   static RC create_plan(AggLogicalOperator& logical_operator, std::unique_ptr<PhysicalOperator> & oper);
+  static RC create_plan(InsertCreateSelectLogicalOperator& logical_operator, std::unique_ptr<PhysicalOperator> &oper);
 };

@@ -28,6 +28,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/explain_logical_operator.h"
 #include "sql/operator/sort_logical_operator.h"
 #include "sql/operator/agg_func_logical_operator.h"
+#include "sql/operator/insert_create_select_logical_operator.h"
 
 #include "sql/operator/update_logical_operator.h"
 #include "sql/parser/parse_defs.h"
@@ -238,6 +239,7 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
 
   unique_ptr<LogicalOperator> project_oper;
+  unique_ptr<LogicalOperator> insert_create_select_operator;
   if (select_stmt->use_project_exprs()) {
     // agg select must use project exprs
     // query_field is useless, if projectOper use expression to query underlyging tuple
@@ -247,10 +249,17 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
     unique_ptr<LogicalOperator> proj_exprs(project_oper_ptr);
     project_oper.swap(proj_exprs);
 
-
+    if(select_stmt->use_create_table_select_stmt() && !select_stmt->create_table_select_table_name().empty()) {
+      unique_ptr<LogicalOperator> insert_create_select_fields(new InsertCreateSelectLogicalOperator(select_stmt->DB(), query_fields, select_stmt->create_table_select_table_name()));
+      insert_create_select_operator.swap(insert_create_select_fields);
+    }
   } else {
     unique_ptr<LogicalOperator> proj_fields(new ProjectLogicalOperator(query_fields));
     project_oper.swap(proj_fields);
+    if(select_stmt->use_create_table_select_stmt() && !select_stmt->create_table_select_table_name().empty()) {
+      unique_ptr<LogicalOperator> insert_create_select_fields(new InsertCreateSelectLogicalOperator(select_stmt->DB(), query_fields, select_stmt->create_table_select_table_name()));
+      insert_create_select_operator.swap(insert_create_select_fields);
+    }
   }
 
   if (predicate_oper) {
@@ -308,6 +317,12 @@ RC LogicalPlanGenerator::create_plan(SelectStmt *select_stmt, unique_ptr<Logical
 
       project_oper->add_child(std::move(table_oper));
     }
+  }
+
+  if(select_stmt->use_create_table_select_stmt() && !select_stmt->create_table_select_table_name().empty()) {
+    insert_create_select_operator->add_child(std::move(project_oper));
+    logical_operator.swap(insert_create_select_operator);
+    return RC::SUCCESS;
   }
 
   logical_operator.swap(project_oper);

@@ -46,6 +46,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/sort_logical_operator.h"
 #include "sql/operator/sort_physical_operaotr.h"
 #include "sql/operator/agg_func_logical_operator.h"
+#include "sql/operator/insert_create_select_physical_operator.h"
 #include "sql/expr/expression.h"
 #include "common/log/log.h"
 #include "sql/parser/parse_defs.h"
@@ -101,6 +102,10 @@ RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<P
 
     case LogicalOperatorType::SORT: {
       return create_plan(static_cast<SortLogicalOperator &>(logical_operator), oper);
+    } break;
+
+    case LogicalOperatorType::INSERT_CREATE_SELECT: {
+      return create_plan(static_cast<InsertCreateSelectLogicalOperator &>(logical_operator), oper);
     } break;
 
     default: {
@@ -225,6 +230,27 @@ RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, uniqu
   unique_ptr<Expression> expression = std::move(expressions.front());
   oper = unique_ptr<PhysicalOperator>(new PredicatePhysicalOperator(std::move(expression)));
   oper->add_child(std::move(child_phy_oper));
+  return rc;
+}
+
+// 生成create-table-select物理算子
+RC PhysicalPlanGenerator::create_plan(InsertCreateSelectLogicalOperator& logical_oper, std::unique_ptr<PhysicalOperator> &oper) {
+  vector<unique_ptr<LogicalOperator>> &children_opers = logical_oper.children();
+  LogicalOperator                     &child_oper     = *children_opers.front();
+  unique_ptr<PhysicalOperator>         child_phy_oper;
+  RC                                   rc = create(child_oper, child_phy_oper);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to create child operator of predicate operator. rc=%s", strrc(rc));
+    return rc;
+  }
+
+  auto* insert_create_select_phy_operator = new InsertCreateSelectPhysicalOperator(logical_oper.DB(), logical_oper.fields(), logical_oper.table_name());
+  if (child_phy_oper) {
+    insert_create_select_phy_operator->add_child(std::move(child_phy_oper));
+  }
+
+  oper = unique_ptr<PhysicalOperator>(insert_create_select_phy_operator);
+
   return rc;
 }
 

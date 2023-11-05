@@ -202,13 +202,16 @@ struct SelectSqlNode
   std::vector<RelAttrSqlNode>         attributes;               ///< attributes in select clause
   std::vector<RelationSqlNode>        relations;                ///< 查询的表
   std::vector<ComparisonExpr *>       conditions;               ///< 查询条件，使用AND串联起来多个条件
-  ComparisonExpr *                    sub_query_condition_expr; /// 子查询中特有的条件表达式，是一颗表达式树
-  bool                                have_sub_query_condition_expr;
   JoinSqlNode                        *join_relation = nullptr;  // TODO(chen): support cascade
   std::vector<OrderBy>                order_by;
   std::vector<Expression *>           select_expressions;  ///< 记录含有表达式点select clause,
   std::vector<AggregationFuncSqlNode> agg_funcs;           ///< 与attributes只有一个可行
   GroupBy                             group_by;
+  bool                                is_create_table_select_stmt;  /// 是否是create-table-select-stmt，为了在create select plan里加上新的insert算子
+  std::string                         create_table_select_table_name;
+  // 没用到
+  ComparisonExpr *                    sub_query_condition_expr; /// 子查询中特有的条件表达式，是一颗表达式树
+  bool                                have_sub_query_condition_expr;
 };
 
 /**
@@ -286,8 +289,6 @@ struct CreateTableSqlNode
 {
   std::string                  relation_name;  ///< Relation name
   std::vector<AttrInfoSqlNode> attr_infos;     ///< attributes
-  SelectSqlNode                select_sql_node;
-  bool                         is_create_table_select;
 };
 
 /**

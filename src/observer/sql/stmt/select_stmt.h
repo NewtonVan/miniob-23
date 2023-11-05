@@ -104,6 +104,11 @@ public:
   std::vector<std::unique_ptr<Expression>> &project_exprs() { return project_exprs_; }
   bool                                      use_project_exprs() const { return use_project_exprs_; }
 
+  // create-table-select
+  bool                                      use_create_table_select_stmt() const { return is_create_table_select_stmt; }
+  Db*                                       DB() const { return db; }
+  std::string                               create_table_select_table_name() { return create_table_select_table_name_; }
+
 private:
   std::vector<Field>                       query_fields_;
   std::vector<Table *>                     tables_;
@@ -128,4 +133,8 @@ private:
   std::vector<Field> group_by_fields_;
   // actually a filter stmt underlying
   HavingStmt* having_stmt_;
+
+  bool is_create_table_select_stmt;
+  Db* db;
+  string create_table_select_table_name_;
 };
