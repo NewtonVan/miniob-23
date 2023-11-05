@@ -95,6 +95,10 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     } else if (src_expr->type() == ExprType::SUBQUERYTYPE) {
       SubQueryExpression *sub_expr = static_cast<SubQueryExpression *>(src_expr);
       RC                  rc       = sub_expr->create_expression(table_map, tables, CompOp::EQUAL_TO, db);
+      if(rc != RC::SUCCESS) {
+        return rc;
+      }
+
       dst_expr                     = sub_expr;
     } else {
       LOG_ERROR("Unknown expr type: %d", src_expr->type());

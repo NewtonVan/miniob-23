@@ -681,6 +681,14 @@ RC SubQueryExpression::create_expression(
 {
   Stmt *stmt        = nullptr;
   RC    rc          = SelectStmt::create(db, *select_sql_node_, tables, table_map, true, stmt);
+  if(rc != RC::SUCCESS) {
+    return rc;
+  }
+
+  if(stmt == nullptr) {
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+
   auto  select_stmt = (SelectStmt *)(stmt);
   if (select_stmt->project_exprs().size() > 1 || select_stmt->query_fields().size() > 1) {
     return RC::SUB_QUERY_MULTI_FIELDS;

@@ -14,7 +14,6 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
-#include <bits/iterator_concepts.h>
 #include <cstdint>
 #include <stddef.h>
 #include <vector>
