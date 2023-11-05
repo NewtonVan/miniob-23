@@ -229,6 +229,28 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     return RC::INVALID_ARGUMENT;
   }
 
+  if(CompOp::AND_OP == comp || CompOp::OR_OP == comp) {
+    FilterUnit *left_unit = nullptr;
+    FilterUnit *right_unit = nullptr;
+    rc = create_filter_unit(db, default_table, tables, reinterpret_cast<ComparisonExpr*>(condition->left().get()), left_unit);
+    if (rc != RC::SUCCESS) {
+      LOG_ERROR("filter unit create left expression failed");
+      return rc;
+    }
+    rc = create_filter_unit(db, default_table, tables, reinterpret_cast<ComparisonExpr*>(condition->right().get()), right_unit);
+    if (rc != RC::SUCCESS) {
+      LOG_ERROR("filter unit create left expression failed");
+      delete left_unit;
+      return rc;
+    }
+
+    filter_unit = new FilterUnit;
+    filter_unit->set_comp(comp);
+    filter_unit->set_left_unit(left_unit);
+    filter_unit->set_right_unit(right_unit);
+    return rc;
+  }
+
   filter_unit = new FilterUnit;
 
   AttrType left_attr_type;
@@ -278,6 +300,15 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     }
     RC rc = sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, comp, db);
     if(rc != RC::SUCCESS) {
+      return rc;
+    }
+    FilterObj filter_obj;
+    filter_obj.init_expr(condition->left().get());
+    filter_unit->set_left(filter_obj);
+  } else if (condition->left()->type() == ExprType::AGG) {
+    auto rc = rewrite_attr_expr_to_field_expr(db, default_table, tables, condition->left());
+    if(rc != RC::SUCCESS) {
+      // we may ecounter bad agg in having or where clause
       return rc;
     }
     FilterObj filter_obj;
@@ -341,6 +372,15 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_obj.init_expr(condition->right().get());
     filter_unit->set_right(filter_obj);
   } else if (condition->right()->type() == ExprType::SUBLISTTYPE) {
+    FilterObj filter_obj;
+    filter_obj.init_expr(condition->right().get());
+    filter_unit->set_right(filter_obj);
+  } else if(condition->right()->type() == ExprType::AGG) {
+    auto rc = rewrite_attr_expr_to_field_expr(db, default_table, tables, condition->right());
+    if(rc != RC::SUCCESS) {
+      // we may ecounter bad agg in having or where clause
+      return rc;
+    }
     FilterObj filter_obj;
     filter_obj.init_expr(condition->right().get());
     filter_unit->set_right(filter_obj);
@@ -441,6 +481,28 @@ RC FilterStmt::rewrite_attr_expr_to_field_expr(
       }
 
     } break;
+    case ExprType::AGG: {
+      LOG_DEBUG("Expr is agg expr");
+      AggExpr *agg_expr = static_cast<AggExpr *>(expr.get());
+      Table           *table = nullptr;
+      const FieldMeta *field = nullptr;
+
+      if(agg_expr->rel_attr() == nullptr) {
+        return RC::BAD_AGG;
+      }
+      // special case: select count(*)
+      if(agg_expr->agg_type() == AggType::COUNT_STAR) {
+        ASSERT(strcmp(agg_expr->rel_attr()->attribute_name.c_str(), "*") == 0, "count star inconsistent");
+        agg_expr->set_field(Field(nullptr, nullptr));
+      } else {
+        rc = get_table_and_field(db, default_table, tables, *agg_expr->rel_attr() , table, field);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("cannot find attr");
+          return rc;
+        }
+        agg_expr->set_field(Field(table, field));
+      }
+    }break;
     default: {
       LOG_DEBUG("type: %d, no need to rewrite", expr->type());
     }

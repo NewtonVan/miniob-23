@@ -623,7 +623,6 @@ RC SubQueryExpression::gen_plan()
 RC SubQueryExpression::open_sub_query() const
 {
   assert(nullptr != sub_physical_op_oper_);
-
   return sub_physical_op_oper_->open(GCTX.trx_kit_->create_trx(db_->clog_manager()));
 }
 
@@ -709,15 +708,21 @@ RC AggExpr::get_value(const Tuple &tuple, Value &value) const
   }
   return RC::SUCCESS;
 }
+
+// revisit(lyq)  value_type may be null in some case, only possible to judge when AggPhysicalExecutor finish its
+// execute_stage following method just return a static predict of the value type if possible most of time, just return
+// undefined
 AttrType AggExpr::value_type() const
 {
-  if (agg_type_ == AggType::AVG_AGG) {
-    ASSERT(
-        field_.attr_type() == AttrType::INTS || field_.attr_type() == AttrType::FLOATS, "avg on non-arihmetic value.");
-    return AttrType::FLOATS;
-  }
-  if (agg_type() == AggType::COUNT_STAR) {
+  if (agg_type() == AggType::COUNT_STAR || agg_type() == AggType::COUNT_AGG) {
     return AttrType::INTS;
   }
-  return field_.attr_type();
+  // arrive here we may not have field set(bug)
+  // if(agg_type_ == AggType::AVG_AGG) {
+  //   ASSERT(field_.attr_type() == AttrType::INTS || field_.attr_type() == AttrType::FLOATS, "avg on non-arihmetic
+  //   value."); return AttrType::FLOATS;
+  // }
+  // return field_.attr_type();
+
+  return AttrType::UNDEFINED;
 }

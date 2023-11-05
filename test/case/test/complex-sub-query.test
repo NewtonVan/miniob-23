@@ -17,4 +17,3 @@ select * from csq_1 where feat1 > (select min(csq_2.feat2) from csq_2 where csq_
 select * from csq_1 where (select max(csq_2.feat2) from csq_2) > feat1 or (select min(csq_3.col3) from csq_3) < col1;
 
 select * from csq_1 where (select max(csq_2.feat2) from csq_2) > feat1 and (select min(csq_3.col3) from csq_3) < col1;
-

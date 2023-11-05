@@ -178,6 +178,16 @@ typedef struct OrderBy
   int            order;  // 0:asc, 1:desc
 } OrderBy;
 
+
+typedef struct Having {
+  std::vector<ComparisonExpr *>  conds;
+}Having;
+typedef struct GroupBy {
+  std::vector<RelAttrSqlNode> attrs;
+  Having having;
+} GroupBy;
+
+
 struct RelationSqlNode
 {
   std::string relation;
@@ -192,10 +202,13 @@ struct SelectSqlNode
   std::vector<RelAttrSqlNode>         attributes;               ///< attributes in select clause
   std::vector<RelationSqlNode>        relations;                ///< 查询的表
   std::vector<ComparisonExpr *>       conditions;               ///< 查询条件，使用AND串联起来多个条件
+  ComparisonExpr *                    sub_query_condition_expr; /// 子查询中特有的条件表达式，是一颗表达式树
+  bool                                have_sub_query_condition_expr;
   JoinSqlNode                        *join_relation = nullptr;  // TODO(chen): support cascade
   std::vector<OrderBy>                order_by;
   std::vector<Expression *>           select_expressions;  ///< 记录含有表达式点select clause,
   std::vector<AggregationFuncSqlNode> agg_funcs;           ///< 与attributes只有一个可行
+  GroupBy                             group_by;
 };
 
 /**

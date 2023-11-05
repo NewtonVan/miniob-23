@@ -134,7 +134,7 @@ public:
     }
     return str;
   }
-  virtual TupleType type() const = 0; 
+  virtual TupleType                    type() const = 0;
   virtual std::vector<TupleCellSpec *> get_row_schema() const { return std::vector<TupleCellSpec *>(); }
 };
 
@@ -329,8 +329,8 @@ public:
   void add_cell_spec(TupleCellSpec *spec) { speces_.push_back(spec); }
   int  cell_num() const override { return speces_.size(); }
 
-  //id, col
-  // 0, 1
+  // id, col
+  //  0, 1
 
   RC cell_at(int index, Value &cell) const override
   {
@@ -621,10 +621,10 @@ class AggTuple : public Tuple
 {
 public:
   void set_tuple(
-      std::vector<Value> &tuple, std::vector<TupleCellSpec> &specs, std::vector<TupleCellSpec> &group_by_spec)
+      std::vector<Value> &tuple, std::vector<TupleCellSpec> &agg_specs, std::vector<TupleCellSpec> &group_by_spec)
   {
     tuple_          = tuple;
-    specs_          = specs;
+    agg_specs_      = agg_specs;
     groub_by_specs_ = group_by_spec;
   }
 
@@ -645,23 +645,23 @@ public:
   RC find_cell(const TupleCellSpec &spec, Value &value) const override
   {
     // find in agg field
-    for (size_t i = 0; i < specs_.size(); ++i) {
+    for (size_t i = 0; i < agg_specs_.size(); ++i) {
       // check alias for now
       // alias check for agg call, like count(*)
       // table name and relation name check for group by
-      if (0 == strcmp(spec.alias(), specs_[i].alias())) {
+      if (0 == strcmp(spec.alias(), agg_specs_[i].alias())) {
         return cell_at(i, value);
       }
     }
 
     // find in group by field
-    for (size_t i = specs_.size(); i < groub_by_specs_.size(); ++i) {
+    for (size_t i = 0; i < groub_by_specs_.size(); ++i) {
       // check alias for now
       // alias check for agg call, like count(*)
       // table name and relation name check for group by
       if (0 == strcmp(spec.table_name(), groub_by_specs_[i].table_name()) &&
           0 == strcmp(spec.field_name(), groub_by_specs_[i].field_name())) {
-        return cell_at(i, value);
+        return cell_at(i + agg_specs_.size(), value);
       }
     }
 
@@ -685,7 +685,7 @@ private:
   // agg field is accessed by alias, i.e. expr name "count(*)"
   // group by field accessed by relation name and field name
   std::vector<Value>         tuple_;
-  std::vector<TupleCellSpec> specs_;
+  std::vector<TupleCellSpec> agg_specs_;
   std::vector<TupleCellSpec> groub_by_specs_;
 };
 
@@ -703,24 +703,24 @@ public:
     AggregationValue agg_value;
     for (int i = 0; i < agg_types_.size(); i++) {
       switch (agg_types_[i]) {
-      case COUNT_STAR:
-        agg_value.aggregates.push_back(Value::get_null(AttrType::INTS));
-        agg_value.not_null_count_.push_back(0);
-        break;
-      case COUNT_AGG:
-        agg_value.aggregates.push_back(Value::get_null(AttrType::INTS));
-        agg_value.not_null_count_.push_back(0);
-        break;
-      case SUM_AGG:
-      case MIN_AGG:
-      case MAX_AGG:
-      case AVG_AGG:
-      // deal with float conversion in CombineAggregateValues
-        Value val;
-        val.set_type(AttrType::NULLS);
-        agg_value.aggregates.push_back(val);
-        agg_value.not_null_count_.push_back(0);
-        break;
+        case COUNT_STAR:
+          agg_value.aggregates.push_back(Value::get_null(AttrType::INTS));
+          agg_value.not_null_count_.push_back(0);
+          break;
+        case COUNT_AGG:
+          agg_value.aggregates.push_back(Value::get_null(AttrType::INTS));
+          agg_value.not_null_count_.push_back(0);
+          break;
+        case SUM_AGG:
+        case MIN_AGG:
+        case MAX_AGG:
+        case AVG_AGG:
+          // deal with float conversion in CombineAggregateValues
+          Value val;
+          val.set_type(AttrType::NULLS);
+          agg_value.aggregates.push_back(val);
+          agg_value.not_null_count_.push_back(0);
+          break;
       }
     }
     return agg_value;

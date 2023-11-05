@@ -113,21 +113,23 @@ extern int yydebug;
     NULL_T = 314,                  /* NULL_T  */
     UNIQUE = 315,                  /* UNIQUE  */
     ORDER = 316,                   /* ORDER  */
-    BY = 317,                      /* BY  */
-    ASC = 318,                     /* ASC  */
-    EQ = 319,                      /* EQ  */
-    LT = 320,                      /* LT  */
-    GT = 321,                      /* GT  */
-    LE = 322,                      /* LE  */
-    GE = 323,                      /* GE  */
-    NE = 324,                      /* NE  */
-    IN = 325,                      /* IN  */
-    EXISTS = 326,                  /* EXISTS  */
-    NUMBER = 327,                  /* NUMBER  */
-    FLOAT = 328,                   /* FLOAT  */
-    ID = 329,                      /* ID  */
-    SSS = 330,                     /* SSS  */
-    UMINUS = 331                   /* UMINUS  */
+    GROUP = 317,                   /* GROUP  */
+    HAVING = 318,                  /* HAVING  */
+    BY = 319,                      /* BY  */
+    ASC = 320,                     /* ASC  */
+    EQ = 321,                      /* EQ  */
+    LT = 322,                      /* LT  */
+    GT = 323,                      /* GT  */
+    LE = 324,                      /* LE  */
+    GE = 325,                      /* GE  */
+    NE = 326,                      /* NE  */
+    IN = 327,                      /* IN  */
+    EXISTS = 328,                  /* EXISTS  */
+    NUMBER = 329,                  /* NUMBER  */
+    FLOAT = 330,                   /* FLOAT  */
+    ID = 331,                      /* ID  */
+    SSS = 332,                     /* SSS  */
+    UMINUS = 333                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -136,7 +138,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 128 "yacc_sql.y"
+#line 130 "yacc_sql.y"
 
   ParsedSqlNode *                             sql_node;
   ComparisonExpr *                            condition;
@@ -168,8 +170,10 @@ union YYSTYPE
   std::vector<AggregationFuncSqlNode> * agg_func_call_list;
   UpdateUnit *                                update_unit;
   std::vector<UpdateUnit> *                   update_unit_list;
+  GroupBy*                                    group_by;
+  Having*                                      having;
 
-#line 173 "yacc_sql.hpp"
+#line 177 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

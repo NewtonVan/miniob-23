@@ -67,8 +67,25 @@ public:
   const FilterObj &left() const { return left_; }
   const FilterObj &right() const { return right_; }
 
-  const FilterUnit* left_unit() const { return left_unit_; }
-  const FilterUnit* right_unit() const { return right_unit_; }
+  void set_left_unit(FilterUnit* unit) {
+    assert(CompOp::AND_OP == comp_ || CompOp::OR_OP == comp_);
+    left_unit_ = unit;
+  }
+
+  void set_right_unit(FilterUnit* unit) {
+    assert(CompOp::AND_OP == comp_ || CompOp::OR_OP == comp_);
+    right_unit_ = unit;
+  }
+
+  const FilterUnit* left_unit() const {
+    assert(CompOp::AND_OP == comp_ || CompOp::OR_OP == comp_);
+    return left_unit_;
+  }
+
+  const FilterUnit* right_unit() const {
+    assert(CompOp::AND_OP == comp_ || CompOp::OR_OP == comp_);
+    return right_unit_;
+  }
 
   FilterObj &left() { return left_; }
 
@@ -79,6 +96,7 @@ private:
   FilterObj left_;
   FilterObj right_;
 
+  // if comp is and / or
   FilterUnit *left_unit_  = nullptr;
   FilterUnit *right_unit_ = nullptr;
 };
@@ -118,3 +136,5 @@ private:
 
 RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
     const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field);
+
+typedef FilterStmt HavingStmt;

@@ -520,6 +520,8 @@ private:
   // name(alias) is also set in parse stage
   // alias is used in execute stage to construct final sql result schema
 
-  // be set in resolve stage
+  // be set in resolve stage, its usefull to check the legalness of a AggExpr
+  // but once its legal, field_ becomes seems useless for now, since we are querying AggTuple for cells by our AggExpr
+  // name which is set at parse stage but we still fill in field_ at resolve_stage to sereve future need (maybe)
   Field field_;
 };
