@@ -14,10 +14,12 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <cstddef>
 #include <string.h>
 #include <memory>
 #include <string>
 
+#include "common/rc.h"
 #include "sql/parser/parse_defs.h"
 #include "storage/field/field.h"
 #include "sql/parser/value.h"
@@ -237,6 +239,7 @@ private:
 class CastExpr : public Expression
 {
 public:
+  CastExpr(Expression* child, AttrType cast_type):child_(child), cast_type_(cast_type){};
   CastExpr(std::unique_ptr<Expression> child, AttrType cast_type);
   virtual ~CastExpr();
 
@@ -525,3 +528,9 @@ private:
   // name which is set at parse stage but we still fill in field_ at resolve_stage to sereve future need (maybe)
   Field field_;
 };
+
+
+// deep_copy_expression is used for alias expand 
+// if return rc != RC::SUCESS, means it is an ilegal alias use 
+// bare pointer version of deep_copy_expression
+extern RC deep_copy_expression_bare(Expression* old_expr, Expression* new_expr);

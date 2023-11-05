@@ -737,3 +737,104 @@ AttrType AggExpr::value_type() const
 
   return AttrType::UNDEFINED;
 }
+
+
+RC deep_copy_expression_bare(Expression* old_expr, Expression* new_expr){
+  // deep copy result 
+  Expression* ret_expr;
+  RC rc = RC::SUCCESS;
+  switch (old_expr->type()) {
+  case ExprType::ARITHMETIC: {
+    ArithmeticExpr* ari_expr = static_cast<ArithmeticExpr*>(old_expr);
+    Expression* left_expr = nullptr;
+    Expression* right_expr = nullptr;
+    rc = deep_copy_expression_bare(ari_expr->left().get(), left_expr);
+    if(rc != RC::SUCCESS) {
+      if(left_expr) {
+        delete left_expr;
+      }
+      return rc;
+    }
+    rc = deep_copy_expression_bare(ari_expr->right().get(), right_expr);
+    if(rc != RC::SUCCESS) {
+      if(right_expr) {
+        delete right_expr;
+      }
+      return rc;
+    }
+    ret_expr = new ArithmeticExpr(ari_expr->arithmetic_type(), left_expr, right_expr);
+  }break;
+  case ExprType::CAST: {
+    CastExpr* cast_expr = static_cast<CastExpr*>(old_expr);
+    Expression* child = nullptr;
+    rc = deep_copy_expression_bare(cast_expr->child().get(), child);
+    if(rc != RC::SUCCESS) {
+      if(ret_expr) {
+        delete ret_expr;
+      }
+    }
+    ret_expr = new CastExpr(child, cast_expr->value_type());
+  }break;
+  case ExprType::FUNCTION:{
+    FuncExpr* func_expr = static_cast<FuncExpr*>(old_expr);
+    std::vector<Expression*> args_bare(func_expr->args().size());
+    for(size_t i =0; i < func_expr->args().size(); i++) {
+      rc = deep_copy_expression_bare(func_expr->args()[i].get(), args_bare[i]);
+      if(rc != RC::SUCCESS) {
+        for(size_t j = 0; j <= i; j++) {
+          if(args_bare[j]) {
+            delete args_bare[j];
+          }
+        }
+      }
+    }
+    std::vector<unique_ptr<Expression>> args;
+    for(size_t i = 0; i < args_bare.size(); i++) {
+      args.push_back(unique_ptr<Expression>(args_bare[i]));
+    }
+    ret_expr = new FuncExpr(func_expr->func_type(), args);
+    
+  }break;
+  // below are some leaf expr(do not have child expr)
+  case ExprType::AGG:{
+    AggExpr* agg_expr = static_cast<AggExpr*>(old_expr);
+    AggExpr* tmp_expr = new AggExpr(agg_expr->agg_type());
+    *tmp_expr = *agg_expr;
+    // deep copy pointer 
+    RelAttrSqlNode* tmp_attr_node = new RelAttrSqlNode;
+    *tmp_attr_node = *(agg_expr->rel_attr());
+    tmp_expr->set_rel_attr_node(tmp_attr_node);
+    ret_expr = tmp_expr;
+  }break;
+  case ExprType::FIELD:{
+    FieldExpr* field_expr = static_cast<FieldExpr*>(old_expr);
+    FieldExpr* tmp_expr = new FieldExpr;
+    *tmp_expr = *field_expr;
+    ret_expr = tmp_expr;
+  }break;
+  case ExprType::REL_ATTR:{
+    RelAttrExprSqlNode* attr_expr = static_cast<RelAttrExprSqlNode*>(attr_expr);
+    RelAttrExprSqlNode* tmp_expr = new RelAttrExprSqlNode;
+    *tmp_expr = *attr_expr;
+    ret_expr = tmp_expr;
+  }break;
+  case ExprType::VALUE:{
+    ValueExpr* val_expr = static_cast<ValueExpr*>(val_expr);
+    ValueExpr* tmp_expr = new ValueExpr;
+    *tmp_expr = *val_expr;
+    ret_expr = tmp_expr;
+  }break;
+  // below are expr that can be aliased
+  case ExprType::COMPARISON:
+  case ExprType::CONJUNCTION:
+  case ExprType::NONE:
+  case ExprType::STAR:
+  case ExprType::SUBLISTTYPE:
+  case ExprType::SUBQUERYTYPE:
+    // alias can't be attach to these Expr type
+    break;
+  }  
+  new_expr = ret_expr;
+  new_expr->set_name(old_expr->name());
+  return RC::SUCCESS;
+}
