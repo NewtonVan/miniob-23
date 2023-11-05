@@ -1058,6 +1058,24 @@ select_attr:
       attr->attribute_name = "*";
       $$->emplace_back(new StarExprSqlNode(attr));
     }
+    | '*' AS ID {
+      $$ = new std::vector<Expression *>;
+      RelAttrSqlNode *attr = new RelAttrSqlNode;
+      attr->relation_name  = "";
+      attr->attribute_name = "*";
+      StarExprSqlNode *star = new StarExprSqlNode(attr);
+      star->set_name($3);
+      $$->emplace_back(star);
+    }
+    | '*' ID {
+      $$ = new std::vector<Expression *>;
+      RelAttrSqlNode *attr = new RelAttrSqlNode;
+      attr->relation_name  = "";
+      attr->attribute_name = "*";
+      StarExprSqlNode *star = new StarExprSqlNode(attr);
+      star->set_name($2);
+      $$->emplace_back(star);
+    }
     | expression_list {
       std::reverse($1->begin(), $1->end());
       $$ = $1;

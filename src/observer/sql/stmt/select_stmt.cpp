@@ -344,6 +344,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
 
     for (int i = 0; i < select_sql.select_expressions.size(); ++i) {
       if (select_sql.select_expressions[i]->type() == ExprType::STAR) {
+        if (!select_sql.select_expressions[i]->name().empty()) {
+          LOG_ERROR("star expression should not have alias: %s", select_sql.select_expressions[i]->name().c_str());
+          return RC::INVALID_ARGUMENT;
+        }
         const RelAttrSqlNode &relation_attr =
             *static_cast<StarExprSqlNode *>(select_sql.select_expressions[i])->get_rel_attr();
         std::vector<Field> star_query_fields;
