@@ -274,17 +274,7 @@ RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &project_oper, uniq
   }
 
   ProjectPhysicalOperator *project_operator = new ProjectPhysicalOperator(project_oper.expressions());
-  if (project_oper.use_project_exprs()) {
-    project_operator->toggle_use_project_exprs();
-  }
-  if (project_oper.use_project_exprs()) {
-    project_operator->init_specs();
-  } else {
-    const vector<Field> &project_fields = project_oper.fields();
-    for (const Field &field : project_fields) {
-      project_operator->add_projection(field.table(), field.meta());
-    }
-  }
+  project_operator->init_specs();
 
   if (child_phy_oper) {
     project_operator->add_child(std::move(child_phy_oper));
@@ -325,29 +315,29 @@ RC PhysicalPlanGenerator::create_plan(AggLogicalOperator &agg_oper, std::unique_
 
   std::vector<TupleCellSpec> agg_field_specs;
   std::vector<TupleCellSpec> group_by_field_specs;
-  const auto& agg_fields = agg_oper.fields();
-  const auto& agg_expr_alias = agg_oper.agg_expr_names();
-  const auto& group_by_fields = agg_oper.group_bys(); 
-  auto& agg_types = agg_oper.agg_types();
-  for (size_t i = 0;  i < agg_fields.size(); i++) {
+  const auto                &agg_fields      = agg_oper.fields();
+  const auto                &agg_expr_alias  = agg_oper.agg_expr_names();
+  const auto                &group_by_fields = agg_oper.group_bys();
+  auto                      &agg_types       = agg_oper.agg_types();
+  for (size_t i = 0; i < agg_fields.size(); i++) {
     switch (agg_types[i]) {
       case AggType::COUNT_STAR: {
         agg_field_specs.push_back(TupleCellSpec("", "*", agg_expr_alias[i].c_str()));
-      }break;
-      case AggType::COUNT_AGG: 
+      } break;
+      case AggType::COUNT_AGG:
       case AggType::SUM_AGG:
       case AggType::MAX_AGG:
       case AggType::MIN_AGG:
       case AggType::AVG_AGG: {
-        agg_field_specs.push_back(TupleCellSpec(agg_fields[i].table_name(), agg_fields[i].field_name(), agg_expr_alias[i].c_str()));
-      }break;
+        agg_field_specs.push_back(
+            TupleCellSpec(agg_fields[i].table_name(), agg_fields[i].field_name(), agg_expr_alias[i].c_str()));
+      } break;
     }
   }
 
-  for (size_t i = 0;  i < group_by_fields.size(); i++) {
-      group_by_field_specs.push_back(TupleCellSpec(group_by_fields[i].table_name(), group_by_fields[i].field_name()));
+  for (size_t i = 0; i < group_by_fields.size(); i++) {
+    group_by_field_specs.push_back(TupleCellSpec(group_by_fields[i].table_name(), group_by_fields[i].field_name()));
   }
-
 
   AggPhysicalOperator *agg_phy_oper = new AggPhysicalOperator(agg_types, agg_field_specs, group_by_field_specs);
 

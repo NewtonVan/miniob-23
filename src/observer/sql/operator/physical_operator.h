@@ -84,10 +84,7 @@ public:
 
   std::vector<std::unique_ptr<PhysicalOperator>> &children() { return children_; }
 
-  const Tuple *parent_tuple() const
-  {
-    return parent_tuple_;
-  }
+  const Tuple *parent_tuple() const { return parent_tuple_; }
 
   void set_parent_tuple(const Tuple *parent_tuple)
   {
@@ -99,5 +96,6 @@ public:
 
 protected:
   std::vector<std::unique_ptr<PhysicalOperator>> children_;
-  const Tuple *parent_tuple_ = nullptr;  // for sub query
+  const Tuple                                   *parent_tuple_             = nullptr;  // for sub query
+  bool                                           scan_tuple_must_be_empty_ = false;
 };

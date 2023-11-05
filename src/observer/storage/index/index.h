@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <cstdint>
 #include <stddef.h>
 #include <vector>
 
@@ -103,22 +104,4 @@ public:
    */
   virtual RC next_entry(RID *rid) = 0;
   virtual RC destroy()            = 0;
-};
-
-/**
- * @brief 记录multi idx和相关索引信息，在此前旧代码上不得已为之
- * @ingroup Index
- */
-class TableIndex
-{
-public:
-  TableIndex(std::vector<Index *> index_group, bool uniq) : index_group_(index_group), unique_(uniq) {}
-  bool is_unique() const { return unique_; }
-  bool is_conflict(Record &record);
-  bool is_conflict(const char *data);
-  bool interaction_group(std::vector<std::vector<std::string>> group);
-
-private:
-  std::vector<Index *> index_group_;
-  bool                 unique_ = false;
 };

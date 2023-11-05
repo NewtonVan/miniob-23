@@ -1,0 +1,11 @@
+CREATE TABLE Update_select_t2(id int, t_name char(10), col1 int, col2 float);
+
+insert into Update_select_t2 VALUES (6, 'Q', 2, 9.0);
+insert into Update_select_t2 VALUES (2, '58Q6K8C', 3, 7.0);
+insert into Update_select_t2 VALUES (1, '120OBQ7RZH', 7, 8.0);
+
+UPDATE Update_select_t2 SET t_name=64,col1=881.02 WHERE id=2;
+UPDATE Update_select_t2 SET t_name=-64.0,col2='9.02' WHERE id=1;
+UPDATE Update_select_t2 SET col1='01',col2=-5 WHERE id=6;
+
+select * from Update_select_t2;

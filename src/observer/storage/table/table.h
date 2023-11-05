@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/field/field_meta.h"
 #include "storage/index/index.h"
 #include "storage/table/table_meta.h"
+#include "storage/table/table_index.h"
 
 struct RID;
 class Record;
@@ -115,7 +116,7 @@ private:
 
   bool insert_valid_for_unique_indexes(Record &record);
 
-  bool update_valid_for_unique_indexes(const char *record);
+  bool update_valid_for_unique_indexes(char *record);
 
   RC update_null_mask(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas);
 

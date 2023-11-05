@@ -592,6 +592,10 @@ update_list:
 update_unit:
     ID EQ value
     {
+      $$ = new UpdateUnit($1, new ValueExpr(*$3));
+    }
+    | ID EQ sub_query_expr
+    {
       $$ = new UpdateUnit($1, $3);
     }
     ;
@@ -871,6 +875,14 @@ expression:
       $$=$1;
       $$->set_name($3);
     }
+    | ID DOT '*'
+    {
+      RelAttrSqlNode *attr = new RelAttrSqlNode;
+      attr->relation_name  = $1;
+      attr->attribute_name = "*";
+      $$ = new StarExprSqlNode(attr);
+      free($1);
+    }
     ;
 
 func_expr:
@@ -1055,7 +1067,25 @@ select_attr:
       RelAttrSqlNode *attr = new RelAttrSqlNode;
       attr->relation_name  = "";
       attr->attribute_name = "*";
-      $$->emplace_back(new RelAttrExprSqlNode(attr));
+      $$->emplace_back(new StarExprSqlNode(attr));
+    }
+    | '*' AS ID {
+      $$ = new std::vector<Expression *>;
+      RelAttrSqlNode *attr = new RelAttrSqlNode;
+      attr->relation_name  = "";
+      attr->attribute_name = "*";
+      StarExprSqlNode *star = new StarExprSqlNode(attr);
+      star->set_name($3);
+      $$->emplace_back(star);
+    }
+    | '*' ID {
+      $$ = new std::vector<Expression *>;
+      RelAttrSqlNode *attr = new RelAttrSqlNode;
+      attr->relation_name  = "";
+      attr->attribute_name = "*";
+      StarExprSqlNode *star = new StarExprSqlNode(attr);
+      star->set_name($2);
+      $$->emplace_back(star);
     }
     | expression_list {
       std::reverse($1->begin(), $1->end());

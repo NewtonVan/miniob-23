@@ -2,6 +2,6 @@
 #include <string>
 
 UpdateLogicalOperator::UpdateLogicalOperator(
-    Table *table, std::vector<Value> values, std::vector<std::string> field_names)
+    Table *table, std::vector<Expression *> values, std::vector<std::string> field_names)
     : table_(table), values_(values), field_names_(field_names)
 {}

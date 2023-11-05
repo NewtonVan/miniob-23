@@ -249,8 +249,8 @@ struct DeleteSqlNode
 struct UpdateUnit
 {
   std::string attribute_name;
-  Value       value;
-  explicit UpdateUnit(const char *name, Value *v) : attribute_name(name), value(*v) {}
+  Expression *value;
+  explicit UpdateUnit(const char *name, Expression *v) : attribute_name(name), value(v) {}
 };
 
 /**

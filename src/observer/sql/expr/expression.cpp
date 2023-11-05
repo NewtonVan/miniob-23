@@ -46,6 +46,12 @@ RC RelAttrExprSqlNode::get_value(const Tuple &tuple, Value &value) const
   return RC::INTERNAL;
 }
 
+RC StarExprSqlNode::get_value(const Tuple &tuple, Value &value) const
+{
+  LOG_ERROR("StarExprSqlNode only used as a container in parse stage");
+  return RC::INTERNAL;
+}
+
 RC ValueExpr::get_value(const Tuple &tuple, Value &value) const
 {
   value = value_;
@@ -193,7 +199,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   Value right_value;
 
   // 当是比较符号是EXISTS或NOT_EXISTS字段时，只需要返回是否存在
-  if(comp_ == SUB_EXISTS_OP || comp_ == SUB_NOT_EXISTS) {
+  if (comp_ == SUB_EXISTS_OP || comp_ == SUB_NOT_EXISTS) {
     assert(ExprType::SUBQUERYTYPE == right_->type());
     auto sub_query_expr = (const SubQueryExpression *)(right_.get());
     sub_query_expr->open_sub_query();
@@ -205,13 +211,13 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   }
 
   // 当是IN 或 NOT IN时，需要获取子查询的所有tuple的value，然后查看left_value是否存在
-  if(comp_ == SUB_IN_OP || comp_ == SUB_NOT_IN) {
+  if (comp_ == SUB_IN_OP || comp_ == SUB_NOT_IN) {
     RC rc = left_->get_value(tuple, left_value);
     if (RC::SUCCESS != rc) {
       return rc;
     }
     if (left_value.is_null()) {
-     // 目前默认 null 不在任何value list中
+      // 目前默认 null 不在任何value list中
       value.set_boolean(false);
       return RC::SUCCESS;
     }
@@ -234,7 +240,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     } else {
       assert(ExprType::SUBLISTTYPE == right_->type());
       auto list_expr = (const ListExpression *)(right_.get());
-      right_values = list_expr->get_tuple_cells();
+      right_values   = list_expr->get_tuple_cells();
     }
 
     auto has_null = [](const std::vector<Value> &values) {
@@ -246,7 +252,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
       return false;
     };
     bool res = CompOp::SUB_IN_OP == comp_ ? left_value.in_cells(right_values)
-                                : (has_null(right_values) ? false : left_value.not_in_cells(right_values));
+                                          : (has_null(right_values) ? false : left_value.not_in_cells(right_values));
     value.set_boolean(res);
     return RC::SUCCESS;
   }
@@ -300,17 +306,17 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     }
   }
 
-  if(ExprType::SUBQUERYTYPE != right_->type() && ExprType::SUBQUERYTYPE != left_->type()) {
+  if (ExprType::SUBQUERYTYPE != right_->type() && ExprType::SUBQUERYTYPE != left_->type()) {
     rc = left_->get_value(tuple, left_value);
 
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
-    return rc;
-  }
-  rc = right_->get_value(tuple, right_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-    return rc;
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+      return rc;
+    }
+    rc = right_->get_value(tuple, right_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
     }
   }
 
@@ -604,9 +610,9 @@ RC FuncExpr::try_get_value(Value &value) const
 
 RC SubQueryExpression::gen_plan()
 {
-  RC rc = RC::SUCCESS;
+  RC                                rc = RC::SUCCESS;
   std::unique_ptr<PhysicalOperator> tmp;
-  rc = PhysicalPlanGenerator::create(*sub_logical_top_oper_, tmp);
+  rc                    = PhysicalPlanGenerator::create(*sub_logical_top_oper_, tmp);
   sub_physical_op_oper_ = std::move(tmp);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to create physical operator. rc=%s", strrc(rc));
@@ -644,17 +650,47 @@ RC SubQueryExpression::get_value(const Tuple &tuple, Value &value) const
     return RC::INTERNAL;
   }
 
-//  select_sql_node_->select_expressions[0]->get_value(child_tuple,)
+  //  select_sql_node_->select_expressions[0]->get_value(child_tuple,)
   rc = child_tuple->cell_at(0, value);  // only need the first cell
   return rc;
 }
 
-RC SubQueryExpression::create_expression(const std::unordered_map<std::string, Table *> &table_map,
-    const std::vector<Table *> &tables, CompOp comp, Db *db) {
-  Stmt *stmt = nullptr;
-  RC rc = SelectStmt::create(db, *select_sql_node_, tables, table_map, true, stmt);
-  auto select_stmt = (SelectStmt*)(stmt);
-  if(select_stmt->use_project_exprs() && select_stmt->project_exprs().size() > 1 || select_stmt->query_fields().size() > 1) {
+RC SubQueryExpression::try_get_value(Value &value) const
+{
+  RC rc = sub_physical_op_oper_->next();
+  // TODO: hyq note
+  if (RC::RECORD_EOF == rc) {
+    value.set_null();
+  }
+  if (RC::SUCCESS != rc) {
+    return rc;
+  }
+  Tuple *child_tuple = sub_physical_op_oper_->current_tuple();
+  if (nullptr == child_tuple) {
+    LOG_WARN("failed to get current record. rc=%s", strrc(rc));
+    return RC::INTERNAL;
+  }
+
+  //  select_sql_node_->select_expressions[0]->get_value(child_tuple,)
+  rc = child_tuple->cell_at(0, value);  // only need the first cell
+  return rc;
+}
+
+RC SubQueryExpression::create_expression(
+    const std::unordered_map<std::string, Table *> &table_map, const std::vector<Table *> &tables, CompOp comp, Db *db)
+{
+  Stmt *stmt        = nullptr;
+  RC    rc          = SelectStmt::create(db, *select_sql_node_, tables, table_map, true, stmt);
+  if(rc != RC::SUCCESS) {
+    return rc;
+  }
+
+  if(stmt == nullptr) {
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+
+  auto  select_stmt = (SelectStmt *)(stmt);
+  if (select_stmt->project_exprs().size() > 1 || select_stmt->query_fields().size() > 1) {
     return RC::SUB_QUERY_MULTI_FIELDS;
   }
   this->set_sub_query_stmt((SelectStmt *)stmt);
@@ -666,31 +702,33 @@ RC SubQueryExpression::create_expression(const std::unordered_map<std::string, T
   return rc;
 }
 
-RC AggExpr::get_value(const Tuple &tuple, Value &value) const  {
+RC AggExpr::get_value(const Tuple &tuple, Value &value) const
+{
   // should pass in AggTuple
   ASSERT(tuple.type() == TupleType::AGG, "eval on non aggtuple");
   // use expr name to fetch cell in AggTuple
   // "*"
   TupleCellSpec spec("", "", name().c_str());
-  auto rc = tuple.find_cell(spec, value);
-  if(rc != RC::SUCCESS) {
+  auto          rc = tuple.find_cell(spec, value);
+  if (rc != RC::SUCCESS) {
     LOG_WARN("agg expr eval fail");
     return rc;
   }
   return RC::SUCCESS;
 }
 
-// revisit(lyq)  value_type may be null in some case, only possible to judge when AggPhysicalExecutor finish its execute_stage
-// following method just return a static predict of the value type if possible
-// most of time, just return undefined
-AttrType AggExpr::value_type() const {
-  if(agg_type() == AggType::COUNT_STAR ||agg_type() == AggType::COUNT_AGG) {
+// revisit(lyq)  value_type may be null in some case, only possible to judge when AggPhysicalExecutor finish its
+// execute_stage following method just return a static predict of the value type if possible most of time, just return
+// undefined
+AttrType AggExpr::value_type() const
+{
+  if (agg_type() == AggType::COUNT_STAR || agg_type() == AggType::COUNT_AGG) {
     return AttrType::INTS;
   }
   // arrive here we may not have field set(bug)
   // if(agg_type_ == AggType::AVG_AGG) {
-  //   ASSERT(field_.attr_type() == AttrType::INTS || field_.attr_type() == AttrType::FLOATS, "avg on non-arihmetic value.");
-  //   return AttrType::FLOATS;
+  //   ASSERT(field_.attr_type() == AttrType::INTS || field_.attr_type() == AttrType::FLOATS, "avg on non-arihmetic
+  //   value."); return AttrType::FLOATS;
   // }
   // return field_.attr_type();
 
