@@ -294,7 +294,8 @@ RC Table::update_record_uniq(Record &record, std::vector<Value> &values, std::ve
   return update_record(record, values, field_metas);
 }
 
-RC Table::update_null_mask(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas) {
+RC Table::update_null_mask(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas)
+{
   std::vector<int> value_idx(field_metas.size());
   const int        sys_field_num = table_meta_.sys_field_num();
   const int        field_num     = table_meta_.field_num();
@@ -309,8 +310,8 @@ RC Table::update_null_mask(Record &record, std::vector<Value> &values, std::vect
     }
   }
 
-  for(int i = 0; i < values.size(); i++) {
-    int idx = value_idx[i];
+  for (int i = 0; i < values.size(); i++) {
+    int              idx        = value_idx[i];
     const FieldMeta *null_field = table_meta_.null_mask_field();
     common::Bitmap   bitmap(record.data() + null_field->offset(), null_field->len());
 
@@ -337,11 +338,12 @@ RC Table::update_null_mask(Record &record, std::vector<Value> &values, std::vect
 
 RC Table::update_record(Record &record, std::vector<Value> &values, std::vector<const FieldMeta *> &field_metas)
 {
-  // 如果存在一个要需要更新为null的字段，才更新，主要因为update_null_mask内部逻辑复杂度较高，防止big-order-by big-write之类的case不过
-  for(int i = 0; i < values.size(); i++) {
-    if(values[i].attr_type() == NULLS) {
+  // 如果存在一个要需要更新为null的字段，才更新，主要因为update_null_mask内部逻辑复杂度较高，防止big-order-by
+  // big-write之类的case不过
+  for (int i = 0; i < values.size(); i++) {
+    if (values[i].attr_type() == NULLS) {
       RC tmp_rc;
-      if(RC::SUCCESS != ( tmp_rc = update_null_mask(record, values, field_metas))) {
+      if (RC::SUCCESS != (tmp_rc = update_null_mask(record, values, field_metas))) {
         return tmp_rc;
       }
       break;
@@ -670,6 +672,7 @@ RC Table::create_index(
   RC                   rc       = RC::SUCCESS;
   const int            idx_size = field_metas.size();
   std::vector<Index *> index_group(idx_size);
+  std::vector<int>     index_field_order(idx_size);
   for (int i = 0; i < idx_size; ++i) {
     Index *new_index = nullptr;
     rc               = create_index(trx, field_metas[i], index_names[i].c_str(), unique, new_index);
@@ -678,9 +681,11 @@ RC Table::create_index(
       return rc;
     }
     index_group[i] = new_index;
+    table_meta_.field(0);
+    index_field_order[i] = table_meta_.field_order(field_metas[i]->name());
   }
 
-  TableIndex idx(index_group, unique);
+  TableIndex idx(index_group, unique, &table_meta_, index_field_order);
   table_indexes_.push_back(std::move(idx));
 
   return rc;
@@ -751,7 +756,7 @@ bool hasCommonStringInRows(const std::vector<std::vector<std::string>> &rids)
   return false;
 }
 
-bool Table::update_valid_for_unique_indexes(const char *record)
+bool Table::update_valid_for_unique_indexes(char *record)
 {
   for (TableIndex &idx : table_indexes_) {
     if (idx.is_conflict(record)) {

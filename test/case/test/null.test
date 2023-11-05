@@ -4,3 +4,11 @@ INSERT INTO null_table5 VALUES(1,1);
 INSERT INTO null_table5 VALUES(1,1);
 INSERT INTO null_table5 VALUES(null,1);
 INSERT INTO null_table5 VALUES(null,2);
+select * from null_table5;
+
+CREATE TABLE null_table6(id int null, col1 int null, num int not null);
+CREATE UNIQUE INDEX index_id on null_table5(id, col1);
+INSERT INTO null_table6 VALUES(1,1, 1);
+INSERT INTO null_table6 VALUES(null,1, 1);
+INSERT INTO null_table6 VALUES(null,1, 1);
+select * from null_table6;
