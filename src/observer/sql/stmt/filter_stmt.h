@@ -67,22 +67,26 @@ public:
   const FilterObj &left() const { return left_; }
   const FilterObj &right() const { return right_; }
 
-  void set_left_unit(FilterUnit* unit) {
+  void set_left_unit(FilterUnit *unit)
+  {
     assert(CompOp::AND_OP == comp_ || CompOp::OR_OP == comp_);
     left_unit_ = unit;
   }
 
-  void set_right_unit(FilterUnit* unit) {
+  void set_right_unit(FilterUnit *unit)
+  {
     assert(CompOp::AND_OP == comp_ || CompOp::OR_OP == comp_);
     right_unit_ = unit;
   }
 
-  const FilterUnit* left_unit() const {
+  const FilterUnit *left_unit() const
+  {
     assert(CompOp::AND_OP == comp_ || CompOp::OR_OP == comp_);
     return left_unit_;
   }
 
-  const FilterUnit* right_unit() const {
+  const FilterUnit *right_unit() const
+  {
     assert(CompOp::AND_OP == comp_ || CompOp::OR_OP == comp_);
     return right_unit_;
   }
@@ -119,13 +123,15 @@ public:
       const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt);
 
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const std::vector<ComparisonExpr *> &conditions, int condition_num, FilterStmt *&stmt);
+      const std::vector<ComparisonExpr *>                 &conditions,
+      const std::unordered_map<std::string, Expression *> &parent_exprs, int condition_num, FilterStmt *&stmt);
 
   static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
       const ConditionSqlNode &condition, FilterUnit *&filter_unit);
 
   static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      ComparisonExpr *condition, FilterUnit *&filter_unit);
+      const std::unordered_map<std::string, Expression *> &parent_exprs, ComparisonExpr *condition,
+      FilterUnit *&filter_unit);
 
   static RC rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
       std::unordered_map<std::string, Table *> *tables, std::unique_ptr<Expression> &expr);

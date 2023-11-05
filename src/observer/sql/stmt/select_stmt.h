@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <cmath>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -47,7 +48,8 @@ public:
 
 public:
   static RC create(Db *db, const SelectSqlNode &select_sql, const std::vector<Table *> &parent_tables,
-      const std::unordered_map<std::string, Table *> &parent_table_map, bool is_sub_query, Stmt *&stmt);
+      const std::unordered_map<std::string, Table *>      &parent_table_map,
+      const std::unordered_map<std::string, Expression *> &parent_exprs, bool is_sub_query, Stmt *&stmt);
   // TODO(chen): handle alias issue
   static RC collectJoinTables(Db *db, GeneralRelationSqlNode *rel, std::vector<Table *> &tables,
       std::unordered_map<std::string, Table *> &table_map, std::unordered_map<std::string, std::string> &alias_map);
@@ -56,7 +58,8 @@ public:
   static RC collectQueryFieldsInExpression(
       Expression *select_expr, std::vector<RelAttrSqlNode> &query_attr, bool &field_only);
   static RC rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
-      std::unordered_map<std::string, Table *> *tables, Expression *old_expr, std::unique_ptr<Expression> &ret_expr);
+      std::unordered_map<std::string, Table *> *tables, Expression *old_expr, std::unique_ptr<Expression> &ret_expr,
+      std::unordered_map<std::string, Expression *> &expr_mapping);
   static RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
       const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field);
 
@@ -104,13 +107,14 @@ public:
   std::vector<std::unique_ptr<Expression>> &project_exprs() { return project_exprs_; }
 
 private:
-  std::vector<Field>                       query_fields_;
-  std::vector<Table *>                     tables_;
-  std::vector<std::unique_ptr<Expression>> project_exprs_;
-  FilterStmt                              *filter_stmt_       = nullptr;
-  JoinStmt                                *join_stmt_         = nullptr;
-  OrderByStmt                             *orderby_stmt_      = nullptr;
-  bool                                     use_project_exprs_ = false;
+  std::vector<Field>                            query_fields_;
+  std::vector<Table *>                          tables_;
+  std::vector<std::unique_ptr<Expression>>      project_exprs_;
+  std::unordered_map<std::string, Expression *> exprs_mapping_;
+  FilterStmt                                   *filter_stmt_       = nullptr;
+  JoinStmt                                     *join_stmt_         = nullptr;
+  OrderByStmt                                  *orderby_stmt_      = nullptr;
+  bool                                          use_project_exprs_ = false;
   // agg related
   bool                     is_agg_;
   std::vector<AggType>     select_agg_types_;

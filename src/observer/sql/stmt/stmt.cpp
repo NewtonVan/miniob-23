@@ -32,6 +32,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/load_data_stmt.h"
 #include "sql/stmt/calc_stmt.h"
 #include "sql/stmt/update_stmt.h"
+#include <string>
+#include <unordered_map>
 
 RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt)
 {
@@ -48,9 +50,10 @@ RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt)
       return DeleteStmt::create(db, sql_node.deletion, stmt);
     }
     case SCF_SELECT: {
-      std::vector<Table *> tables;
-      std::unordered_map<std::string, Table *> table_map;
-      return SelectStmt::create(db, sql_node.selection, tables, table_map, false, stmt);
+      std::vector<Table *>                          tables;
+      std::unordered_map<std::string, Table *>      table_map;
+      std::unordered_map<std::string, Expression *> exprs_mapping;
+      return SelectStmt::create(db, sql_node.selection, tables, table_map, exprs_mapping, false, stmt);
     }
 
     case SCF_EXPLAIN: {

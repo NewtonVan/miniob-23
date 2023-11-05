@@ -75,7 +75,8 @@ RC parse_rel_attr(Db *db, const std::unordered_map<std::string, Table *> &table_
     const RelAttrSqlNode &relation_attr, const std::vector<Table *> &tables, std::vector<Field> &query_fields);
 
 RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector<Table *> &parent_tables,
-    const std::unordered_map<std::string, Table *> &parent_table_map, bool is_sub_query, Stmt *&stmt)
+    const std::unordered_map<std::string, Table *>      &parent_table_map,
+    const std::unordered_map<std::string, Expression *> &parent_exprs, bool is_sub_query, Stmt *&stmt)
 {
   if (nullptr == db) {
     LOG_WARN("invalid argument. db is null");
@@ -83,9 +84,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
   }
 
   // collect tables in `from` statement
-  std::vector<Table *>                         tables;
-  std::unordered_map<std::string, std::string> alias2tables;
-  std::unordered_map<std::string, Table *>     table_map;
+  std::vector<Table *>                          tables;
+  std::unordered_map<std::string, std::string>  alias2tables;
+  std::unordered_map<std::string, Table *>      table_map;
+  std::unordered_map<std::string, Expression *> expr_mapping(parent_exprs.begin(), parent_exprs.end());
   if (select_sql.join_relation != nullptr) {
     std::unique_ptr<GeneralRelationSqlNode> rel = std::make_unique<GeneralRelationSqlNode>(select_sql.join_relation);
     if (RC::SUCCESS != collectJoinTables(db, rel.get(), tables, table_map, alias2tables)) {
@@ -274,7 +276,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
     for (Expression *old_expr : select_sql.select_expressions) {
       // rewrite all RelAttrNode to Field
       std::unique_ptr<Expression> new_expr;
-      auto rc = rewrite_attr_expr_to_field_expr(db, default_table, &table_map, old_expr, new_expr);
+      auto rc = rewrite_attr_expr_to_field_expr(db, default_table, &table_map, old_expr, new_expr, expr_mapping);
       new_select_expressions.push_back(std::move(new_expr));
     }
   } else {
@@ -376,7 +378,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
       } else {
         std::unique_ptr<Expression> select_expr;
         auto                        rc = rewrite_attr_expr_to_field_expr(
-            db, default_table, &table_map, select_sql.select_expressions[i], select_expr);
+            db, default_table, &table_map, select_sql.select_expressions[i], select_expr, expr_mapping);
         if (OB_FAIL(rc)) {
           LOG_WARN("fail to rewrite, idx: %d, rc: %s", i, strrc(rc));
           return rc;
@@ -398,6 +400,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
         default_table,
         &temp_table_map,
         select_sql.conditions,
+        expr_mapping,
         static_cast<int>(select_sql.conditions.size()),
         filter_stmt);
     if (rc != RC::SUCCESS) {
@@ -409,6 +412,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
         default_table,
         &table_map,
         select_sql.conditions,
+        expr_mapping,
         static_cast<int>(select_sql.conditions.size()),
         filter_stmt);
     if (rc != RC::SUCCESS) {
@@ -422,6 +426,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
       default_table,
       &table_map,
       select_sql.group_by.having.conds,
+      expr_mapping,
       static_cast<int>(select_sql.group_by.having.conds.size()),
       having_stmt);
 
@@ -487,6 +492,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
   select_stmt->orderby_stmt_ = orderby_stmt;
   select_stmt->join_stmt_    = static_cast<JoinStmt *>(join_stmt);
   select_stmt->project_exprs_.swap(new_select_expressions);
+  select_stmt->exprs_mapping_.swap(expr_mapping);
   stmt = select_stmt;
   return RC::SUCCESS;
 }
@@ -776,7 +782,8 @@ RC collect_field(Db *db, Table *default_table, std::unordered_map<std::string, T
 
 // TODO(chen): abstract as a common rewriter instead of owned by filter stmt and too hacky!
 RC SelectStmt::rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
-    std::unordered_map<std::string, Table *> *tables, Expression *old_expr, std::unique_ptr<Expression> &ret_expr)
+    std::unordered_map<std::string, Table *> *tables, Expression *old_expr, std::unique_ptr<Expression> &ret_expr,
+    std::unordered_map<std::string, Expression *> &expr_mapping)
 {
   RC rc = RC::SUCCESS;
 
@@ -805,19 +812,22 @@ RC SelectStmt::rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
       std::unique_ptr<Expression> right_expr;
 
       if (arithmetic->arithmetic_type() == ArithmeticExpr::Type::NEGATIVE) {
-        rc = rewrite_attr_expr_to_field_expr(db, default_table, tables, arithmetic->left().get(), left_expr);
+        rc = rewrite_attr_expr_to_field_expr(
+            db, default_table, tables, arithmetic->left().get(), left_expr, expr_mapping);
         if (rc != RC::SUCCESS) {
           LOG_WARN("cannnot rewrite right");
           return rc;
         }
       } else {
-        rc = rewrite_attr_expr_to_field_expr(db, default_table, tables, arithmetic->left().get(), left_expr);
+        rc = rewrite_attr_expr_to_field_expr(
+            db, default_table, tables, arithmetic->left().get(), left_expr, expr_mapping);
         if (rc != RC::SUCCESS) {
           LOG_WARN("cannnot rewrite right");
           return rc;
         }
 
-        rc = rewrite_attr_expr_to_field_expr(db, default_table, tables, arithmetic->right().get(), right_expr);
+        rc = rewrite_attr_expr_to_field_expr(
+            db, default_table, tables, arithmetic->right().get(), right_expr, expr_mapping);
         if (rc != RC::SUCCESS) {
           LOG_WARN("cannnot rewrite right");
           return rc;
@@ -841,7 +851,7 @@ RC SelectStmt::rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
       FuncExpr                                *func = static_cast<FuncExpr *>(old_expr);
       for (std::unique_ptr<Expression> &argv : func->args()) {
         std::unique_ptr<Expression> new_argv;
-        rewrite_attr_expr_to_field_expr(db, default_table, tables, argv.get(), new_argv);
+        rewrite_attr_expr_to_field_expr(db, default_table, tables, argv.get(), new_argv, expr_mapping);
         args.emplace_back(std::move(new_argv));
       }
       std::unique_ptr<Expression> new_func(new FuncExpr(func->func_type(), args));
@@ -879,6 +889,7 @@ RC SelectStmt::rewrite_attr_expr_to_field_expr(Db *db, Table *default_table,
     default: LOG_WARN("unsupported expr rewrite"); return RC::INTERNAL;
   }
   ret_expr->set_name(old_expr->name());
+  expr_mapping.insert(std::make_pair(ret_expr->name(), ret_expr.get()));
   return rc;
 }
 

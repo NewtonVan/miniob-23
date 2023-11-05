@@ -6,6 +6,8 @@
 #include "sql/stmt/single_table_stmt.h"
 #include "sql/stmt/stmt.h"
 #include "storage/field/field.h"
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 JoinStmt::JoinStmt(Stmt *left, Stmt *right, FilterStmt *join_condition)
@@ -62,8 +64,10 @@ RC JoinStmt::create(Db *db, std::unordered_map<std::string, Table *> &table_map,
     }
   }
 
-  FilterStmt *join_condition = nullptr;
-  rc = FilterStmt::create(db, nullptr, &table_map, join->conditions, join->conditions.size(), join_condition);
+  FilterStmt                                   *join_condition = nullptr;
+  std::unordered_map<std::string, Expression *> expr_mapping;
+  rc = FilterStmt::create(
+      db, nullptr, &table_map, join->conditions, expr_mapping, join->conditions.size(), join_condition);
   if (rc != RC::SUCCESS) {
     LOG_WARN("cannot construct filter stmt");
     return rc;

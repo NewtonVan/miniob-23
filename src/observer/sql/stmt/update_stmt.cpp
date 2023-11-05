@@ -23,6 +23,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/field/field_meta.h"
 #include "storage/table/table_meta.h"
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 UpdateStmt::UpdateStmt(Table *table, std::vector<Expression *> &values, int value_amount, FilterStmt *filter_stmt,
@@ -57,11 +58,12 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
 
-  const int                                update_fields_cnt = update.update_units.size();
-  std::vector<std::string>                 attributes;
-  std::vector<Expression *>                value_exprs;
-  std::unordered_map<std::string, Table *> table_map;
-  std::vector<Table *>                     tables;
+  const int                                     update_fields_cnt = update.update_units.size();
+  std::vector<std::string>                      attributes;
+  std::vector<Expression *>                     value_exprs;
+  std::unordered_map<std::string, Table *>      table_map;
+  std::vector<Table *>                          tables;
+  std::unordered_map<std::string, Expression *> expr_mapping;
   for (int i = 0; i < update_fields_cnt; ++i) {
     // check whether field match
     const TableMeta &table_meta = table->table_meta();
@@ -94,7 +96,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
       dst_expr = value_ptr;
     } else if (src_expr->type() == ExprType::SUBQUERYTYPE) {
       SubQueryExpression *sub_expr = static_cast<SubQueryExpression *>(src_expr);
-      RC                  rc       = sub_expr->create_expression(table_map, tables, CompOp::EQUAL_TO, db);
+      RC                  rc       = sub_expr->create_expression(table_map, tables, expr_mapping, CompOp::EQUAL_TO, db);
       if (rc != RC::SUCCESS) {
         return rc;
       }
@@ -113,7 +115,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
 
   FilterStmt *filter_stmt = nullptr;
   RC          rc          = FilterStmt::create(
-      db, table, &table_map, update.conditions, static_cast<int>(update.conditions.size()), filter_stmt);
+      db, table, &table_map, update.conditions, expr_mapping, static_cast<int>(update.conditions.size()), filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to create filter statement. rc=%d:%s", rc, strrc(rc));
     return rc;

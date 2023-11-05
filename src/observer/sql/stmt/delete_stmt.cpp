@@ -13,10 +13,12 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "common/log/log.h"
+#include "sql/expr/expression.h"
 #include "sql/stmt/delete_stmt.h"
 #include "sql/stmt/filter_stmt.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
+#include <unordered_map>
 
 DeleteStmt::DeleteStmt(Table *table, FilterStmt *filter_stmt) : table_(table), filter_stmt_(filter_stmt) {}
 
@@ -46,9 +48,15 @@ RC DeleteStmt::create(Db *db, const DeleteSqlNode &delete_sql, Stmt *&stmt)
   std::unordered_map<std::string, Table *> table_map;
   table_map.insert(std::pair<std::string, Table *>(std::string(table_name), table));
 
-  FilterStmt *filter_stmt = nullptr;
-  RC          rc          = FilterStmt::create(
-      db, table, &table_map, delete_sql.conditions, static_cast<int>(delete_sql.conditions.size()), filter_stmt);
+  FilterStmt                                   *filter_stmt = nullptr;
+  std::unordered_map<std::string, Expression *> expr_mapping;
+  RC                                            rc = FilterStmt::create(db,
+      table,
+      &table_map,
+      delete_sql.conditions,
+      expr_mapping,
+      static_cast<int>(delete_sql.conditions.size()),
+      filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to create filter statement. rc=%d:%s", rc, strrc(rc));
     return rc;

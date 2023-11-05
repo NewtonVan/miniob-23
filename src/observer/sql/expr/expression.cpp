@@ -30,6 +30,7 @@ See the Mulan PSL v2 for more details. */
 #include <cstring>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -676,20 +677,22 @@ RC SubQueryExpression::try_get_value(Value &value) const
   return rc;
 }
 
-RC SubQueryExpression::create_expression(
-    const std::unordered_map<std::string, Table *> &table_map, const std::vector<Table *> &tables, CompOp comp, Db *db)
+RC SubQueryExpression::create_expression(const std::unordered_map<std::string, Table *> &table_map,
+    const std::vector<Table *> &tables, const std::unordered_map<std::string, Expression *> &parent_exprs, CompOp comp,
+    Db *db)
 {
-  Stmt *stmt        = nullptr;
-  RC    rc          = SelectStmt::create(db, *select_sql_node_, tables, table_map, true, stmt);
-  if(rc != RC::SUCCESS) {
+  Stmt                                         *stmt = nullptr;
+  std::unordered_map<std::string, Expression *> expr_mapping(parent_exprs.begin(), parent_exprs.end());
+  RC rc = SelectStmt::create(db, *select_sql_node_, tables, table_map, expr_mapping, true, stmt);
+  if (rc != RC::SUCCESS) {
     return rc;
   }
 
-  if(stmt == nullptr) {
+  if (stmt == nullptr) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
 
-  auto  select_stmt = (SelectStmt *)(stmt);
+  auto select_stmt = (SelectStmt *)(stmt);
   if (select_stmt->project_exprs().size() > 1 || select_stmt->query_fields().size() > 1) {
     return RC::SUB_QUERY_MULTI_FIELDS;
   }

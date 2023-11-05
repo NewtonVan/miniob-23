@@ -450,7 +450,7 @@ public:
   RC gen_plan();
 
   RC create_expression(const std::unordered_map<std::string, Table *> &table_map, const std::vector<Table *> &tables,
-      CompOp comp = NO_OP, Db *db = nullptr);
+      const std::unordered_map<std::string, Expression *> &expr_mapping, CompOp comp = NO_OP, Db *db = nullptr);
 
 private:
   const SelectSqlNode              *select_sql_node_;

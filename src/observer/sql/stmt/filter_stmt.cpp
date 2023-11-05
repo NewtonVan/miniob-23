@@ -56,7 +56,8 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
 }
 
 RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const std::vector<ComparisonExpr *> &conditions, int condition_num, FilterStmt *&stmt)
+    const std::vector<ComparisonExpr *> &conditions, const std::unordered_map<std::string, Expression *> &parent_exprs,
+    int condition_num, FilterStmt *&stmt)
 {
   LOG_DEBUG("create filter stmt");
   RC rc = RC::SUCCESS;
@@ -65,7 +66,7 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
   FilterStmt *tmp_stmt = new FilterStmt();
   for (int i = 0; i < condition_num; i++) {
     FilterUnit *filter_unit = nullptr;
-    rc                      = create_filter_unit(db, default_table, tables, conditions[i], filter_unit);
+    rc                      = create_filter_unit(db, default_table, tables, parent_exprs, conditions[i], filter_unit);
     if (rc != RC::SUCCESS) {
       delete tmp_stmt;
       LOG_WARN("failed to create filter unit. condition index=%d", i);
@@ -209,7 +210,8 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
 }
 
 RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    ComparisonExpr *condition, FilterUnit *&filter_unit)
+    const std::unordered_map<std::string, Expression *> &expr_mappings, ComparisonExpr *condition,
+    FilterUnit *&filter_unit)
 {
   LOG_DEBUG("create filter unit");
   LOG_DEBUG("left type: %d, right type: %d", condition->left()->type(), condition->right()->type());
@@ -229,15 +231,25 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     return RC::INVALID_ARGUMENT;
   }
 
-  if(CompOp::AND_OP == comp || CompOp::OR_OP == comp) {
-    FilterUnit *left_unit = nullptr;
+  if (CompOp::AND_OP == comp || CompOp::OR_OP == comp) {
+    FilterUnit *left_unit  = nullptr;
     FilterUnit *right_unit = nullptr;
-    rc = create_filter_unit(db, default_table, tables, reinterpret_cast<ComparisonExpr*>(condition->left().get()), left_unit);
+    rc                     = create_filter_unit(db,
+        default_table,
+        tables,
+        expr_mappings,
+        reinterpret_cast<ComparisonExpr *>(condition->left().get()),
+        left_unit);
     if (rc != RC::SUCCESS) {
       LOG_ERROR("filter unit create left expression failed");
       return rc;
     }
-    rc = create_filter_unit(db, default_table, tables, reinterpret_cast<ComparisonExpr*>(condition->right().get()), right_unit);
+    rc = create_filter_unit(db,
+        default_table,
+        tables,
+        expr_mappings,
+        reinterpret_cast<ComparisonExpr *>(condition->right().get()),
+        right_unit);
     if (rc != RC::SUCCESS) {
       LOG_ERROR("filter unit create left expression failed");
       delete left_unit;
@@ -264,17 +276,22 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
         *static_cast<RelAttrExprSqlNode *>(condition->left().get())->get_rel_attr(),
         table,
         field);
-    if (rc != RC::SUCCESS) {
+    if (rc == RC::SUCCESS) {
+      FilterObj filter_obj;
+      filter_obj.init_attr(Field(table, field));
+      filter_unit->set_left(filter_obj);
+      left_attr_type =
+          table->table_meta()
+              .field(static_cast<RelAttrExprSqlNode *>(condition->left().get())->get_rel_attr()->attribute_name.c_str())
+              ->type();
+    } else if (expr_mappings.contains(condition->left()->name())) {
+      FilterObj filter_obj;
+      filter_obj.init_expr(expr_mappings.at(condition->left()->name()));
+      left_attr_type = expr_mappings.at(condition->left()->name())->value_type();
+    } else {
       LOG_WARN("cannot find attr");
       return rc;
     }
-    FilterObj filter_obj;
-    filter_obj.init_attr(Field(table, field));
-    filter_unit->set_left(filter_obj);
-    left_attr_type =
-        table->table_meta()
-            .field(static_cast<RelAttrExprSqlNode *>(condition->left().get())->get_rel_attr()->attribute_name.c_str())
-            ->type();
   } else if (condition->left()->type() == ExprType::VALUE) {
     LOG_DEBUG("FilterObj filter_obj set value");
     FilterObj filter_obj;
@@ -293,13 +310,13 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_expr(condition->left().get());
     filter_unit->set_left(filter_obj);
-  } else if(condition->left()->type() == ExprType::SUBQUERYTYPE) {
+  } else if (condition->left()->type() == ExprType::SUBQUERYTYPE) {
     SubQueryExpression *sub_query_expr = static_cast<SubQueryExpression *>(condition->left().get());
-    if(sub_query_expr->get_select_sql_node()->select_expressions.size() > 1) {
+    if (sub_query_expr->get_select_sql_node()->select_expressions.size() > 1) {
       return RC::SUB_QUERY_MULTI_FIELDS;
     }
-    RC rc = sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, comp, db);
-    if(rc != RC::SUCCESS) {
+    RC rc = sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, expr_mappings, comp, db);
+    if (rc != RC::SUCCESS) {
       return rc;
     }
     FilterObj filter_obj;
@@ -307,7 +324,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_unit->set_left(filter_obj);
   } else if (condition->left()->type() == ExprType::AGG) {
     auto rc = rewrite_attr_expr_to_field_expr(db, default_table, tables, condition->left());
-    if(rc != RC::SUCCESS) {
+    if (rc != RC::SUCCESS) {
       // we may ecounter bad agg in having or where clause
       return rc;
     }
@@ -330,17 +347,23 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
         *static_cast<RelAttrExprSqlNode *>(condition->right().get())->get_rel_attr(),
         table,
         field);
-    if (rc != RC::SUCCESS) {
+    if (rc == RC::SUCCESS) {
+      FilterObj filter_obj;
+      filter_obj.init_attr(Field(table, field));
+      filter_unit->set_right(filter_obj);
+      right_attr_type =
+          table->table_meta()
+              .field(
+                  static_cast<RelAttrExprSqlNode *>(condition->right().get())->get_rel_attr()->attribute_name.c_str())
+              ->type();
+    } else if (expr_mappings.contains(condition->right()->name())) {
+      FilterObj filter_obj;
+      filter_obj.init_expr(expr_mappings.at(condition->right()->name()));
+      left_attr_type = expr_mappings.at(condition->right()->name())->value_type();
+    } else {
       LOG_WARN("cannot find attr");
       return rc;
     }
-    FilterObj filter_obj;
-    filter_obj.init_attr(Field(table, field));
-    filter_unit->set_right(filter_obj);
-    right_attr_type =
-        table->table_meta()
-            .field(static_cast<RelAttrExprSqlNode *>(condition->right().get())->get_rel_attr()->attribute_name.c_str())
-            ->type();
   } else if (condition->right()->type() == ExprType::VALUE) {
     LOG_DEBUG("filter_obj.init_value(condition.right_value)");
     FilterObj filter_obj;
@@ -359,13 +382,13 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_expr(condition->right().get());
     filter_unit->set_right(filter_obj);
-  } else if(condition->right()->type() == ExprType::SUBQUERYTYPE) {
+  } else if (condition->right()->type() == ExprType::SUBQUERYTYPE) {
     SubQueryExpression *sub_query_expr = static_cast<SubQueryExpression *>(condition->right().get());
-    if(sub_query_expr->get_select_sql_node()->select_expressions.size() > 1) {
+    if (sub_query_expr->get_select_sql_node()->select_expressions.size() > 1) {
       return RC::SUB_QUERY_MULTI_FIELDS;
     }
-    RC rc = sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, comp, db);
-    if(rc != RC::SUCCESS) {
+    RC rc = sub_query_expr->create_expression(*tables, std::vector<Table *>{default_table}, expr_mappings, comp, db);
+    if (rc != RC::SUCCESS) {
       return rc;
     }
     FilterObj filter_obj;
@@ -375,9 +398,9 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_expr(condition->right().get());
     filter_unit->set_right(filter_obj);
-  } else if(condition->right()->type() == ExprType::AGG) {
+  } else if (condition->right()->type() == ExprType::AGG) {
     auto rc = rewrite_attr_expr_to_field_expr(db, default_table, tables, condition->right());
-    if(rc != RC::SUCCESS) {
+    if (rc != RC::SUCCESS) {
       // we may ecounter bad agg in having or where clause
       return rc;
     }
@@ -385,8 +408,8 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_obj.init_expr(condition->right().get());
     filter_unit->set_right(filter_obj);
   } else {
-      LOG_WARN("unsupported right expr, %d", condition->right()->type());
-      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    LOG_WARN("unsupported right expr, %d", condition->right()->type());
+    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
   }
 
   LOG_DEBUG("filter_unit->left().value.attr_type(): %d, filter_unit->right().value.attr_type(): %d", filter_unit->left().value.attr_type(), filter_unit->right().value.attr_type());
@@ -483,26 +506,26 @@ RC FilterStmt::rewrite_attr_expr_to_field_expr(
     } break;
     case ExprType::AGG: {
       LOG_DEBUG("Expr is agg expr");
-      AggExpr *agg_expr = static_cast<AggExpr *>(expr.get());
-      Table           *table = nullptr;
-      const FieldMeta *field = nullptr;
+      AggExpr         *agg_expr = static_cast<AggExpr *>(expr.get());
+      Table           *table    = nullptr;
+      const FieldMeta *field    = nullptr;
 
-      if(agg_expr->rel_attr() == nullptr) {
+      if (agg_expr->rel_attr() == nullptr) {
         return RC::BAD_AGG;
       }
       // special case: select count(*)
-      if(agg_expr->agg_type() == AggType::COUNT_STAR) {
+      if (agg_expr->agg_type() == AggType::COUNT_STAR) {
         ASSERT(strcmp(agg_expr->rel_attr()->attribute_name.c_str(), "*") == 0, "count star inconsistent");
         agg_expr->set_field(Field(nullptr, nullptr));
       } else {
-        rc = get_table_and_field(db, default_table, tables, *agg_expr->rel_attr() , table, field);
+        rc = get_table_and_field(db, default_table, tables, *agg_expr->rel_attr(), table, field);
         if (rc != RC::SUCCESS) {
           LOG_WARN("cannot find attr");
           return rc;
         }
         agg_expr->set_field(Field(table, field));
       }
-    }break;
+    } break;
     default: {
       LOG_DEBUG("type: %d, no need to rewrite", expr->type());
     }
