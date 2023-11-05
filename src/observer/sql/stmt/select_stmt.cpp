@@ -108,6 +108,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
       tables.push_back(table);
       table_map.insert(std::pair<std::string, Table *>(select_sql.relations[i].relation, table));
       if (!select_sql.relations[i].alias.empty()) {
+        if (table_map.contains(select_sql.relations[i].alias) &&
+            table_map[select_sql.relations[i].alias]->table_id() != table->table_id()) {
+          LOG_WARN("invalid alias: %s", select_sql.relations[i].alias.c_str());
+          return RC::INVALID_ARGUMENT;
+        }
         table_map.insert(std::pair<std::string, Table *>(select_sql.relations[i].alias, table));
         alias2tables.insert(
             std::pair<std::string, std::string>(select_sql.relations[i].alias, select_sql.relations[i].relation));
@@ -489,11 +494,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, const std::vector
   select_stmt->project_exprs_.swap(new_select_expressions);
 
   // for create-table-select
-  if(select_sql.is_create_table_select_stmt && !select_sql.create_table_select_table_name.empty()) {
-    select_stmt->is_create_table_select_stmt = select_sql.is_create_table_select_stmt;
-    select_stmt->db = db;
+  if (select_sql.is_create_table_select_stmt && !select_sql.create_table_select_table_name.empty()) {
+    select_stmt->is_create_table_select_stmt     = select_sql.is_create_table_select_stmt;
+    select_stmt->db                              = db;
     select_stmt->create_table_select_table_name_ = select_sql.create_table_select_table_name;
-    select_stmt->table_select_attr_infos_ = select_sql.table_select_attr_infos;
+    select_stmt->table_select_attr_infos_        = select_sql.table_select_attr_infos;
   }
 
   stmt = select_stmt;
