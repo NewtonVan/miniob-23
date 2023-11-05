@@ -1,0 +1,14 @@
+create table create_table_select_t1(id int, age int, col int);
+insert into create_table_select_t1 values (1, 2, 3);
+insert into create_table_select_t1 values (4, 5, 6);
+
+
+create table create_table_select_t2(id int, ega int) select id, age, col from create_table_select_t1;
+-- sort select * from create_table_select_t2;
+
+create table create_table_select_t3(id int, ega int not null) select id, age from create_table_select_t1;
+
+create table create_table_select_t4(id int, sum int) select id, age+col as sum from create_table_select_t1;
+-- sort select * from create_table_select_t4;
+
+create table create_table_select_t5(id int, age+col int) select id, age+col  from create_table_select_t1;

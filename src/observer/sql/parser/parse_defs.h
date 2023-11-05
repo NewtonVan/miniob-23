@@ -137,7 +137,8 @@ enum AggFuncType
   MIN_FUNC,
   AVG_FUNC,
   COUNT_FUNC,
-  SUM_FUNC
+  SUM_FUNC,
+  INVALID_AGG_FUNC
 };
 
 enum AggType
@@ -178,13 +179,14 @@ typedef struct OrderBy
   int            order;  // 0:asc, 1:desc
 } OrderBy;
 
-
-typedef struct Having {
-  std::vector<ComparisonExpr *>  conds;
-}Having;
-typedef struct GroupBy {
+typedef struct Having
+{
+  std::vector<ComparisonExpr *> conds;
+} Having;
+typedef struct GroupBy
+{
   std::vector<RelAttrSqlNode> attrs;
-  Having having;
+  Having                      having;
 } GroupBy;
 
 /**
@@ -221,12 +223,12 @@ struct SelectSqlNode
   std::vector<Expression *>           select_expressions;  ///< 记录含有表达式点select clause,
   std::vector<AggregationFuncSqlNode> agg_funcs;           ///< 与attributes只有一个可行
   GroupBy                             group_by;
-  bool                                is_create_table_select_stmt;  /// 是否是create-table-select-stmt，为了在create select plan里加上新的insert算子
-  std::string                         create_table_select_table_name;
-  std::vector<AttrInfoSqlNode>        table_select_attr_infos;
+  bool is_create_table_select_stmt;  /// 是否是create-table-select-stmt，为了在create select plan里加上新的insert算子
+  std::string                  create_table_select_table_name;
+  std::vector<AttrInfoSqlNode> table_select_attr_infos;
   // 没用到
-  ComparisonExpr *                    sub_query_condition_expr; /// 子查询中特有的条件表达式，是一颗表达式树
-  bool                                have_sub_query_condition_expr;
+  ComparisonExpr *sub_query_condition_expr;  /// 子查询中特有的条件表达式，是一颗表达式树
+  bool            have_sub_query_condition_expr;
 };
 
 /**

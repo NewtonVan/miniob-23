@@ -129,7 +129,6 @@ MIN                                     RETURN_TOKEN(MIN);
 MAX                                     RETURN_TOKEN(MAX);
 AVG                                     RETURN_TOKEN(AVG);
 COUNT                                   RETURN_TOKEN(COUNT);
-SUM                                     RETURN_TOKEN(SUM);
 IS                                      RETURN_TOKEN(IS);
 NOT                                     RETURN_TOKEN(NOT);
 NULLABLE                                RETURN_TOKEN(NULLABLE);
