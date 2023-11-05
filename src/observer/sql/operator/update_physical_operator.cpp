@@ -43,7 +43,9 @@ RC UpdatePhysicalOperator::open(Trx *trx)
   trx_ = trx;
   // gen value
   rc = gen_values();
-  if (rc != RC::SUCCESS) {
+  if (rc == RC::SUB_QUERY_MULTI_TUPLES) {
+    scan_tuple_must_be_empty_ = true;
+  } else if (rc != RC::SUCCESS) {
     LOG_WARN("failed to generate values: %s", strrc(rc));
     return rc;
   }
@@ -68,7 +70,7 @@ RC UpdatePhysicalOperator::gen_values()
       if (RC::SUCCESS == (rc = expr->try_get_value(tmp))) {
         LOG_WARN("sub query return multi value in update");
         expr->close_sub_query();
-        return RC::INTERNAL;
+        return RC::SUB_QUERY_MULTI_TUPLES;
       }
     } else {
       expr->close_sub_query();
@@ -118,6 +120,11 @@ RC UpdatePhysicalOperator::next()
   PhysicalOperator *child        = children_[0].get();
   const int         value_amount = value_exprs_.size();
   while (RC::SUCCESS == (rc = child->next())) {
+    if (scan_tuple_must_be_empty_) {
+      // sub query return multi tuples, and scan get nothing, should return success
+      LOG_WARN("multi tuple returned from subquery, scan result should be empty");
+      return RC::SUB_QUERY_MULTI_TUPLES;
+    }
     Tuple *tuple = child->current_tuple();
     if (nullptr == tuple) {
       LOG_WARN("failed to get current record: %s", strrc(rc));

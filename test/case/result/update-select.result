@@ -1,0 +1,7 @@
+CREATE TABLE Update_select_t1(id int, t_name char(10), col1 int, col2 int);
+CREATE TABLE Update_select_t2(id int, t_name char(10), col1 int, col2 int);
+insert into Update_select_t1 VALUES (8, 'VNB55EB', 5, 2);
+insert into Update_select_t1 VALUES (2, 'E', 4, 1);
+insert into Update_select_t1 VALUES (5, 'QPRVNUS7T', 5, 5);
+
+UPDATE Update_select_t2 SET t_name=(select Update_select_t1.t_name from Update_select_t1 where Update_select_t1.id=7) WHERE col1=3 and col2=8;
