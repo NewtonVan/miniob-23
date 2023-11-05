@@ -104,10 +104,10 @@ public:
   std::vector<std::unique_ptr<Expression>> &project_exprs() { return project_exprs_; }
 
   // create-table-select
-  bool                                      use_create_table_select_stmt() const { return is_create_table_select_stmt; }
-  Db*                                       DB() const { return db; }
-  std::string                               create_table_select_table_name() { return create_table_select_table_name_; }
-  std::vector<AttrInfoSqlNode>&             table_select_attr_infos() { return table_select_attr_infos_; }
+  bool                          use_create_table_select_stmt() const { return is_create_table_select_stmt; }
+  Db                           *DB() const { return db; }
+  std::string                   create_table_select_table_name() { return create_table_select_table_name_; }
+  std::vector<AttrInfoSqlNode> &table_select_attr_infos() { return table_select_attr_infos_; }
 
 private:
   std::vector<Field>                       query_fields_;
@@ -132,10 +132,10 @@ private:
 
   std::vector<Field> group_by_fields_;
   // actually a filter stmt underlying
-  HavingStmt* having_stmt_;
+  HavingStmt *having_stmt_;
 
-  bool is_create_table_select_stmt;
-  Db* db;
-  string create_table_select_table_name_;
-  std::vector<AttrInfoSqlNode>        table_select_attr_infos_;
+  bool                         is_create_table_select_stmt;
+  Db                          *db;
+  string                       create_table_select_table_name_;
+  std::vector<AttrInfoSqlNode> table_select_attr_infos_;
 };

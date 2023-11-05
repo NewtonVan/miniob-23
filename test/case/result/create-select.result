@@ -1,0 +1,11 @@
+ega	id	age	col
+NULL	1	2	3
+NULL	4	5	6
+
+failure
+
+id	sum
+1	5
+4	11
+
+failure

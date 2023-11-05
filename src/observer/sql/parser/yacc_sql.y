@@ -86,7 +86,6 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         MAX
         AVG
         COUNT
-        SUM
         STRING_T
         FLOAT_T
         TEXT_T
@@ -198,6 +197,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <rel_attr_list>       agg_field_list;
 %type <rel_attr_list>       rel_attr_list
 %type <expression>          expression
+%type <expression>          expression_alias
 %type <func_args>           length_args
 %type <func_args>           round_args
 %type <func_args>           date_format_args
@@ -818,7 +818,34 @@ expression_list:
       }
       $$->emplace_back($1);
     }
+    | expression_alias {
+      $$ = new std::vector<Expression*>;
+      $$->emplace_back($1);
+    }
+    | expression_alias COMMA expression_list
+    {
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<Expression *>;
+      }
+      $$->emplace_back($1);
+    }
     ;
+
+expression_alias:
+    expression ID
+    {
+      $$ = $1;
+      $$->set_name($2);
+    }
+    | expression AS ID
+    {
+      $$ = $1;
+      $$->set_name($3);
+    }
+    ;
+
 expression:
     expression '+' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
@@ -848,48 +875,18 @@ expression:
       $$ = new RelAttrExprSqlNode($1);
       $$->set_name($1->name());
     }
-    | rel_attr ID {
-      $$ = new RelAttrExprSqlNode($1, $2);
-      $$->set_name($2);
-    }
-    | rel_attr AS ID {
-      $$ = new RelAttrExprSqlNode($1, $3);
-      $$->set_name($3);
-    }
     | func_expr {
       $$ = $1;
       $$->set_name(token_name(sql_string, &@$));
-    }
-    | func_expr ID {
-      $$ = $1;
-      $$->set_name($2);
-    }
-    | func_expr AS ID {
-      $$ = $1;
-      $$->set_name($3);
     }
     | sub_query_expr {
       $$ = $1;
       $$->set_name(token_name(sql_string, &@$));
     }
-    | sub_query_expr AS ID {
-      $$ = $1;
-      $$->set_name($3);
-    }
     | agg_expr
     {
       $$=$1;
       $$->set_name(token_name(sql_string, &@$));
-    }
-    | agg_expr ID
-    {
-      $$=$1;
-      $$->set_name($2);
-    }
-    | agg_expr AS ID
-    {
-      $$=$1;
-      $$->set_name($3);
     }
     | ID DOT '*'
     {
@@ -1023,9 +1020,15 @@ agg_func:
     {
        $$=COUNT_FUNC;
     }
-    | SUM
+    | ID
     {
-       $$=SUM_FUNC;
+       std::string func_name($1);
+       if (common::str_to_lower(func_name) == "sum") {
+        $$=SUM_FUNC;
+       } else {
+        $$=INVALID_AGG_FUNC;
+       }
+       free($1);
     }
     ;
 
