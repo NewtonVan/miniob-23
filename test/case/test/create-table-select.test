@@ -1,6 +1,13 @@
 不会出现两个表的字段类型不一致
 有比较简单的join
 
+1. 测试制定char长度的
+CREATE TABLE ssq_11(id int, age int, name char(20));
+INSERT INTO ssq_11 VALUES (1, 4, 'aasdasdasdasdasdasd');
+create table ttt33 as select * from ssq_11;
+select * from ttt33;
+
+2. 测试基本的create table select的
 CREATE TABLE ssq_1(id int, age int, name char);
 CREATE TABLE ssq_2(id int, age int, name char);
 CREATE TABLE ssq_3(id int, age int, name char);
@@ -12,18 +19,52 @@ INSERT INTO ssq_2 VALUES (1, 2, 'd');
 INSERT INTO ssq_2 VALUES (2, 7, 'e');
 INSERT INTO ssq_2 VALUES (5, 3, 'f');
 
-create table create_table_select_t6 as select ssq_1.id, ssq_1.age, ssq_2.name from ssq_1, ssq_2 where ssq_1.id=ssq_2.id;
-
-create table create_table_select_t10 as select ssq_1.id + 2, ssq_1.age, ssq_2.name from ssq_1, ssq_2 where ssq_1.id=ssq_2.id;
-
-create table create_table_select_t1 as select sum(t1.id) + max(t1.id), avg(t1.age) + min(t1.age) from ssq_1 t1, ssq_2 t2 where t1.id=t2.id;
-
-select * from create_table_select_t6;
-select * from create_table_select_t10;
+create table create_table_select_t1 as select ssq_1.id, ssq_1.age, ssq_1.name from ssq_1, ssq_2 where ssq_1.id=ssq_2.id;
 select * from create_table_select_t1;
 
-select * from ssq_1;
+create table create_table_select_t2 as select ssq_1.id + 2, ssq_1.age, ssq_2.name from ssq_1, ssq_2 where ssq_1.id=ssq_2.id;
+select * from create_table_select_t2;
 
+create table create_table_select_t3 as select sum(t1.id) + max(t1.id), avg(t1.age) + min(t1.age) from ssq_1 t1, ssq_2 t2 where t1.id=t2.id;
+select * from create_table_select_t3;
+
+3. 线上没过的case
+create table create_table_select_t4(id int, age int) select id, age from create_table_select_t1;
+select count(*) from create_table_select_t3;
+- 110
+
+create table create_table_select_t5 as select t1.id, t1.age, t2.name from ssq_1 t1, ssq_2 t2 where t1.id=t2.id;
+select * from create_table_select_t5;
+select count(*) from create_table_select_t5;
+select count(id) from create_table_select_t5;
+- 143
++ FAILURE
+
+4. 新增的case
+create table create_table_select_t6(id int, age int, col int);
+INSERT INTO create_table_select_t6 values (1, 2, 3);
+INSERT INTO create_table_select_t6 values (4, 5, 6);
+
+create table create_table_select_t77(id int, ega int) select id, age, col from create_table_select_t1;
+select * from create_table_select_t7;
+
+create table create_table_select_t8(id int, ega int) select create_table_select_t6.id, create_table_select_t6.age, col from create_table_select_t6;
+select * from create_table_select_t8;
+
+create table create_table_select_t33(id int, ega int not null) select id, age from create_table_select_t6;
+select * from create_table_select_t33;
+
+create table create_table_select_t9(id int, sum int) select id, age+col as sum from create_table_select_t6;
+select * from create_table_select_t9;
+
+create table create_table_select_t10(id int, age+col int) select id, age+col  from create_table_select_t6;
+
+create table create_table_select_t11(id int, summ char(10)) select id, age+col as summ from create_table_select_t6;
+select * from create_table_select_t11;
+
+
+
+5. 有关function表达式的
 -- echo 1. create table
 create table t_group_by (id int, score float, name char);
 create table t_group_by_2 (id int, age int);
@@ -44,48 +85,20 @@ insert into t_group_by_2 values(3, 20);
 insert into t_group_by_2 values(3, 40);
 insert into t_group_by_2 values(4, 20);
 
--- echo 3. primary group by
--- sort select id, avg(score) from t_group_by group by id;
+create table g1 as select id, avg(score) from t_group_by group by id;
+select * from g1;
 
--- sort select name, min(id), max(score) from t_group_by group by name;
+create table g2 as select name, min(id), max(score) from t_group_by group by name;
+select * from g2;
 
--- sort select id, name, avg(score) from t_group_by group by id, name;
+create table g3 as select id, name, avg(score) from t_group_by group by id, name;
+select * from g3;
 
--- echo 4. with where condition
--- sort select id, avg(score) from t_group_by where id>2 group by id;
+create table g5 as select id, avg(score) as sc from t_group_by where id>2 group by id;
+select * from g5;
 
--- sort select name, count(id), max(score) from t_group_by where name > 'a' and id>=0 group by name;
+create table g55 as select name, count(id), max(score) from t_group_by where name > 'a' and id>=0 group by name;
+select * from g55;
 
--- echo 5. multi table
-create table text_ttt as select t_group_by.id, t_group_by.name, avg(t_group_by.score), avg(t_group_by_2.age) from t_group_by, t_group_by_2 where t_group_by.id=t_group_by_2.id group by t_group_by.id, t_group_by.name;
-
-create table create_table_select_t3(id int, age int) select id, age from create_table_select_t1;
-select count(*) from create_table_select_t3;
-- 110
-
-create table create_table_select_t1(id int, age int, col int);
-INSERT INTO create_table_select_t1 values (1, 2, 3);
-INSERT INTO create_table_select_t1 values (4, 5, 6);
-
-create table create_table_select_t2(id int, ega int) select id, age, col from create_table_select_t1;
--- sort select * from create_table_select_t2;
-
-create table create_table_select_t33(id int, ega int not null) select id, age from create_table_select_t1;
-select * from create_table_select_t33;
-
-create table create_table_select_t4(id int, sum int) select id, age+col as sum from create_table_select_t1;
--- sort select * from create_table_select_t4;
-
-create table create_table_select_t5(id int, age+col int) select id, age+col  from create_table_select_t1;
-
-create table create_table_select_t44(id int, summ char(10)) select id, age+col as summ from create_table_select_t1;
-select * from create_table_select_t44;
-
-create table create_table_select_t7 as select t1.id, t1.age, t2.name from ssq_1 t1, ssq_2 t2 where t1.id=t2.id;
-select * from create_table_select_t6;
-select count(*) from create_table_select_t6;
-select count(id) from create_table_select_t6;
-- 143
-+ FAILURE
-
-
+create table g6 as select t_group_by.id, t_group_by.name, avg(t_group_by.score), avg(t_group_by_2.age) from t_group_by, t_group_by_2 where t_group_by.id=t_group_by_2.id group by t_group_by.id, t_group_by.name;
+select * from g6;

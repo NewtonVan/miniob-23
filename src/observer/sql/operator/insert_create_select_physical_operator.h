@@ -31,8 +31,9 @@ public:
 
   RC insert_record(std::vector<Value>&& values);
 
-  void create_table_for_exprs(int& left_not_in_right_count);
-  void create_table_for_fields(int& left_not_in_right_count);
+  void build_attrs_for_exprs(std::vector<AttrInfoSqlNode>& new_attr_infos, int& left_not_in_right_count);
+  void build_attrs_for_fields(std::vector<AttrInfoSqlNode>& new_attr_infos, int& left_not_in_right_count);
+  void create_table(std::vector<AttrInfoSqlNode>& new_attr_infos);
 
 private:
   Db* db_;
