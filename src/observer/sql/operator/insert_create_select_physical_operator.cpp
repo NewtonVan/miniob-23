@@ -10,6 +10,19 @@
 
 using namespace std;
 
+std::string extractFieldName(const std::string& input) {
+  if(input.find(')') < input.size()) {
+    return input;
+  }
+  size_t dotPosition = input.find('.');
+
+  if (dotPosition != std::string::npos && dotPosition < input.length() - 1) {
+    return input.substr(dotPosition + 1);
+  }
+
+  return "";
+}
+
 RC InsertCreateSelectPhysicalOperator::open(Trx *trx)
 {
   if (children_.empty()) {
@@ -90,7 +103,7 @@ void InsertCreateSelectPhysicalOperator::create_table_for_exprs(int& left_not_in
 
   AttrInfoSqlNode attr;
   for(const auto& expr : projectOp->expressions()) {
-    attr.name = expr->name();
+    attr.name = extractFieldName(expr->name());
     attr.length = 4;
     attr.null = true;
     attr.type = expr->value_type();
@@ -119,7 +132,7 @@ void InsertCreateSelectPhysicalOperator::create_table_for_fields(int& left_not_i
 
   AttrInfoSqlNode attr;
   for(const auto& field : fields_) {
-    attr.name = field.meta()->name();
+    attr.name = extractFieldName(field.meta()->name());
     attr.length = field.meta()->len();
     attr.null = field.meta()->nullable();
     attr.type = field.meta()->type();

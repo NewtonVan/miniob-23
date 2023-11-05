@@ -1,3 +1,6 @@
+不会出现两个表的字段类型不一致
+有比较简单的join
+
 CREATE TABLE ssq_1(id int, age int, name char);
 CREATE TABLE ssq_2(id int, age int, name char);
 CREATE TABLE ssq_3(id int, age int, name char);
@@ -77,5 +80,12 @@ create table create_table_select_t5(id int, age+col int) select id, age+col  fro
 
 create table create_table_select_t44(id int, summ char(10)) select id, age+col as summ from create_table_select_t1;
 select * from create_table_select_t44;
+
+create table create_table_select_t7 as select t1.id, t1.age, t2.name from ssq_1 t1, ssq_2 t2 where t1.id=t2.id;
+select * from create_table_select_t6;
+select count(*) from create_table_select_t6;
+select count(id) from create_table_select_t6;
+- 143
++ FAILURE
 
 
